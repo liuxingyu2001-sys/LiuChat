@@ -1,0 +1,41 @@
+name: LiuChat
+version: '${project.version}'
+main: com.liu.liuchat.LiuChat
+api-version: '1.21'
+authors: [liuxingyu2001]
+description: 聊天插件 —— 自定义格式 / 禁言 / 冷却 / 重复检测 / 私聊（零第三方框架依赖）
+website: 'https://github.com/liuxingyu2001'
+folia-supported: false
+
+softdepend:
+  - PlaceholderAPI
+
+# sqlite-jdbc 交给 Paper 自己下载并挂到本插件类加载器（不进 jar）；
+# Spigot 服务端自带 org.sqlite 驱动，两边都能跑。
+libraries:
+  - org.xerial:sqlite-jdbc:3.47.0.0
+
+commands:
+  liuchat:
+    description: LiuChat 主命令
+    aliases: [lc]
+
+permissions:
+  liuchat.mute:
+    description: 禁言玩家
+    default: op
+  liuchat.unmute:
+    description: 解除禁言
+    default: op
+  liuchat.reload:
+    description: 重载配置
+    default: op
+  liuchat.tell:
+    description: 私聊
+    default: true
+  liuchat.color:
+    description: 聊天中使用 & 颜色代码
+    default: false
+  liuchat.cooldown.bypass:
+    description: 免除聊天冷却
+    default: false
