@@ -1,0 +1,149 @@
+package com.liu.liuchat.storage;
+
+import com.liu.liuchat.model.MuteData;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Level;
+
+/**
+ * JDBC 通用实现：连接、建表、CRUD 模板全部在这里，
+ * 方言差异（jdbc url / 驱动 / DDL / upsert SQL）由子类提供。
+ * <p>
+ * 所有方法同步；初始化失败时降级为"仅内存"运行。
+ */
+abstract class AbstractJdbcDatabase implements Database {
+
+    protected final JavaPlugin plugin;
+    private Connection connection;
+    private boolean ready;
+
+    protected AbstractJdbcDatabase(JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    /** jdbc 连接串 */
+    protected abstract String jdbcUrl();
+
+    /** 驱动类全名 */
+    protected abstract String driverClass();
+
+    /** 建表 DDL（方言相关） */
+    protected abstract String createTableSql();
+
+    /** 插入或更新语句（SQLite: INSERT OR REPLACE / MySQL: ON DUPLICATE KEY UPDATE） */
+    protected abstract String upsertSql();
+
+    /** 描述用的连接目标（日志展示） */
+    protected abstract String describe();
+
+    public synchronized boolean init() {
+        if (ready) {
+            return true;
+        }
+        try {
+            Class.forName(driverClass());
+            connection = DriverManager.getConnection(jdbcUrl(), username(), password());
+            try (Statement statement = connection.createStatement()) {
+                statement.executeUpdate(createTableSql());
+            }
+            ready = true;
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE,
+                    "数据库初始化失败（" + describe() + "），禁言数据仅保存在内存（重启丢失）", e);
+        }
+        return ready;
+    }
+
+    /** 非 SQLite 数据库的用户名，SQLite 子类返回 null 即可 */
+    protected String username() {
+        return null;
+    }
+
+    protected String password() {
+        return null;
+    }
+
+    @Override
+    public boolean isReady() {
+        return ready;
+    }
+
+    @Override
+    public synchronized List<MuteData> loadMutes() {
+        List<MuteData> result = new ArrayList<>();
+        if (!ready) {
+            return result;
+        }
+        try (PreparedStatement ps = connection.prepareStatement(
+                     "SELECT uuid, name, expire_at, reason, operator FROM mute");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                result.add(new MuteData(
+                        rs.getString(1), rs.getString(2), rs.getLong(3),
+                        rs.getString(4), rs.getString(5)));
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "读取禁言数据失败", e);
+        }
+        return result;
+    }
+
+    @Override
+    public synchronized void saveMute(MuteData mute) {
+        if (!ready) {
+            return;
+        }
+        try (PreparedStatement ps = connection.prepareStatement(upsertSql())) {
+            ps.setString(1, mute.uuid());
+            ps.setString(2, mute.name());
+            ps.setLong(3, mute.expireAt());
+            ps.setString(4, mute.reason());
+            ps.setString(5, mute.operator());
+            bindUpsertTail(ps, mute);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "保存禁言数据失败", e);
+        }
+    }
+
+    /**
+     * upsert 语句中 5 个通用占位符之后的额外参数绑定。
+     * SQLite 的 INSERT OR REPLACE 不需要 → 空实现；
+     * MySQL 的 ON DUPLICATE KEY UPDATE 需要把 1~5 再绑一遍。
+     */
+    protected void bindUpsertTail(PreparedStatement ps, MuteData mute) throws Exception {
+    }
+
+    @Override
+    public synchronized void deleteMute(String uuid) {
+        if (!ready) {
+            return;
+        }
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM mute WHERE uuid = ?")) {
+            ps.setString(1, uuid);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "删除禁言数据失败", e);
+        }
+    }
+
+    @Override
+    public synchronized void close() {
+        if (connection != null) {
+            try {
+                connection.close();
+            } catch (Exception ignored) {
+                // 关闭失败无须处理
+            }
+            connection = null;
+        }
+        ready = false;
+    }
+}

@@ -1,16 +1,23 @@
 package com.liu.liuchat.service;
 
+import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.model.MuteData;
 import com.liu.liuchat.storage.Database;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 禁言服务：内存缓存 + SQLite 落库，监听器（异步线程）和命令都走这里。
+ * 禁言服务：内存缓存 + 数据库落库，监听器（异步线程）和命令都走这里。
+ * <p>
+ * {@link #loadAll()} 是<b>对账式全量刷新</b>（启动时调用，storage.sync-interval
+ * 定时再调）：库里的放进缓存、过期的删掉删库、库里已不存在的移出缓存 ——
+ * MySQL 跨服部署时，其他子服的禁言/解禁靠这个同步过来。
  */
 public final class MuteService {
 
@@ -22,19 +29,25 @@ public final class MuteService {
         this.database = database;
     }
 
-    /** 启动时载入未过期的禁言，顺手清掉已过期的历史数据 */
+    /** 对账式全量刷新，见类注释 */
     public void loadAll() {
         if (!database.isReady()) {
             return;
         }
         long now = System.currentTimeMillis();
-        for (MuteData mute : database.loadMutes()) {
-            if (mute.isExpired(now)) {
-                database.deleteMute(mute.uuid());
+        List<MuteData> rows = database.loadMutes();
+        Set<String> seen = new HashSet<>();
+        for (MuteData row : rows) {
+            seen.add(row.uuid());
+            if (row.isExpired(now)) {
+                cache.remove(row.uuid());
+                database.deleteMute(row.uuid());
             } else {
-                cache.put(mute.uuid(), mute);
+                cache.put(row.uuid(), row);
             }
         }
+        // 库里不存在的 = 其他子服已解除（或写库失败），移出缓存
+        cache.keySet().removeIf(uuid -> !seen.contains(uuid));
     }
 
     public void mute(MuteData mute) {

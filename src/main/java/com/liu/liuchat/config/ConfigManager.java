@@ -39,6 +39,41 @@ public final class ConfigManager {
         return config.getString("console-format", "&8[${server}] &7[控制台] &e${player}&8» &f${message}");
     }
 
+    public boolean crossServerEnabled() {
+        return config.getBoolean("cross-server.enable", true);
+    }
+
+    // ---------------- 存储 ----------------
+
+    public String storageType() {
+        return config.getString("storage.type", "sqlite").trim().toLowerCase();
+    }
+
+    /** 与数据库对账刷新禁言缓存的间隔（秒），0 = 关闭 */
+    public int syncInterval() {
+        return config.getInt("storage.sync-interval", 30);
+    }
+
+    public String mysqlUrl() {
+        String host = config.getString("storage.mysql.host", "localhost");
+        int port = config.getInt("storage.mysql.port", 3306);
+        String database = config.getString("storage.mysql.database", "liuchat");
+        String properties = config.getString("storage.mysql.properties",
+                "useSSL=false&serverTimezone=UTC&characterEncoding=utf8");
+        String url = "jdbc:mysql://" + host + ":" + port + "/" + database;
+        return properties.isEmpty() ? url : url + "?" + properties;
+    }
+
+    public String mysqlUsername() {
+        return config.getString("storage.mysql.username", "root");
+    }
+
+    public String mysqlPassword() {
+        return config.getString("storage.mysql.password", "");
+    }
+
+    // ---------------- 重复检测 ----------------
+
     public int repeatTime() {
         return config.getInt("repeat-check.time", 30);
     }

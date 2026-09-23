@@ -1,23 +1,21 @@
 package com.liu.liuchat.command;
 
-import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.LiuChat;
+import com.liu.liuchat.config.MessageManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-import org.bukkit.entity.Player;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.logging.Level;
 
 /**
  * /lc 主命令路由器：按第一个参数分发到各 {@link ChatCommand}，
- * 统一做玩家限定/权限检查/异常兜底，tab 补全同样分流。
+ * 权限/玩家限定/异常兜底交给 {@link CommandSupport}，tab 补全同样分流。
  */
 public final class CommandRouter implements CommandExecutor, TabCompleter {
 
@@ -44,23 +42,8 @@ public final class CommandRouter implements CommandExecutor, TabCompleter {
             sendHelp(sender);
             return true;
         }
-        if (sub.playerOnly() && !(sender instanceof Player)) {
-            messages.send(sender, "player-only");
-            return true;
-        }
-        String permission = sub.permission();
-        if (permission != null && !sender.hasPermission(permission)) {
-            messages.send(sender, "no-permission");
-            return true;
-        }
-        try {
-            sub.execute(sender, Arrays.copyOfRange(args, 1, args.length));
-        } catch (Exception e) {
-            LiuChat.instance().getLogger()
-                    .log(Level.SEVERE, "执行 /" + label + " " + args[0] + " 出错", e);
-            messages.send(sender, "command.error");
-        }
-        return true;
+        return CommandSupport.dispatch(sender, sub, Arrays.copyOfRange(args, 1, args.length),
+                label + " " + args[0], messages);
     }
 
     @Override
@@ -68,29 +51,23 @@ public final class CommandRouter implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             String prefix = args[0].toLowerCase(Locale.ROOT);
             return commands.values().stream()
-                    .filter(sub -> hasAccess(sender, sub))
+                    .filter(sub -> CommandSupport.hasAccess(sender, sub))
                     .map(ChatCommand::name)
                     .filter(name -> name.startsWith(prefix))
                     .sorted()
                     .toList();
         }
         ChatCommand sub = commands.get(args[0].toLowerCase(Locale.ROOT));
-        if (sub == null || !hasAccess(sender, sub)) {
+        if (sub == null) {
             return List.of();
         }
-        return sub.tabComplete(sender, Arrays.copyOfRange(args, 1, args.length));
-    }
-
-    private boolean hasAccess(CommandSender sender, ChatCommand sub) {
-        String permission = sub.permission();
-        return (permission == null || sender.hasPermission(permission))
-                && (!sub.playerOnly() || sender instanceof Player);
+        return CommandSupport.complete(sender, sub, Arrays.copyOfRange(args, 1, args.length));
     }
 
     private void sendHelp(CommandSender sender) {
         messages.send(sender, "help.header");
         for (ChatCommand sub : commands.values()) {
-            if (!hasAccess(sender, sub)) {
+            if (!CommandSupport.hasAccess(sender, sub)) {
                 continue;
             }
             messages.send(sender, "help.line",

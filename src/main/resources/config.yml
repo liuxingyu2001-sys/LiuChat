@@ -1,18 +1,48 @@
 # ============================================================
 #  LiuChat 配置
-#  修改后执行 /lc reload 生效（server 节建议重启生效）
+#  修改后执行 /lc reload 生效（server / storage 节建议重启生效）
 # ============================================================
 
 # 子服标识，群组服里区分消息来源，格式化时用 ${server} 引用
+# 跨服聊天时收端显示的也是发送端的该值 —— 每个子服必须配成不同值
 server: "lobby"
 
 # 聊天格式，支持 & 颜色
 # 可用内部变量: ${server} ${player} ${world} ${message}
-# 同时支持 PlaceholderAPI 变量（装了 PAPI 才生效）
+# 同时支持 PlaceholderAPI 变量（装了 PAPI 才生效，跨服消息除外：
+# 发送端玩家不在本服，无法解析以玩家为上下文的 PAPI 变量）
 format: "&8[${server}] &e${player}&8» &f${message}"
 
 # 控制台看到的格式，变量同上
 console-format: "&8[${server}] &7[控制台] &e${player}&8» &f${message}"
+
+# ------------------------------------------------------------
+# 跨服聊天（群组服）
+# 走 BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持），
+# 消息经代理转发到其他子服，由各子服按自己的 format 渲染。
+# 单服/无代理环境开着也没影响：转发无人接收，静默丢弃。
+# ------------------------------------------------------------
+cross-server:
+  enable: true
+
+# ------------------------------------------------------------
+# 存储
+# ------------------------------------------------------------
+storage:
+  # sqlite = 本地文件（plugins/LiuChat/liuchat.db），单服用
+  # mysql  = 共享数据库，跨服禁言/解禁需要各子服连同一个库
+  type: sqlite
+  # 每隔多少秒与数据库对账刷新一次禁言缓存
+  # （拿到其他子服写入的禁言/解禁），0 = 关闭
+  sync-interval: 30
+  mysql:
+    host: localhost
+    port: 3306
+    database: liuchat
+    username: root
+    password: ""
+    # 追加到 jdbc url 的参数
+    properties: "useSSL=false&serverTimezone=UTC&characterEncoding=utf8"
 
 # ------------------------------------------------------------
 # 聊天冷却，单位秒，0 = 关闭

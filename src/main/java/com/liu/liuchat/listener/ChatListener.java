@@ -4,6 +4,7 @@ import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.model.MuteData;
 import com.liu.liuchat.service.ChatService;
+import com.liu.liuchat.service.CrossServerService;
 import com.liu.liuchat.service.MuteService;
 import com.liu.liuchat.util.TextUtil;
 import org.bukkit.entity.Player;
@@ -19,7 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 聊天主监听器：禁言 → 冷却 → 重复检测 → 自行分发。
+ * 聊天主监听器：禁言 → 冷却 → 重复检测 → 本服分发 + 跨服转发。
  * 运行在异步聊天线程，所有集合都用并发安全的。
  */
 public final class ChatListener implements Listener {
@@ -28,6 +29,7 @@ public final class ChatListener implements Listener {
     private final MessageManager messages;
     private final MuteService muteService;
     private final ChatService chatService;
+    private final CrossServerService crossServer;
 
     /** 每人最近一次发言时间（冷却用） */
     private final Map<UUID, Long> lastChatAt = new ConcurrentHashMap<>();
@@ -38,11 +40,13 @@ public final class ChatListener implements Listener {
     }
 
     public ChatListener(ConfigManager config, MessageManager messages,
-                        MuteService muteService, ChatService chatService) {
+                        MuteService muteService, ChatService chatService,
+                        CrossServerService crossServer) {
         this.config = config;
         this.messages = messages;
         this.muteService = muteService;
         this.chatService = chatService;
+        this.crossServer = crossServer;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -84,9 +88,15 @@ public final class ChatListener implements Listener {
         lastChatAt.put(uuid, now);
         lastSaid.put(uuid, new LastSaid(now, event.getMessage()));
 
-        // 4. 自行分发，不再走服务器默认聊天
+        // 4. 颜色裁决：本服与跨服共用同一份处理后的文本
+        String message = player.hasPermission("liuchat.color")
+                ? TextUtil.color(event.getMessage())
+                : event.getMessage();
+
+        // 5. 自行分发 + 跨服转发
         event.setCancelled(true);
-        chatService.broadcast(player, event.getMessage());
+        chatService.broadcast(player, message);
+        crossServer.publish(player, message);
     }
 
     /**

@@ -3,22 +3,32 @@ version: '${project.version}'
 main: com.liu.liuchat.LiuChat
 api-version: '1.21'
 authors: [liuxingyu2001]
-description: 聊天插件 —— 自定义格式 / 禁言 / 冷却 / 重复检测 / 私聊（零第三方框架依赖）
+description: 聊天插件 —— 自定义格式 / 跨服聊天 / 禁言 / 冷却 / 重复检测 / 私聊（零第三方框架依赖）
 website: 'https://github.com/liuxingyu2001'
 folia-supported: false
 
 softdepend:
   - PlaceholderAPI
 
-# sqlite-jdbc 交给 Paper 自己下载并挂到本插件类加载器（不进 jar）；
-# Spigot 服务端自带 org.sqlite 驱动，两边都能跑。
+# 依赖库交给 Paper 自己下载并挂到本插件类加载器，不打进 jar；
+# Spigot 服务端自带 org.sqlite 驱动（MySQL 需 Paper 或手动放置驱动）。
 libraries:
   - org.xerial:sqlite-jdbc:3.47.0.0
+  - com.mysql:mysql-connector-j:8.0.33
 
 commands:
   liuchat:
     description: LiuChat 主命令
     aliases: [lc]
+  # 直接注册的私聊命令（会覆盖原版 /msg /tell /w，与 EssentialsX 同一机制）
+  # 提示：若 BungeeCord 代理端的 /msg 拦截了输入，需在代理侧禁用该命令
+  msg:
+    description: 私聊其他玩家
+    aliases: [w, whisper, pm]
+    usage: /msg <玩家> <消息>
+  tell:
+    description: 私聊其他玩家
+    usage: /tell <玩家> <消息>
 
 permissions:
   liuchat.mute:
