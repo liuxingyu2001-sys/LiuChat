@@ -34,8 +34,10 @@ public final class CrossServerService implements PluginMessageListener {
             return;
         }
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, CrossServerCodec.BUNGEE_CHANNEL);
-        plugin.getServer().getMessenger().registerIncomingPluginChannel(
-                plugin, CrossServerCodec.BUNGEE_CHANNEL, this);
+        // 双名注册，原因见 CrossServerCodec.INCOMING_CHANNELS 注释
+        for (String channel : CrossServerCodec.INCOMING_CHANNELS) {
+            plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, channel, this);
+        }
     }
 
     /**
@@ -67,7 +69,7 @@ public final class CrossServerService implements PluginMessageListener {
 
     @Override
     public void onPluginMessageReceived(String channel, Player source, byte[] message) {
-        if (!enabled || !CrossServerCodec.BUNGEE_CHANNEL.equals(channel)) {
+        if (!enabled || !isIncomingChannel(channel)) {
             return;
         }
         CrossServerCodec.Decoded decoded = CrossServerCodec.decodeInbound(message);
@@ -82,12 +84,23 @@ public final class CrossServerService implements PluginMessageListener {
         chatService.broadcastRemote(decoded.originServer(), decoded.playerName(), decoded.message());
     }
 
+    private static boolean isIncomingChannel(String channel) {
+        for (String candidate : CrossServerCodec.INCOMING_CHANNELS) {
+            if (candidate.equals(channel)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void close() {
         if (!enabled) {
             return;
         }
         enabled = false;
         plugin.getServer().getMessenger().unregisterOutgoingPluginChannel(plugin, CrossServerCodec.BUNGEE_CHANNEL);
-        plugin.getServer().getMessenger().unregisterIncomingPluginChannel(plugin, CrossServerCodec.BUNGEE_CHANNEL);
+        for (String channel : CrossServerCodec.INCOMING_CHANNELS) {
+            plugin.getServer().getMessenger().unregisterIncomingPluginChannel(plugin, channel, this);
+        }
     }
 }

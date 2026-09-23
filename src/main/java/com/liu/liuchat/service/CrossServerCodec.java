@@ -9,13 +9,17 @@ import java.io.IOException;
 /**
  * 跨服聊天消息的编解码（纯 Java，无 Bukkit 依赖，可单测）。
  * <p>
- * 协议走 BungeeCord plugin messaging 标准：
+ * 协议走 BungeeCord plugin messaging 标准（发送格式由 BungeeCord wiki 定义，
+ * 转发体格式经官方两代代理源码比对确认<b>完全一致</b>）：
  * <pre>
  * 发送（服务端 → 代理）:  UTF "Forward" | UTF "ALL" | UTF TAG | ushort len | payload
- * 接收（代理 → 服务端）:  UTF "Forwarded" | UTF TAG | ushort len | payload
+ * 转发（代理 → 目标服）:  UTF TAG      | ushort len | payload
  * payload:               UTF 协议版本 | UTF 发送端子服 | UTF 玩家uuid | UTF 玩家名 | UTF 消息文本
  * </pre>
- * 发送端子服已按权限处理好消息文本（该转的颜色已转），接收端原样渲染。
+ * 转发体<b>没有 "Forwarded" 前缀</b>——BungeeCord 的 DownstreamBridge 与 Velocity 的
+ * BungeeCordMessageResponder 都把通道名写在第一个 UTF（早期 wiki 文档写法不同，
+ * {@link #decodeInbound} 两种形态都兼容）。发送端子服已按权限处理好消息文本，
+ * 接收端原样渲染。
  */
 public final class CrossServerCodec {
 
@@ -25,6 +29,14 @@ public final class CrossServerCodec {
     public static final String TAG = "LiuChat";
     /** 协议版本，不兼容时对端解析失败直接丢弃 */
     public static final String PROTOCOL = "1";
+    /**
+     * 入站监听要覆盖的通道名：Bukkit 的 StandardMessenger.validateAndCorrectChannel
+     * 把 "BungeeCord" 与 "bungeecord:main" 互为纠正（注册与派发两边都过同一函数），
+     * 两个名字都注册则无论代理/NMS 以哪种形态投递都必命中其一。
+     * Velocity 发往 1.13+ 后端时会把 "BungeeCord" 改写为 "bungeecord:main"
+     * （PluginMessagePacket#encode），所以现代名必须注册。
+     */
+    public static final String[] INCOMING_CHANNELS = {"BungeeCord", "bungeecord:main"};
 
     private CrossServerCodec() {
     }
@@ -64,15 +76,18 @@ public final class CrossServerCodec {
 
     /**
      * 解析代理转发进来的完整数据包。
+     * <p>
+     * 官方格式：第一个 UTF 就是通道名（BungeeCord DownstreamBridge 与
+     * Velocity 均只写 channel|len|data）；部分文档/衍生实现会多一个
+     * "Forwarded" 前缀，同样兼容。
      *
      * @return 不是本插件的消息（或格式非法）返回 null
      */
     public static Decoded decodeInbound(byte[] packet) {
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet))) {
-            if (!"Forwarded".equals(in.readUTF())) {
-                return null;
-            }
-            if (!TAG.equals(in.readUTF())) {
+            String first = in.readUTF();
+            String channel = "Forwarded".equals(first) ? in.readUTF() : first;
+            if (!TAG.equals(channel)) {
                 return null;
             }
             int length = in.readUnsignedShort();

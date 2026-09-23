@@ -72,8 +72,8 @@ com.liu.liuchat
 ├── listener/ChatListener   禁言 → 冷却 → 重复检测 → 颜色裁决 → 分发+跨服
 ├── service/
 │   ├── ChatService         本服广播 + 跨服落地渲染（broadcastRemote）
-│   ├── CrossServerService  BungeeCord plugin messaging 收发（防回环/防串台）
-│   ├── CrossServerCodec    跨服协议编解码（纯 Java，有单测）
+│   ├── CrossServerService  BungeeCord plugin messaging 收发（双通道名注册/防回环/防串台）
+│   ├── CrossServerCodec    跨服协议编解码（纯 Java，5 个单测覆盖两代代理报文形态）
 │   └── MuteService         禁言缓存 + 对账式全量刷新（跨服同步）
 ├── storage/                Database 接口 + AbstractJdbcDatabase
 │   ├── SqliteDatabase / MysqlDatabase（方言在子类）+ DatabaseFactory
@@ -89,6 +89,24 @@ com.liu.liuchat
 - **跨服防回环**：代理 Forward ALL 天然不含发送端 + server 名兜底丢弃 + 协议 tag 隔离其他插件
 - **数据库降级**：连不上自动转仅内存运行，不阻塞启用
 - maven 资源过滤只作用于 `plugin.yml`，配置里的 `${player}` 等占位符不会被 maven 碰
+
+## Velocity 3.5.0 兼容性（源码级验证）
+
+跨服链路的每一环都对过官方源码，不是照 wiki 猜的：
+
+| 环节 | 结论 | 证据 |
+|---|---|---|
+| `Forward` 子通道 | **Velocity 3.x 原生支持**，入口在后端消息处理的第一行 | Velocity `BackendPlaySessionHandler#handle` → `BungeeCordMessageResponder` |
+| 配置开关 | `velocity.toml` 的 `bungee-plugin-message-channel = true`（**默认就是开的**） | Velocity `VelocityConfiguration` |
+| 转发报文格式 | **两代代理同构**：`UTF 通道名 \| ushort 长度 \| 数据`，无 `Forwarded` 前缀 | BungeeCord `DownstreamBridge` 与 Velocity `processForwardToServer` 逐行比对；`decodeInbound` 两种形态都兼容 |
+| 通道名 | Velocity 发往 1.13+ 后端时把 `BungeeCord` 改写为 `bungeecord:main`；Bukkit 注册/派发两侧会把两个名字互为纠正 —— **本插件双名注册，必命中** | Velocity `PluginMessagePacket#encode`、spigot-api `StandardMessenger` 字节码 |
+| 防回环 | 代理 Forward ALL 天然排除发送端 + `server` 名兜底丢弃 + 协议 tag 隔离 | 三层机制 |
+| 空服投递 | Velocity 只向**有玩家在线**的后端投递插件消息，空服收不到（只影响那边的控制台刷屏，玩家视角无感知） | `VelocityRegisteredServer#sendPluginMessage` |
+
+部署清单：
+1. 每个子服 `server:` 配成代理 `[servers]` 里**互不相同**的登记名；
+2. 确认 `velocity.toml` 里 `bungee-plugin-message-channel` 没被改成 `false`；
+3. Velocity 代理**没有**原生 `/msg`，`/msg` `/tell` 直达后端，无需像 BungeeCord 那样在代理侧禁用。
 
 ## 路线图（仿 PlayerChat 逐步补齐）
 
