@@ -6,27 +6,42 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-/** Shared private assistant for commands and Citizens dialogs. All callbacks run on the main thread. */
+/**
+ * Shared private assistant for commands and Citizens dialogs. All callbacks run on the main thread.
+ * <p>
+ * 会话按助手名共享：多个 NPC 绑到同一助手 = 同一份上下文，任何玩家的提问都会保留，
+ * 超过 ai.assistant.history-* 上限后从最旧开始丢。system 提示词保持逐字节稳定以便服务商前缀缓存。
+ */
 public final class AiAssistantService {
     public enum Status { OK, UNAVAILABLE, UNKNOWN_ASSISTANT, UNKNOWN_SKILL, TOO_LONG, BUSY, FAILED }
     public record Result(Status status, String answer) { }
+
+    /** 答案缓存条数上限；key 含上下文指纹，命中 = 0 token */
+    private static final int CACHE_ENTRIES = 256;
+    /** 缓存与会话里保留的原始回答长度上限（展示会被 max-answer 再截一次，不影响展示结果） */
+    private static final int MAX_STORED_ANSWER = 4000;
 
     private final JavaPlugin plugin;
     private final ConfigManager config;
     private final AiClient client;
     private final AiSkillService skills;
+    private final AiSessionStore sessions;
+    private final AiAnswerCache cache = new AiAnswerCache(CACHE_ENTRIES);
     private final Set<UUID> pending = new HashSet<>();
 
-    public AiAssistantService(JavaPlugin plugin, ConfigManager config, AiClient client, AiSkillService skills) {
+    public AiAssistantService(JavaPlugin plugin, ConfigManager config, AiClient client, AiSkillService skills,
+                              AiSessionStore sessions) {
         this.plugin = plugin;
         this.config = config;
         this.client = client;
         this.skills = skills;
+        this.sessions = sessions;
     }
 
     public Status ask(Player player, String assistant, String question, Consumer<Result> onResult) {
@@ -51,22 +66,69 @@ public final class AiAssistantService {
         String model = config.aiAssistantModel();
         final String selectedSkill = skill;
         final int promptLength = prompt.length();
-        client.complete(url, key, model, prompt, question, timeout).whenComplete((answer, error) -> {
-            if (!plugin.isEnabled()) return;
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                pending.remove(uuid);
-                if (Bukkit.getPlayer(uuid) != player) return;
-                if (error != null) {
-                    plugin.getLogger().warning("AI 聊天助手请求失败 (skill=" + selectedSkill
-                            + ", 提示词字符数=" + promptLength + ", 超时=" + timeout + "秒): " + error);
-                    onResult.accept(new Result(Status.FAILED, ""));
-                    return;
-                }
-                String clean = answer.replace('\r', ' ').replace('\n', ' ').replace('§', '&');
-                onResult.accept(new Result(Status.OK,
-                        clean.substring(0, Math.min(clean.length(), config.aiAssistantMaxAnswer()))));
-            });
-        });
+
+        AiSessionStore.Limits limits = new AiSessionStore.Limits(config.aiAssistantHistoryMessages(),
+                config.aiAssistantHistoryChars(), config.aiAssistantHistorySeconds());
+        List<AiClient.Msg> history = limits.enabled() ? sessions.context(assistant, limits) : List.of();
+        // 缓存 key = 配置指纹 + 上下文指纹 + 问题：换模型/改提示词/会话推进都会自动失效
+        String cacheKey = AiAnswerCache.sha256(url + '\n' + model + '\n' + prompt)
+                + '\n' + AiAnswerCache.fingerprint(history) + '\n' + question;
+        long ttlMillis = config.aiAssistantCacheSeconds() * 1000L;
+        if (ttlMillis > 0) {
+            String cached = cache.get(cacheKey, System.currentTimeMillis());
+            if (cached != null) {
+                // 命中也照样入会话，后续玩家的上下文才是完整的
+                if (limits.enabled()) sessions.finish(sessions.open(assistant, limits, question), cached, limits);
+                String display = clean(cached, config.aiAssistantMaxAnswer());
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    pending.remove(uuid); // 缓存命中不走网络，也必须在这里解锁，否则该玩家永久 BUSY
+                    if (!plugin.isEnabled() || Bukkit.getPlayer(uuid) != player) return;
+                    onResult.accept(new Result(Status.OK, display));
+                });
+                return Status.OK;
+            }
+        }
+
+        AiSessionStore.Turn turn = limits.enabled() ? sessions.open(assistant, limits, question) : null;
+        client.complete(url, key, model, prompt, history, question, timeout, config.aiAssistantMaxTokens())
+                .whenComplete((answer, error) -> {
+                    if (!plugin.isEnabled()) return;
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (error == null) {
+                            // 玩家在等待期间退出也要留下这轮问答，共享会话不因个人进出而丢数据
+                            if (turn != null) sessions.finish(turn, answer, limits);
+                            if (ttlMillis > 0) cache.put(cacheKey, store(answer), ttlMillis, System.currentTimeMillis());
+                        } else if (turn != null) {
+                            sessions.fail(turn);
+                        }
+                        pending.remove(uuid);
+                        if (Bukkit.getPlayer(uuid) != player) return;
+                        if (error != null) {
+                            plugin.getLogger().warning("AI 聊天助手请求失败 (skill=" + selectedSkill
+                                    + ", 提示词字符数=" + promptLength + ", 上下文字符数=" + historyChars(history)
+                                    + ", 超时=" + timeout + "秒): " + error);
+                            onResult.accept(new Result(Status.FAILED, ""));
+                            return;
+                        }
+                        onResult.accept(new Result(Status.OK, clean(answer, config.aiAssistantMaxAnswer())));
+                    });
+                });
         return Status.OK;
+    }
+
+    /** 统一清洗：换行压平、颜色符号转义、按 max-answer 截断（截断前的部分才花过 token） */
+    private static String clean(String answer, int maxAnswer) {
+        String value = answer.replace('\r', ' ').replace('\n', ' ').replace('§', '&');
+        return value.substring(0, Math.min(value.length(), maxAnswer));
+    }
+
+    private static int historyChars(List<AiClient.Msg> history) {
+        int total = 0;
+        for (AiClient.Msg msg : history) total += msg.content().length();
+        return total;
+    }
+
+    private static String store(String answer) {
+        return answer.length() > MAX_STORED_ANSWER ? answer.substring(0, MAX_STORED_ANSWER) : answer;
     }
 }

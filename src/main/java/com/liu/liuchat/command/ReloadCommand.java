@@ -4,6 +4,7 @@ import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.service.ChatPresentation;
 import com.liu.liuchat.service.AiSkillService;
+import com.liu.liuchat.service.AiSessionStore;
 import com.liu.liuchat.listener.NpcAssistantBridge;
 import com.liu.liuchat.command.DialogCommand;
 import org.bukkit.command.CommandSender;
@@ -19,16 +20,18 @@ public final class ReloadCommand implements ChatCommand {
     private final DialogCommand dialog;
     private final AiSkillService skills;
     private final NpcAssistantBridge npcBridge;
+    private final AiSessionStore sessions;
 
     public ReloadCommand(ConfigManager config, MessageManager messages,
                          ChatPresentation presentation, DialogCommand dialog, AiSkillService skills,
-                         NpcAssistantBridge npcBridge) {
+                         NpcAssistantBridge npcBridge, AiSessionStore sessions) {
         this.config = config;
         this.messages = messages;
         this.presentation = presentation;
         this.dialog = dialog;
         this.skills = skills;
         this.npcBridge = npcBridge;
+        this.sessions = sessions;
     }
 
     @Override
@@ -48,6 +51,8 @@ public final class ReloadCommand implements ChatCommand {
         presentation.reload();
         dialog.reload();
         npcBridge.reload();
+        // 会话本身保留在内存，只同步落盘开关，重启才重新读文件
+        sessions.setPersist(config.aiAssistantHistoryPersist());
         try {
             skills.reload();
         } catch (java.io.IOException e) {

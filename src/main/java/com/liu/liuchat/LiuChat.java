@@ -25,6 +25,7 @@ import com.liu.liuchat.service.HourlyChatAudit;
 import com.liu.liuchat.service.AiClient;
 import com.liu.liuchat.service.AiAssistantService;
 import com.liu.liuchat.service.AiSkillService;
+import com.liu.liuchat.service.AiSessionStore;
 import com.liu.liuchat.service.ChatLogService;
 import com.liu.liuchat.service.ChatPresentation;
 import com.liu.liuchat.service.ChatService;
@@ -59,6 +60,7 @@ public final class LiuChat extends JavaPlugin {
     private MuteService muteService;
     private CrossServerService crossServer;
     private ChatLogService chatLogs;
+    private AiSessionStore aiSessions;
 
     public static LiuChat instance() {
         return instance;
@@ -111,13 +113,19 @@ public final class LiuChat extends JavaPlugin {
         } catch (java.io.IOException e) {
             getLogger().warning("AI skills 加载失败: " + e.getMessage());
         }
-        AiAssistantService assistantService = new AiAssistantService(this, configManager, aiClient, skills);
+        aiSessions = new AiSessionStore(getDataFolder().toPath().resolve("ai-sessions.json"), getLogger());
+        aiSessions.setPersist(configManager.aiAssistantHistoryPersist());
+        aiSessions.load();
+        aiSessions.start(this);
+        AiAssistantService assistantService =
+                new AiAssistantService(this, configManager, aiClient, skills, aiSessions);
         router.register(new AskCommand(configManager, messageManager, assistantService));
         ColorDialog colorDialog = new ColorDialog(this, profiles, messageManager);
         AssistantDialog assistantDialog = new AssistantDialog(this, configManager, messageManager, assistantService);
         DialogCommand dialog = new DialogCommand(this, messageManager, configManager, colorDialog, assistantDialog);
         NpcAssistantBridge npcBridge = new NpcAssistantBridge(this, assistantDialog);
-        router.register(new ReloadCommand(configManager, messageManager, presentation, dialog, skills, npcBridge));
+        router.register(new ReloadCommand(configManager, messageManager, presentation, dialog, skills, npcBridge,
+                aiSessions));
         router.register(new ChatCommand() {
             @Override public String name() { return "item"; }
             @Override public boolean playerOnly() { return true; }
@@ -210,6 +218,9 @@ public final class LiuChat extends JavaPlugin {
             crossServer.close();
         }
         if (chatLogs != null) chatLogs.close();
+        if (aiSessions != null) {
+            aiSessions.close();
+        }
         if (database != null) {
             database.close();
         }

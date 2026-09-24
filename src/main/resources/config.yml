@@ -54,11 +54,26 @@ ai:
     api-key: '' # 留空时沿用 ai.api-key，再回退 LIUCHAT_AI_API_KEY
     model: '' # 留空时沿用 ai.model
     prompt: '你是 Minecraft 服务器聊天助手。简洁回答玩家的问题。不要声称已执行游戏内操作。'
+    # 注意：prompt + skill 会原样作为请求的第一条 system 消息且每次全量重发。
+    # 保持它逐字节不变，才能命中 OpenAI/DeepSeek/Kimi 等服务的前缀缓存（命中部分约 1/10 计价）；
+    # 不要往 system 里拼时间戳、玩家名等动态内容，skill 内容也尽量少改。
     max-question: 300
     max-answer: 600
     dialog-width: 520 # AI Dialog 回答正文宽度，范围 100-800
     timeout-seconds: 60 # 助手生成较长回答时可调至 30~120 秒
     default: bot # /lc ask <问题> 使用此助手
+    # ---------------- 省 token ----------------
+    # 单次回答的输出 token 上限，0 = 不限制。
+    # 超出 max-answer 的部分本来就会被截掉不显示，模型却已经生成并计费，这里直接不让它生成。
+    max-tokens: 1024
+    # 相同问题（且配置、上下文都相同）在该时间内直接返回缓存答案，不请求模型 = 0 token，0 = 关闭。
+    cache-seconds: 300
+    # 多轮上下文：按助手名共享一份会话，全服玩家共用（多个 NPC 绑同一助手 = 同一份上下文，
+    # /lc ask、/lc dialog ai、NPC 右键都接在同一条会话上）。请求与回答各算 1 条消息。
+    history-messages: 20 # 会话最多保留多少条消息，超出从最旧开始丢，0 = 关闭上下文
+    history-chars: 4000 # 上下文字符预算，超出从最旧开始丢，0 = 不限制
+    history-seconds: 0 # 会话闲置多少秒后清空，0 = 永不过期；设个 600~3600 能进一步省 token
+    history-persist: true # 会话写入 plugins/LiuChat/ai-sessions.json，重启不丢
     profiles:
       bot:
         skill: '' # 填 plugins/LiuChat/skills 下的子目录名，例如 bot

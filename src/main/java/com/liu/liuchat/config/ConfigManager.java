@@ -95,6 +95,19 @@ public final class ConfigManager {
     public int aiAssistantMaxAnswer() { return Math.max(1, Math.min(4000, config.getInt("ai.assistant.max-answer", 600))); }
     public int aiAssistantDialogWidth() { return Math.max(100, Math.min(800, config.getInt("ai.assistant.dialog-width", 520))); }
 
+    /** 单次回答的输出 token 上限，0 = 不限制 */
+    public int aiAssistantMaxTokens() { return Math.max(0, Math.min(32768, config.getInt("ai.assistant.max-tokens", 1024))); }
+    /** 相同问题答案缓存秒数，0 = 关闭 */
+    public int aiAssistantCacheSeconds() { return Math.max(0, Math.min(86400, config.getInt("ai.assistant.cache-seconds", 300))); }
+    /** 共享会话最多保留多少条消息（提问与回答各算 1 条），0 = 关闭上下文 */
+    public int aiAssistantHistoryMessages() { return Math.max(0, Math.min(200, config.getInt("ai.assistant.history-messages", 20))); }
+    /** 上下文字符预算，0 = 不限制 */
+    public int aiAssistantHistoryChars() { return Math.max(0, Math.min(30000, config.getInt("ai.assistant.history-chars", 4000))); }
+    /** 会话闲置多少秒后清空，0 = 永不过期 */
+    public int aiAssistantHistorySeconds() { return Math.max(0, Math.min(604800, config.getInt("ai.assistant.history-seconds", 0))); }
+    /** 会话是否写入 ai-sessions.json，重启不丢 */
+    public boolean aiAssistantHistoryPersist() { return config.getBoolean("ai.assistant.history-persist", true); }
+
     public boolean logEnabled() { return config.getBoolean("chat-log.enable", true); }
 
     public String logFormat() {

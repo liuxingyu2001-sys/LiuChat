@@ -22,6 +22,8 @@ import java.util.logging.Level;
 
 /** Appends daily chat files off the server thread, preserving message order. */
 public final class ChatLogService implements AutoCloseable {
+    /** 传统颜色/样式码（含 §x§RR§GG§BB 十六进制序列，逐对移除）。 */
+    private static final String LEGACY_CODE = "(?i)§[0-9A-FK-ORX]";
     private final JavaPlugin plugin;
     private final ConfigManager config;
     private final ExecutorService writer = Executors.newSingleThreadExecutor(r -> {
@@ -60,8 +62,10 @@ public final class ChatLogService implements AutoCloseable {
         });
     }
 
-    private static String clean(String value) {
-        return value == null ? "" : value.replace('\r', ' ').replace('\n', ' ');
+    /** 去掉换行与颜色码，日志只保留可读纯文本（不含玩家字面输入的 & 符号）。 */
+    static String clean(String value) {
+        if (value == null) return "";
+        return value.replaceAll("[\\r\\n]+", " ").replaceAll(LEGACY_CODE, "");
     }
 
     public void recordPublic(String uuid, String player, String message) {
