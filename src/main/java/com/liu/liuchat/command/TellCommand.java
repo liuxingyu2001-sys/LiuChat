@@ -3,6 +3,7 @@ package com.liu.liuchat.command;
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.service.ChatReviewPolicy;
+import com.liu.liuchat.service.CrossServerService;
 import com.liu.liuchat.service.TellService;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -20,11 +21,14 @@ public final class TellCommand implements ChatCommand {
     private final MessageManager messages;
     private final TellService tellService;
     private final ConfigManager config;
+    private final CrossServerService crossServer;
 
-    public TellCommand(MessageManager messages, TellService tellService, ConfigManager config) {
+    public TellCommand(MessageManager messages, TellService tellService, ConfigManager config,
+                       CrossServerService crossServer) {
         this.messages = messages;
         this.tellService = tellService;
         this.config = config;
+        this.crossServer = crossServer;
     }
 
     @Override
@@ -78,7 +82,7 @@ public final class TellCommand implements ChatCommand {
     @Override
     public List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 1) {
-            return onlinePlayers(args[0]);
+            return crossServer.completePlayers(args[0]);
         }
         return List.of();
     }

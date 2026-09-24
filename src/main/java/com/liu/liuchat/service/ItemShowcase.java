@@ -81,16 +81,22 @@ public final class ItemShowcase implements Listener {
         }
         String shown = vanillaNames.resolve(item.getType());
         ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            net.kyori.adventure.text.Component component = meta.hasItemName() ? meta.itemName()
-                    : meta.hasDisplayName() ? meta.displayName() : null;
-            if (component != null) shown = ceNames.resolve(component);
-            else if (meta.hasItemName() || meta.hasDisplayName())
-                shown = ceNames.resolve(meta.hasItemName() ? meta.getItemName() : meta.getDisplayName());
-        }
+        if (meta != null) shown = preferredName(meta, ceNames, shown);
         shown = ceNames.resolve(shown);
         String name = org.bukkit.ChatColor.stripColor(com.liu.liuchat.util.TextUtil.color(shown));
         return name.length() > maxLength ? name.substring(0, maxLength) + "..." : name;
+    }
+
+    static String preferredName(ItemMeta meta, CraftEngineNames names, String vanilla) {
+        if (meta.hasDisplayName()) {
+            var custom = meta.displayName();
+            return names.resolve(custom != null ? custom : net.kyori.adventure.text.Component.text(meta.getDisplayName()));
+        }
+        if (meta.hasItemName()) {
+            var itemName = meta.itemName();
+            return names.resolve(itemName != null ? itemName : net.kyori.adventure.text.Component.text(meta.getItemName()));
+        }
+        return vanilla;
     }
 
     public void open(Player viewer, String id) {

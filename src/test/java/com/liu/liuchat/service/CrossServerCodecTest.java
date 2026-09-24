@@ -65,6 +65,26 @@ class CrossServerCodecTest {
     }
 
     @Test
+    void presencePacketsRoundTripAndRejectInvalidBatches() throws IOException {
+        var presence = assertInstanceOf(CrossServerCodec.Inbound.Presence.class,
+                CrossServerCodec.decodeInbound(proxyHop(
+                        CrossServerCodec.encodePresence("lobby", java.util.List.of("Alice", "Bob")), "ALL")));
+        assertEquals("lobby", presence.server());
+        assertEquals(java.util.List.of("Alice", "Bob"), presence.names());
+        var quit = assertInstanceOf(CrossServerCodec.Inbound.PresenceQuit.class,
+                CrossServerCodec.decodeInbound(proxyHop(
+                        CrossServerCodec.encodePresenceQuit("lobby", "Alice"), "ALL")));
+        assertEquals("Alice", quit.name());
+        var request = assertInstanceOf(CrossServerCodec.Inbound.PresenceRequest.class,
+                CrossServerCodec.decodeInbound(proxyHop(
+                        CrossServerCodec.encodePresenceRequest("game"), "ALL")));
+        assertEquals("game", request.server());
+        assertThrows(IOException.class, () -> CrossServerCodec.encodePresence("lobby", java.util.List.of()));
+        assertThrows(IOException.class, () -> CrossServerCodec.encodePresence("lobby",
+                java.util.Collections.nCopies(CrossServerCodec.MAX_PRESENCE_NAMES + 1, "a")));
+    }
+
+    @Test
     void tellAckRoundTrip() throws IOException {
         // 回执是定向转发：mode = 发送端子服名，不再是 ALL
         byte[] outbound = CrossServerCodec.encodeTellAck("msg-9", "game", "lobby");

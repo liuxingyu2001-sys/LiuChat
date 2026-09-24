@@ -24,6 +24,9 @@ import javax.crypto.spec.SecretKeySpec;
  *   CHAT     群聊广播:   UTF 发送端子服 | UTF 玩家uuid | UTF 玩家名 | UTF 消息文本 | UTF 物品快照
  *   TELL     跨服私聊:   UTF msgId | UTF 发送端子服 | UTF 发送者 | UTF 目标 | UTF 消息文本 | UTF uuid | UTF world | UTF 占位符快照 | UTF 昵称
  *   TELL_ACK 私聊回执:   UTF msgId | UTF 应答子服
+ *   PRESENCE 在线名单: UTF 子服 | ushort 人数 | UTF 玩家名...
+ *   PRESENCE_QUIT 下线通知: UTF 子服 | UTF 玩家名
+ *   PRESENCE_REQUEST 名单请求: UTF 子服
  * </pre>
  * 转发体<b>没有 "Forwarded" 前缀</b>——BungeeCord 的 DownstreamBridge 与 Velocity 的
  * BungeeCordMessageResponder 都把通道名写在第一个 UTF（早期 wiki 文档写法不同，
@@ -37,7 +40,7 @@ public final class CrossServerCodec {
     /** 自定义子通道标签，与其它插件的跨服消息区分开 */
     public static final String TAG = "LiuChat";
     /** 协议版本；格式变化时递增，旧版本对端解析失败直接丢弃 */
-    public static final String PROTOCOL = "6";
+    public static final String PROTOCOL = "7";
     /** 转发给除发送端外的所有子服 */
     public static final String MODE_ALL = "ALL";
 
@@ -47,6 +50,10 @@ public final class CrossServerCodec {
     public static final String TYPE_HORN = "HORN";
     public static final String TYPE_MUTE = "MUTE";
     public static final String TYPE_UNMUTE = "UNMUTE";
+    public static final String TYPE_PRESENCE = "PRESENCE";
+    public static final String TYPE_PRESENCE_QUIT = "PRESENCE_QUIT";
+    public static final String TYPE_PRESENCE_REQUEST = "PRESENCE_REQUEST";
+    public static final int MAX_PRESENCE_NAMES = 100;
 
     /**
      * Bukkit 将旧通道名与 namespaced 名归一化为同一个注册项；
@@ -192,6 +199,40 @@ public final class CrossServerCodec {
         return wrapForward(MODE_ALL, bytes.toByteArray());
     }
 
+    public static byte[] encodePresence(String server, java.util.List<String> names) throws IOException {
+        if (names.isEmpty() || names.size() > MAX_PRESENCE_NAMES) throw new IOException("Invalid presence batch size");
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(bytes)) {
+            out.writeUTF(PROTOCOL);
+            out.writeUTF(TYPE_PRESENCE);
+            out.writeUTF(server);
+            out.writeShort(names.size());
+            for (String name : names) out.writeUTF(name);
+        }
+        return wrapForward(MODE_ALL, bytes.toByteArray());
+    }
+
+    public static byte[] encodePresenceQuit(String server, String name) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(bytes)) {
+            out.writeUTF(PROTOCOL);
+            out.writeUTF(TYPE_PRESENCE_QUIT);
+            out.writeUTF(server);
+            out.writeUTF(name);
+        }
+        return wrapForward(MODE_ALL, bytes.toByteArray());
+    }
+
+    public static byte[] encodePresenceRequest(String server) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(bytes)) {
+            out.writeUTF(PROTOCOL);
+            out.writeUTF(TYPE_PRESENCE_REQUEST);
+            out.writeUTF(server);
+        }
+        return wrapForward(MODE_ALL, bytes.toByteArray());
+    }
+
     /** 包上 BungeeCord "Forward" 外层，交给任一在线玩家连接发给代理 */
     public static byte[] wrapForward(String mode, byte[] payload) throws IOException {
         payload = authenticate(payload);
@@ -257,6 +298,16 @@ public final class CrossServerCodec {
                 case TYPE_HORN -> new Inbound.Horn(in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
                 case TYPE_MUTE -> new Inbound.Mute(in.readUTF(), in.readUTF(), in.readLong(), in.readUTF(), in.readUTF());
                 case TYPE_UNMUTE -> new Inbound.Unmute(in.readUTF());
+                case TYPE_PRESENCE -> {
+                    String server = in.readUTF();
+                    int count = in.readUnsignedShort();
+                    if (count == 0 || count > MAX_PRESENCE_NAMES) yield null;
+                    java.util.List<String> names = new java.util.ArrayList<>(count);
+                    for (int i = 0; i < count; i++) names.add(in.readUTF());
+                    yield new Inbound.Presence(server, java.util.List.copyOf(names));
+                }
+                case TYPE_PRESENCE_QUIT -> new Inbound.PresenceQuit(in.readUTF(), in.readUTF());
+                case TYPE_PRESENCE_REQUEST -> new Inbound.PresenceRequest(in.readUTF());
                 default -> null;
             };
             return in.available() == 0 ? decoded : null;
@@ -269,7 +320,8 @@ public final class CrossServerCodec {
      */
     public sealed interface Inbound
             permits Inbound.ChatMessage, Inbound.TellMessage, Inbound.TellAck,
-                    Inbound.Horn, Inbound.Mute, Inbound.Unmute {
+                    Inbound.Horn, Inbound.Mute, Inbound.Unmute,
+                    Inbound.Presence, Inbound.PresenceQuit, Inbound.PresenceRequest {
 
         /** 群聊广播 */
         record ChatMessage(String originServer, String uuid, String playerName,
@@ -289,5 +341,8 @@ public final class CrossServerCodec {
         record Horn(String origin, String uuid, String name, String message) implements Inbound { }
         record Mute(String uuid, String name, long expires, String reason, String operator) implements Inbound { }
         record Unmute(String uuid) implements Inbound { }
+        record Presence(String server, java.util.List<String> names) implements Inbound { }
+        record PresenceQuit(String server, String name) implements Inbound { }
+        record PresenceRequest(String server) implements Inbound { }
     }
 }

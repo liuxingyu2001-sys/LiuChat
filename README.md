@@ -19,7 +19,7 @@
 | 屏蔽与资料 | `/lc ignore`、`unignore`、`ignorelist`、`nick`；MySQL 共享持久化 |
 | 扩展 | PAPI（含 CustomNameplates 的 PAPI 占位符）、Paper Dialog 可配置布局、独立开关的 AI 聊天审核与私聊助手、每日聊天日志 |
 | **跨服聊天** | 经代理转发到其他子服，收端按自己的 format 渲染、`${server}` 显示发送端子服；无代理/单服开着无副作用 |
-| **顶层私聊命令** | 直接注册 `/msg`（别名 `/w` `/whisper` `/pm`）与 `/tell`，全部带 tab 补全 |
+| **顶层私聊命令** | 直接注册 `/msg`（别名 `/w` `/whisper` `/pm`）与 `/tell`，全部带 tab 补全；跨服在线名单由子服同步供玩家名补全 |
 | **跨服私聊** | 目标在其他子服也能收到；TELL 广播只在目标所在服落地，**回执机制**保证送达 —— 3 秒未收到回执则提示“不在线，消息未送达”，不会静默丢失 |
 | 禁言 | `/lc mute`，`30s / 5m / 1h30m / 0=永久`，过期自动清；uuid + 名字双查兜底 |
 | **MySQL 跨服共享禁言** | 写库并广播 MUTE/UNMUTE 到其他子服内存；发送服无在线玩家或目标服断线时由共享库的定时对账补漏 |
@@ -57,7 +57,7 @@
 并回 TELL_ACK（定向回发送端子服）→ 发送端凭回执确认送达；超时 3 秒视为离线并补提示。
 目标不在线时先本地回显、3 秒后补“消息未送达”——两段式反馈，不静默丢消息。
 
-私聊独立格式配置在 `chat.yml` 的 `private.to.format`（发送者回显）和 `private.from.format`（接收者显示），每个节点与公共聊天一样支持 `text`、`hover`、`click`、`clickSuggest`、`url` 和图片。`${player}`/`${nick}` 表示发送者，`${target}` 表示接收者，`${message}` 为正文；`private.enable: false` 恢复 `messages.yml` 的旧文本样式。跨服私聊发送者的昵称、UUID、世界与占位符快照随消息发送，接收服无需发送者在线。**本次跨服协议升级至 6，所有子服须一起更新**，否则旧版子服间的消息会被拒收。
+私聊独立格式配置在 `chat.yml` 的 `private.to.format`（发送者回显）和 `private.from.format`（接收者显示），每个节点与公共聊天一样支持 `text`、`hover`、`click`、`clickSuggest`、`url` 和图片。`${player}`/`${nick}` 表示发送者，`${target}` 表示接收者，`${message}` 为正文；`private.enable: false` 恢复 `messages.yml` 的旧文本样式。跨服私聊发送者的昵称、UUID、世界与占位符快照随消息发送，接收服无需发送者在线。跨服在线名单在加入、退出时同步，并每分钟刷新；失联子服的名单约 150 秒后过期，供 `/tell`、`/msg` 等命令补全。**本次跨服协议升级至 7，所有子服须一起更新**，否则旧版子服间的消息会被拒收。
 
 `/lc` 别名：`/lc`
 

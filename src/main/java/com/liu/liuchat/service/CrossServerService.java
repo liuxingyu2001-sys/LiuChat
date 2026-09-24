@@ -4,9 +4,15 @@ import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.model.MuteData;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
+import org.bukkit.scheduler.BukkitTask;
 
+import java.util.List;
 import java.util.logging.Level;
 
 /**
@@ -20,7 +26,7 @@ import java.util.logging.Level;
  * </ul>
  * 注意：本类是 {@link PluginMessageListener}（messenger 注册），不是 Bukkit Listener。
  */
-public final class CrossServerService implements PluginMessageListener {
+public final class CrossServerService implements PluginMessageListener, Listener {
 
     private final JavaPlugin plugin;
     private final ConfigManager config;
@@ -30,6 +36,8 @@ public final class CrossServerService implements PluginMessageListener {
     private MuteService muteService;
     private boolean enabled;
     private boolean warned;
+    private final RemotePlayers remotePlayers = new RemotePlayers();
+    private BukkitTask presenceTask;
 
     public CrossServerService(JavaPlugin plugin, ConfigManager config, ChatService chatService) {
         this.plugin = plugin;
@@ -44,6 +52,12 @@ public final class CrossServerService implements PluginMessageListener {
         // Bukkit 会将旧名和 namespaced 名规范化为同一通道，注册一次即可。
         plugin.getServer().getMessenger().registerIncomingPluginChannel(
                 plugin, CrossServerCodec.BUNGEE_CHANNEL, this);
+        plugin.getServer().getPluginManager().registerEvents(this, plugin);
+        presenceTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::publishPresence, 1200L, 1200L);
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            publishPresence();
+            sendViaAny(() -> CrossServerCodec.encodePresenceRequest(config.server()));
+        }, 20L);
     }
 
     public void setTellService(TellService tellService) {
@@ -79,6 +93,38 @@ public final class CrossServerService implements PluginMessageListener {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public List<String> completePlayers(String prefix) {
+        List<String> local = Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
+        return remotePlayers.complete(prefix, local, System.currentTimeMillis());
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        if (!enabled) return;
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!event.getPlayer().isOnline()) return;
+            publishPresence();
+            sendViaAny(() -> CrossServerCodec.encodePresenceRequest(config.server()));
+        }, 2L);
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        if (!enabled) return;
+        try {
+            fire(event.getPlayer(), CrossServerCodec.encodePresenceQuit(config.server(), event.getPlayer().getName()));
+        } catch (Exception e) { warnOnce(e); }
+    }
+
+    private void publishPresence() {
+        if (!enabled) return;
+        List<String> names = Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
+        for (int i = 0; i < names.size(); i += CrossServerCodec.MAX_PRESENCE_NAMES) {
+            List<String> batch = names.subList(i, Math.min(i + CrossServerCodec.MAX_PRESENCE_NAMES, names.size()));
+            sendViaAny(() -> CrossServerCodec.encodePresence(config.server(), batch));
+        }
     }
 
     // ---------------- 发送 ----------------
@@ -185,6 +231,16 @@ public final class CrossServerService implements PluginMessageListener {
                     tellService.onAck(ack.msgId());
                 }
             }
+            case CrossServerCodec.Inbound.Presence presence -> {
+                if (!presence.server().equals(config.server()))
+                    remotePlayers.update(presence.server(), presence.names(), System.currentTimeMillis());
+            }
+            case CrossServerCodec.Inbound.PresenceQuit quit -> {
+                if (!quit.server().equals(config.server())) remotePlayers.remove(quit.server(), quit.name());
+            }
+            case CrossServerCodec.Inbound.PresenceRequest request -> {
+                if (!request.server().equals(config.server())) publishPresence();
+            }
         }
     }
 
@@ -210,6 +266,8 @@ public final class CrossServerService implements PluginMessageListener {
             return;
         }
         enabled = false;
+        if (presenceTask != null) presenceTask.cancel();
+        org.bukkit.event.HandlerList.unregisterAll(this);
         plugin.getServer().getMessenger().unregisterOutgoingPluginChannel(plugin, CrossServerCodec.BUNGEE_CHANNEL);
         plugin.getServer().getMessenger().unregisterIncomingPluginChannel(
                 plugin, CrossServerCodec.BUNGEE_CHANNEL, this);

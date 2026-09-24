@@ -138,7 +138,7 @@ public final class LiuChat extends JavaPlugin {
         router.register(nick);
         router.register(chatColor);
         router.register(dialog);
-        ChatCommand tell = new TellCommand(messageManager, tellService, configManager);
+        ChatCommand tell = new TellCommand(messageManager, tellService, configManager, crossServer);
         router.register(tell);
 
         PluginCommand mainCommand = requireCommand("liuchat");
