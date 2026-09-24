@@ -38,6 +38,7 @@ ai:
   review:
     enable: false # 每小时审核历史；不影响普通聊天速度
     manual-enable: true # 管理员可用 /lc audit <1-24> 手动审查
+    private-chat: true # 将私聊纳入历史审查，仍只写入本地审查文件
     interval-minutes: 60 # 定时审查最近一小时；/lc reload 生效
     timeout-seconds: 90
     prompt: '审核 Minecraft 聊天记录，识别违规发言并返回结构化 JSON。'

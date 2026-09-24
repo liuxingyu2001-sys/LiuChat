@@ -24,7 +24,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-/** Ordered chat nodes and message shortcuts from the PlayerChat-style configuration. */
+/** Ordered chat nodes and message shortcuts from configuration. */
 public final class ChatPresentation {
     private final JavaPlugin plugin;
     private final ConfigManager config;

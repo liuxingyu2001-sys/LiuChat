@@ -95,6 +95,7 @@ public final class LiuChat extends JavaPlugin {
         chatService.setPlayerProfileService(profiles);
         chatService.setIgnoreService(ignores);
         tellService.setIgnoreService(ignores);
+        tellService.setConfig(configManager);
         tellService.setChatLogService(chatLogs);
 
         // 4. 命令：/lc 子命令 + 顶层直注册的 /msg /tell
@@ -133,7 +134,7 @@ public final class LiuChat extends JavaPlugin {
         router.register(new IgnoreCommand("ignorelist", messageManager, ignores));
         router.register(new ProfileCommand("nick", profiles, messageManager));
         router.register(dialog);
-        ChatCommand tell = new TellCommand(messageManager, tellService);
+        ChatCommand tell = new TellCommand(messageManager, tellService, configManager);
         router.register(tell);
 
         PluginCommand mainCommand = requireCommand("liuchat");

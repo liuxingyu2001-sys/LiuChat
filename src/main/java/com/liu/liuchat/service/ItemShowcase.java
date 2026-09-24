@@ -23,6 +23,7 @@ public final class ItemShowcase implements Listener {
     private static final long LIFETIME = 10 * 60 * 1000L;
     private final Map<String, Entry> entries = new HashMap<>();
     private final CraftEngineNames ceNames = new CraftEngineNames();
+    private final VanillaItemNames vanillaNames = new VanillaItemNames();
 
     public ItemShowcase() { ceNames.reload(); }
     public void reloadTranslations() { ceNames.reload(); }
@@ -78,7 +79,7 @@ public final class ItemShowcase implements Listener {
         if (item == null) {
             return "";
         }
-        String shown = item.getType().name().toLowerCase().replace('_', ' ');
+        String shown = vanillaNames.resolve(item.getType());
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             net.kyori.adventure.text.Component component = meta.hasItemName() ? meta.itemName()

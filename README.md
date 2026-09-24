@@ -1,6 +1,7 @@
 # LiuChat
 
-零第三方框架依赖的聊天插件（不依赖 HandyLib，基础设施全部自建）。
+[![Maven CI](https://github.com/liuxingyu2001/LiuChat/actions/workflows/maven.yml/badge.svg)](https://github.com/liuxingyu2001/LiuChat/actions/workflows/maven.yml)
+
 
 - **平台**：Paper / Leaf 1.21.11（Java 21；完整物品悬浮及 Dialogs 使用 Paper API）
 - **存储**：SQLite（单服）/ MySQL（跨服共享），驱动经 plugin.yml `libraries` 由 Paper 自动下载
@@ -50,6 +51,8 @@
 /lc dialog chatcolor              聊天颜色与渐变 Dialog
 ```
 
+`/lc dialog chatcolor` 打开聊天颜色与渐变设置 Dialog。
+
 跨服私聊链路：本服在线直达 → 不在本服则 TELL 广播（代理 Forward ALL）→ 目标所在服投递
 并回 TELL_ACK（定向回发送端子服）→ 发送端凭回执确认送达；超时 3 秒视为离线并补提示。
 目标不在线时先本地回显、3 秒后补“消息未送达”——两段式反馈，不静默丢消息。
@@ -67,7 +70,7 @@
 
 CMI 同名指令由 `commands.prefer-liuchat: true` 将 `/msg`、`/tell`、`/w`、`/pm`、`/horn` 转到 `liuchat:` 命名空间；不自动修改服务器 `commands.yml`。
 
-`ai.enable` 是即时本地屏蔽和历史采集的总开关：屏蔽词（含 `*`、`?` 有限通配）、数字联系方式、IPv4 和域名在发送时直接拦截，未命中则立即广播。`ai.review.enable: true` 才启动定时 AI 审查，默认每 60 分钟分析最近 1 小时本服已发送的公开聊天；`ai.review.manual-enable: true` 允许管理员用 `/lc audit <1-24>` 审查指定小时数。两项开关互不影响。记录单独存于 `audit-history/YYYY-MM-DD.jsonl`，不依赖可自定义格式的普通聊天日志；报告写入 `audit-reports/` 并通知 `liuchat.audit.notify` 管理员。每次最多提交最近 250 条、每条最多 300 字，报告记录超量丢弃数；模型只生成待人工复核的报告，不自动禁言。旧版仅有普通聊天日志的历史无法倒查；跨服需在各子服分别执行审核。审核 URL/模型沿用 `ai.url` / `ai.model`，`ai.review.prompt` 与 `ai.review.timeout-seconds` 单独配置。`/lc reload` 可切换定时/手动开关。
+`ai.enable` 是即时本地屏蔽和历史采集的总开关：屏蔽词（含 `*`、`?` 有限通配）、数字联系方式、IPv4 和域名在发送时直接拦截，未命中则立即广播。`ai.review.enable: true` 才启动定时 AI 审查，默认每 60 分钟分析最近 1 小时本服已发送的公开聊天；`ai.review.manual-enable: true` 允许管理员用 `/lc audit <1-24>` 审查指定小时数。两项开关互不影响。记录单独存于 `audit-history/YYYY-MM-DD.jsonl`，不依赖可自定义格式的普通聊天日志；报告写入 `audit-reports/` 并通知 `liuchat.audit.notify` 管理员。每次最多提交最近 250 条、每条最多 300 字，报告记录超量丢弃数；模型只生成待人工复核的报告，不自动禁言。跨服需在各子服分别执行审核。审核 URL/模型沿用 `ai.url` / `ai.model`，`ai.review.prompt` 与 `ai.review.timeout-seconds` 单独配置。`/lc reload` 可切换定时/手动开关。
 
 `ai.review.keywords` 支持有限通配：普通词自动容忍每两个字符之间插入最多 2 个任意字符（`cnm` 可拦 `c.n.m`、`c你n好m`），`*` 匹配最多 8 字，`?` 匹配 1 字；所有命中均直接屏蔽，不再调用 AI。短词可能误拦，请针对服务器用语调整；已有配置的关键词列表不会被自动覆盖，需要手动加入 `cnm` 等新关键词。
 
@@ -98,7 +101,19 @@ mvn clean package
 # 产物: target/Liu-LiuChat-0.3.0.jar  （含单元测试）
 ```
 
-## 架构（仿 PlayerChat 的分层，去掉了 HandyLib）
+## 开源协议
+
+LiuChat 使用 [MIT License](LICENSE) 发布。你可以自由使用、复制、修改和分发本项目，但必须保留版权声明和许可证文本。Paper、Leaf、Adventure、SQLite JDBC、MySQL Connector/J、PlaceholderAPI 以及服务器中安装的其他可选插件均按各自项目的许可证提供，不因 LiuChat 使用 MIT License 而改变其许可证。
+
+## 持续集成
+
+GitHub Actions 工作流位于 `.github/workflows/maven.yml`，使用 Java 21 执行：
+
+```bash
+mvn -B clean verify
+```
+
+工作流会在 push 和 pull request 时运行，包含编译、单元测试和打包。
 
 ```
 com.liu.liuchat
@@ -148,7 +163,7 @@ com.liu.liuchat
 2. 确认 `velocity.toml` 里 `bungee-plugin-message-channel` 没被改成 `false`；
 3. Velocity 代理**没有**原生 `/msg`，`/msg` `/tell` 直达后端，无需像 BungeeCord 那样在代理侧禁用。
 
-## 路线图（仿 PlayerChat 逐步补齐）
+## 路线图（独立开发计划）
 
 - [x] 跨服私聊（协议新增 TELL/TELL_ACK 子类型，回执式送达确认）
 - [x] 全服喇叭（聊天/Title/ActionBar/BossBar/音效）、物品上屏及悬浮
@@ -156,6 +171,6 @@ com.liu.liuchat
 - [ ] 频道系统（channel.yml + 权限 + 跨服已就绪）
 - [ ] 更多频道/条件节点与 CustomNameplates 专有 API 适配
 - [ ] 实际代理 + 双后端 + 客户端端到端验收
-- [ ] 聊天颜色样式选择 GUI（当前支持 `/lc chatcolor` 命令）
+- [x] 聊天颜色样式选择 Dialog（`/lc dialog chatcolor`）
 - [ ] AI 投票禁言（当前仅支持可选审核）
 - [ ] DiscordSRV 桥接

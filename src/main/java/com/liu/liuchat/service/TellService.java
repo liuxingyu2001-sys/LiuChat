@@ -32,7 +32,9 @@ public final class TellService {
     private final CrossServerService crossServer;
     private IgnoreService ignores;
     private ChatLogService logs;
+    private com.liu.liuchat.config.ConfigManager config;
     public void setChatLogService(ChatLogService logs) { this.logs = logs; }
+    public void setConfig(com.liu.liuchat.config.ConfigManager config) { this.config = config; }
     /** key = msgId；只存发送者标识与目标名，回执到达即移除 */
     private final Map<String, Pending> pending = new ConcurrentHashMap<>();
 
@@ -57,7 +59,10 @@ public final class TellService {
                 ? com.liu.liuchat.util.ColorParser.playerText(text) : text.replace('§', '&');
         messages.send(from, "tell.to-tell", "${player}", target.getName(), "${message}", message);
         messages.send(target, "tell.from", "${player}", from.getName(), "${message}", message);
-        if (logs != null) logs.local("TELL", from.getName(), target.getName(), message);
+        if (logs != null) {
+            logs.local("TELL", from.getName(), target.getName(), message);
+            if (config != null) logs.recordPrivate(from.getUniqueId().toString(), from.getName(), target.getName(), message);
+        }
     }
 
     /**
@@ -80,7 +85,10 @@ public final class TellService {
             return;
         }
         messages.send(sender, "tell.to-tell", "${player}", targetName, "${message}", message);
-        if (logs != null) logs.local("TELL", sender.getName(), targetName, message);
+        if (logs != null) {
+            logs.local("TELL", sender.getName(), targetName, message);
+            if (config != null) logs.recordPrivate(sender.getUniqueId().toString(), sender.getName(), targetName, message);
+        }
 
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (pending.remove(msgId) == null) {

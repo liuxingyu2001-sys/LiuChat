@@ -42,8 +42,11 @@ permissions:
   liuchat.audit:
     description: 手动审核聊天历史
     default: op
-  liuchat.audit.notify:
-    description: 接收历史聊天审查报告
+  liuchat.moderation.bypass:
+    description: 绕过聊天和私聊本地违规拦截
+    default: op
+  liuchat.moderation.notify:
+    description: 接收违规聊天和私聊通知
     default: op
   liuchat.ask:
     description: 使用 AI 聊天助手

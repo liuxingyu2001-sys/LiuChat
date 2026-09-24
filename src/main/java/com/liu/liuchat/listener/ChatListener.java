@@ -105,8 +105,12 @@ public final class ChatListener implements Listener {
         }
 
         if (config.aiEnabled() && ChatReviewPolicy.blocked(text, config.aiReviewKeywords(),
-                config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())) {
-            messages.send(player, "ai.local-blocked");
+                config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())
+                && !player.hasPermission("liuchat.moderation.bypass")) {
+            String shown = player.hasPermission("liuchat.color")
+                    ? com.liu.liuchat.util.ColorParser.playerText(text) : text.replace('§', '&');
+            chatService.sendOwnChat(player, shown);
+            notifyModerators(player, text);
             return;
         }
         lastChatAt.put(uuid, now);
@@ -122,6 +126,12 @@ public final class ChatListener implements Listener {
                 dispatch.placeholders(), dispatch.nick());
     }
 
+    private void notifyModerators(Player sender, String text) {
+        String notice = messages.get("ai.local-blocked-notify", "${player}", sender.getName(), "${message}", text);
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (online.hasPermission("liuchat.moderation.notify")) online.sendMessage(notice);
+        }
+    }
     /**
      * 窗口期内与上次发言完全相同或相似度达标则判为刷屏。
      * 完全相同不受 min-length 限制；相似度比较要求长度达标。

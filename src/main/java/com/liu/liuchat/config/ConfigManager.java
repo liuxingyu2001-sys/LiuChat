@@ -70,6 +70,7 @@ public final class ConfigManager {
     public boolean aiReviewBlockDomains() { return config.getBoolean("ai.review.block-domains", true); }
     public boolean aiReviewEnabled() { return config.getBoolean("ai.review.enable", false); }
     public boolean aiReviewManualEnabled() { return config.getBoolean("ai.review.manual-enable", true); }
+    public boolean aiReviewPrivate() { return config.getBoolean("ai.review.private-chat", true); }
     public String aiReviewPrompt() {
         return config.getString("ai.review.prompt", "审核 Minecraft 聊天记录，识别违规发言并返回结构化 JSON。");
     }

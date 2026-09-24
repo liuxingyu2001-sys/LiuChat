@@ -86,6 +86,10 @@ public final class ChatLogService implements AutoCloseable {
         });
     }
 
+    public void recordPrivate(String uuid, String player, String target, String message) {
+        if (!config.aiEnabled() || !config.aiReviewPrivate()) return;
+        recordPublic(uuid, player, "[私聊 -> " + clean(target) + "] " + message);
+    }
     public java.util.concurrent.CompletableFuture<HourlyChatHistory.Snapshot> recentMinutes(int minutes, Instant now) {
         var result = new java.util.concurrent.CompletableFuture<HourlyChatHistory.Snapshot>();
         writer.execute(() -> {

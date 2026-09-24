@@ -39,6 +39,16 @@ public final class ChatService {
 
     public record Dispatch(String message, String itemData, String placeholders, String nick) { }
 
+    public void sendOwnChat(Player player, String message) {
+        var profile = profiles == null ? null : profiles.get(player);
+        String nick = profile == null || profile.nick().isBlank() ? player.getName() : profile.nick();
+        if (profile != null && !profile.color().isBlank())
+            message = ProfileChatColor.apply(profile.color(), message, presentation.itemToken());
+        BaseComponent[] line = presentation.render(config.server(), player.getName(),
+                player.getUniqueId().toString(), player.getWorld().getName(), player, message,
+                null, player, presentation.snapshotPlaceholders(player), nick);
+        player.sendMessage(PaperChatComponents.convert(line, items));
+    }
     public Dispatch broadcast(Player player, String message) {
         var profile = profiles == null ? null : profiles.get(player);
         String nick = profile == null || profile.nick().isBlank() ? player.getName() : profile.nick();
