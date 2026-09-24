@@ -32,6 +32,15 @@ public interface Database extends AutoCloseable {
 
     void removeIgnore(String owner, String name);
 
+    /** Returns -1 when storage is unavailable. */
+    int hornBalance(String owner);
+
+    /** Atomically adds credits; returns -1 on failure. */
+    int addHorns(String owner, int amount);
+
+    /** Atomically spends one credit. */
+    boolean spendHorn(String owner);
+
     @Override
     void close();
 }

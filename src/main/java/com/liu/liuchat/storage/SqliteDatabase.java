@@ -50,6 +50,12 @@ final class SqliteDatabase extends AbstractJdbcDatabase {
     }
 
     @Override
+    protected String upsertHornSql() {
+        return "INSERT INTO horn_balance (owner, credits) VALUES (?, ?) "
+                + "ON CONFLICT(owner) DO UPDATE SET credits = credits + excluded.credits";
+    }
+
+    @Override
     protected String describe() {
         return dbFile.getAbsolutePath();
     }

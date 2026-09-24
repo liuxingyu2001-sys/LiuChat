@@ -12,7 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * /lc tell、/msg、/tell 共用的私聊命令：本服直达，目标不在线则走跨服链路
+ * /liuc tell、/msg、/tell 共用的私聊命令：本服直达，目标不在线则走跨服链路
  * （离线判定与送达提示由 {@link TellService} 的回执机制负责）。
  */
 public final class TellCommand implements ChatCommand {

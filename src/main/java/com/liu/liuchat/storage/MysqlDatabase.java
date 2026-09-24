@@ -64,6 +64,12 @@ final class MysqlDatabase extends AbstractJdbcDatabase {
 
     /** MySQL UPDATE 子句使用 VALUES()，不需要重复绑定参数。 */
     @Override
+    protected String upsertHornSql() {
+        return "INSERT INTO horn_balance (owner, credits) VALUES (?, ?) "
+                + "ON DUPLICATE KEY UPDATE credits = credits + VALUES(credits)";
+    }
+
+    @Override
     protected String describe() {
         return config.mysqlUrl();
     }

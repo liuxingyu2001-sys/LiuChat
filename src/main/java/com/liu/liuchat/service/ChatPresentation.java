@@ -193,7 +193,7 @@ public final class ChatPresentation {
                 HoverEvent itemHover = new HoverEvent(HoverEvent.Action.SHOW_ITEM,
                         new Item(stack.getType().getKey().toString(), stack.getAmount(), null));
                 append(line, TextUtil.color(shown), itemHover,
-                        new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/lc item " + itemId));
+                        new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/liuc item " + itemId));
             }
             offset = index + marker.length();
         }

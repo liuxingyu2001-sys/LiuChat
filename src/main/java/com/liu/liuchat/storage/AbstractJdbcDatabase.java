@@ -57,6 +57,7 @@ abstract class AbstractJdbcDatabase implements Database {
                         + "ignored_name VARCHAR(32) NOT NULL, PRIMARY KEY (owner, ignored_name))");
                 statement.executeUpdate("CREATE TABLE IF NOT EXISTS chat_profile (owner VARCHAR(36) PRIMARY KEY, "
                         + "nick VARCHAR(64), color VARCHAR(80))");
+                statement.executeUpdate("CREATE TABLE IF NOT EXISTS horn_balance (owner VARCHAR(36) PRIMARY KEY, credits INT NOT NULL DEFAULT 0)");
             }
             ready = true;
         } catch (Exception e) {
@@ -206,6 +207,50 @@ abstract class AbstractJdbcDatabase implements Database {
             plugin.getLogger().log(Level.SEVERE, "删除屏蔽项失败", e);
         }
     }
+
+    @Override
+    public synchronized int hornBalance(String owner) {
+        if (!ready) return -1;
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT credits FROM horn_balance WHERE owner = ?")) {
+            ps.setString(1, owner);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Math.max(0, rs.getInt(1)) : 0;
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "读取喇叭数量失败", e);
+            return -1;
+        }
+    }
+
+    @Override
+    public synchronized int addHorns(String owner, int amount) {
+        if (!ready || amount <= 0) return -1;
+        try (PreparedStatement ps = connection.prepareStatement(upsertHornSql())) {
+            ps.setString(1, owner);
+            ps.setInt(2, amount);
+            ps.executeUpdate();
+            return hornBalance(owner);
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "发放喇叭数量失败", e);
+            return -1;
+        }
+    }
+
+    @Override
+    public synchronized boolean spendHorn(String owner) {
+        if (!ready) return false;
+        try (PreparedStatement ps = connection.prepareStatement(
+                "UPDATE horn_balance SET credits = credits - 1 WHERE owner = ? AND credits > 0")) {
+            ps.setString(1, owner);
+            return ps.executeUpdate() == 1;
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "扣除喇叭数量失败", e);
+            return false;
+        }
+    }
+
+    protected abstract String upsertHornSql();
 
     @Override
     public synchronized void close() {

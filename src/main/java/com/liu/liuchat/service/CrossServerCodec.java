@@ -5,6 +5,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.security.MessageDigest;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * 跨服消息编解码（纯 Java，无 Bukkit 依赖，可单测）。
@@ -54,7 +57,45 @@ public final class CrossServerCodec {
     /** Bukkit plugin message 限制为 32766 字节（包括 Forward 外层）。 */
     private static final int MAX_PACKET_SIZE = 32766;
 
-    private CrossServerCodec() {
+    private static volatile String sharedSecret = "";
+
+    public static void setSharedSecret(String secret) {
+        sharedSecret = secret == null ? "" : secret;
+    }
+
+    private static byte[] authenticate(byte[] payload) throws IOException {
+        if (sharedSecret.isBlank()) return payload;
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(sharedSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] signature = mac.doFinal(payload);
+            ByteArrayOutputStream result = new ByteArrayOutputStream();
+            try (DataOutputStream out = new DataOutputStream(result)) {
+                out.write(payload);
+                out.writeUTF(java.util.HexFormat.of().formatHex(signature));
+            }
+            return result.toByteArray();
+        } catch (Exception e) {
+            throw new IOException("跨服消息签名失败", e);
+        }
+    }
+
+    private static byte[] verify(byte[] packet) {
+        try {
+            if (sharedSecret.isBlank()) return packet;
+            if (packet.length < 66) return null;
+            int signatureStart = packet.length - 66;
+            byte[] body = java.util.Arrays.copyOf(packet, signatureStart);
+            try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet, signatureStart, 66))) {
+                String hex = in.readUTF();
+                if (in.available() != 0 || hex.length() != 64) return null;
+                Mac mac = Mac.getInstance("HmacSHA256");
+                mac.init(new SecretKeySpec(sharedSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+                return MessageDigest.isEqual(mac.doFinal(body), java.util.HexFormat.of().parseHex(hex)) ? body : null;
+            }
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ---------------- 发送侧编码 ----------------
@@ -148,6 +189,7 @@ public final class CrossServerCodec {
 
     /** 包上 BungeeCord "Forward" 外层，交给任一在线玩家连接发给代理 */
     public static byte[] wrapForward(String mode, byte[] payload) throws IOException {
+        payload = authenticate(payload);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream out = new DataOutputStream(bytes)) {
             out.writeUTF("Forward");
@@ -186,7 +228,8 @@ public final class CrossServerCodec {
             if (payload.length != length || in.available() != 0) {
                 return null;
             }
-            return decodePayload(payload);
+            payload = verify(payload);
+            return payload == null ? null : decodePayload(payload);
         } catch (IOException | RuntimeException e) {
             // 畸形数据（同通道上还有其它插件的消息）直接忽略
             return null;

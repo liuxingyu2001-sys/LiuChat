@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * /lc 子命令：一个功能一个类，{@link CommandRouter} 统一注册与分发。
+ * /liuc 子命令：一个功能一个类，{@link CommandRouter} 统一注册与分发。
  */
 public interface ChatCommand {
 

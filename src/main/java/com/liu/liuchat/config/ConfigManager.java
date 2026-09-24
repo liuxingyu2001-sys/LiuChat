@@ -117,7 +117,11 @@ public final class ConfigManager {
     }
 
     public boolean crossServerEnabled() {
-        return config.getBoolean("cross-server.enable", true);
+        return config.getBoolean("cross-server.enable", true) && !crossServerSecret().isBlank();
+    }
+
+    public String crossServerSecret() {
+        return config.getString("cross-server.secret", "").strip();
     }
 
     // ---------------- 存储 ----------------

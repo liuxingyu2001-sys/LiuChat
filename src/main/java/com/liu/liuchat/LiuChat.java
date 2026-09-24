@@ -127,7 +127,7 @@ public final class LiuChat extends JavaPlugin {
         });
         router.register(new MuteCommand(messageManager, muteService, crossServer));
         router.register(new UnmuteCommand(messageManager, muteService, crossServer));
-        ChatCommand horn = new HornCommand(messageManager, chatService, crossServer, muteService);
+        ChatCommand horn = new HornCommand(messageManager, chatService, crossServer, muteService, database);
         router.register(horn);
         router.register(new IgnoreCommand("ignore", messageManager, ignores));
         router.register(new IgnoreCommand("unignore", messageManager, ignores));

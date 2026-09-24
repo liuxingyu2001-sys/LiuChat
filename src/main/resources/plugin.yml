@@ -23,7 +23,7 @@ libraries:
 commands:
   liuchat:
     description: LiuChat 主命令
-    aliases: [lc]
+    aliases: [liuc]
   # 直接注册的私聊命令（会覆盖原版 /msg /tell /w，与 EssentialsX 同一机制）
   # 提示：若 BungeeCord 代理端的 /msg 拦截了输入，需在代理侧禁用该命令
   msg:
@@ -50,16 +50,22 @@ permissions:
     default: op
   liuchat.ask:
     description: 使用 AI 聊天助手
-    default: true
+    default: false
+  liuchat.audit.notify:
+    description: 接收聊天审核完成通知
+    default: op
   liuchat.nick:
     description: 修改聊天昵称
     default: op
   liuchat.chatcolor:
     description: 选择聊天颜色
-    default: true
+    default: false
   liuchat.horn:
-    description: 发送全服喇叭
-    default: true
+    description: 使用全服喇叭（需要喇叭数量）
+    default: op
+  liuchat.horn.give:
+    description: 给玩家发放喇叭数量
+    default: op
   liuchat.mute:
     description: 禁言玩家
     default: op

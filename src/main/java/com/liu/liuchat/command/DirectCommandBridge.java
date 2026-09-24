@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * 顶层直注册命令的桥：把 plugin.yml 里独立声明的命令（/msg /tell 等）
- * 包装到 {@link ChatCommand}，复用与 /lc 子命令完全相同的
+ * 包装到 {@link ChatCommand}，复用与 /liuc 子命令完全相同的
  * 权限检查 / 玩家限定 / 异常兜底 / tab 补全。
  */
 public final class DirectCommandBridge implements CommandExecutor, TabCompleter {

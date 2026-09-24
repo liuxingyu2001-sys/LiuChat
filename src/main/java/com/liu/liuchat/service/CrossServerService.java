@@ -35,6 +35,7 @@ public final class CrossServerService implements PluginMessageListener {
         this.plugin = plugin;
         this.config = config;
         this.chatService = chatService;
+        CrossServerCodec.setSharedSecret(config.crossServerSecret());
         this.enabled = config.crossServerEnabled();
         if (!enabled) {
             return;

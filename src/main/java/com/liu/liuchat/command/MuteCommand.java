@@ -14,7 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * /lc mute <玩家> <时长|0永久> [原因]
+ * /liuc mute <玩家> <时长|0永久> [原因]
  */
 public final class MuteCommand implements ChatCommand {
 

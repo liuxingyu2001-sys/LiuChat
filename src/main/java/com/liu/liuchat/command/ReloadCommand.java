@@ -9,7 +9,7 @@ import com.liu.liuchat.command.DialogCommand;
 import org.bukkit.command.CommandSender;
 
 /**
- * /lc reload —— 重载配置与语言文件。
+ * /liuc reload —— 重载配置与语言文件。
  */
 public final class ReloadCommand implements ChatCommand {
 

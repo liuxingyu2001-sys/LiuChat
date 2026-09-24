@@ -24,6 +24,8 @@ console-format: "&8[${server}] &7[控制台] &e${player}&8» &f${message}"
 # ------------------------------------------------------------
 cross-server:
   enable: true
+  # 所有子服必须使用相同的高强度随机密钥；为空时跨服功能关闭
+  secret: ''
 
 # 冲突指令优先交给 LiuChat。可在 /lc reload 后生效；关闭则交由 CMI/其他插件自行处理。
 commands:
@@ -69,7 +71,7 @@ chat-log:
   enable: true
   format: '[${time}] [${type}] [${server}] ${player} -> ${target}: ${message}'
 
-# 全服喇叭：/lc horn <内容>，默认 liuchat.horn 权限。
+  # 全服喇叭：/liuc horn <内容>，需要 liuchat.horn 权限和喇叭余额。
 horn:
   format: "&6[全服喇叭] &e${player}&7: &f${message}"
   modes: [chat, title, actionbar, bossbar]

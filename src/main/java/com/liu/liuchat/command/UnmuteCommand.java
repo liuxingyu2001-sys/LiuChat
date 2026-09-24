@@ -11,7 +11,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * /lc unmute <玩家>
+ * /liuc unmute <玩家>
  */
 public final class UnmuteCommand implements ChatCommand {
 

@@ -14,7 +14,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * /lc 主命令路由器：按第一个参数分发到各 {@link ChatCommand}，
+ * /liuc 主命令路由器：按第一个参数分发到各 {@link ChatCommand}，
  * 权限/玩家限定/异常兜底交给 {@link CommandSupport}，tab 补全同样分流。
  */
 public final class CommandRouter implements CommandExecutor, TabCompleter {
