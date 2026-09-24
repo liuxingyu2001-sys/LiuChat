@@ -45,6 +45,7 @@ public final class ItemShowcase implements Listener {
         boolean spacePreviewEnabled();
         String spaceRingKey();
         String spacePreviewPermission();
+        String spaceSort();
     }
 
     private static final class Entry {
@@ -53,7 +54,7 @@ public final class ItemShowcase implements Listener {
         final ItemStack item;
         final long expires;
         /** 空间预览数据：null = 尚未获取；首次点击获取一次后复用，条目过期即释放。 */
-        volatile List<ItemStack> space;
+        volatile List<SpacePreview.Counted<ItemStack>> space;
         volatile boolean spaceLoading;
 
         Entry(String owner, UUID ownerUuid, ItemStack item, long expires) {
@@ -199,7 +200,7 @@ public final class ItemShowcase implements Listener {
      */
     private void openSpace(Player viewer, Entry entry) {
         if (entry.space != null) {
-            openSpaceGui(viewer, entry, 0);
+            openSpaceGui(viewer, entry, 0, defaultSort());
             return;
         }
         if (entry.spaceLoading) {
@@ -215,32 +216,48 @@ public final class ItemShowcase implements Listener {
                 return;
             }
             entry.space = result.get();
-            if (viewer.isOnline()) openSpaceGui(viewer, entry, 0);
+            if (viewer.isOnline()) openSpaceGui(viewer, entry, 0, defaultSort());
         });
     }
 
-    /** 空间预览 GUI：54 格只读，前 5 行 45 格放物品，末行翻页（拿不走任何物品）。 */
-    private void openSpaceGui(Player viewer, Entry entry, int page) {
-        List<ItemStack> items = entry.space == null ? List.of() : entry.space;
-        int pageCount = SpacePreview.pageCount(items.size());
+    /** 配置的默认排序方式（每次打开界面时读取，reload 后立即生效）。 */
+    private SpacePreview.Sort defaultSort() {
+        SpaceSettings settings = spaceSettings;
+        return SpacePreview.Sort.parse(settings == null ? null : settings.spaceSort());
+    }
+
+    /** 空间预览 GUI：54 格只读，前 5 行 45 格放物品，末行排序与翻页（拿不走任何物品）。 */
+    private void openSpaceGui(Player viewer, Entry entry, int page, SpacePreview.Sort sort) {
+        List<SpacePreview.Counted<ItemStack>> items = entry.space == null ? List.of() : entry.space;
+        items = SpacePreview.sort(items, SpacePreview.Counted::count, sort);
+        int size = items.size();
+        int pageCount = SpacePreview.pageCount(size);
         int index = SpacePreview.clampPage(page, pageCount);
-        SpacePreviewHolder holder = new SpacePreviewHolder(entry, index, pageCount);
+        SpacePreviewHolder holder = new SpacePreviewHolder(entry, index, pageCount, sort);
         Inventory inventory = Bukkit.createInventory(holder, 54, entry.owner + " 的灵魂空间");
         holder.inventory = inventory;
-        int from = SpacePreview.from(index, items.size());
-        int to = SpacePreview.to(index, items.size());
+        int from = SpacePreview.from(index, size);
+        int to = SpacePreview.to(index, size);
         for (int i = from; i < to; i++) {
-            inventory.setItem(i - from, items.get(i).clone());
+            inventory.setItem(i - from, items.get(i).item().clone());
         }
         if (index > 0) inventory.setItem(SpacePreview.NAV_PREV, navArrow("§e上一页"));
         ItemStack info = new ItemStack(Material.PAPER);
         ItemMeta infoMeta = info.getItemMeta();
         if (infoMeta != null) {
             infoMeta.setDisplayName("§f第 §e" + (index + 1) + " §f/ §e" + pageCount + " §f页");
-            infoMeta.setLore(List.of("§7共 §f" + items.size() + " §7种堆叠"));
+            infoMeta.setLore(List.of("§7共 §f" + size + " §7种堆叠"));
             info.setItemMeta(infoMeta);
         }
         inventory.setItem(SpacePreview.NAV_INFO, info);
+        ItemStack sortItem = new ItemStack(Material.HOPPER);
+        ItemMeta sortMeta = sortItem.getItemMeta();
+        if (sortMeta != null) {
+            sortMeta.setDisplayName("§f排序：§e" + sort.label());
+            sortMeta.setLore(List.of("§7点击切换排序方式"));
+            sortItem.setItemMeta(sortMeta);
+        }
+        inventory.setItem(SpacePreview.NAV_SORT, sortItem);
         if (index < pageCount - 1) inventory.setItem(SpacePreview.NAV_NEXT, navArrow("§e下一页"));
         viewer.openInventory(inventory);
     }
@@ -273,12 +290,14 @@ public final class ItemShowcase implements Listener {
         final Entry entry;
         final int page;
         final int pageCount;
+        final SpacePreview.Sort sort;
         private Inventory inventory;
 
-        SpacePreviewHolder(Entry entry, int page, int pageCount) {
+        SpacePreviewHolder(Entry entry, int page, int pageCount, SpacePreview.Sort sort) {
             this.entry = entry;
             this.page = page;
             this.pageCount = pageCount;
+            this.sort = sort;
         }
 
         @Override public Inventory getInventory() { return inventory; }
@@ -297,9 +316,11 @@ public final class ItemShowcase implements Listener {
                 return;
             }
             if (event.getRawSlot() == SpacePreview.NAV_PREV && holder.page > 0) {
-                openSpaceGui(viewer, holder.entry, holder.page - 1);
+                openSpaceGui(viewer, holder.entry, holder.page - 1, holder.sort);
             } else if (event.getRawSlot() == SpacePreview.NAV_NEXT && holder.page < holder.pageCount - 1) {
-                openSpaceGui(viewer, holder.entry, holder.page + 1);
+                openSpaceGui(viewer, holder.entry, holder.page + 1, holder.sort);
+            } else if (event.getRawSlot() == SpacePreview.NAV_SORT) {
+                openSpaceGui(viewer, holder.entry, holder.page, holder.sort.next());
             }
         }
     }

@@ -171,6 +171,7 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
         String perm = chat.getString("item.soulspace.preview-permission", "liuchat.soulspace.preview");
         return perm == null || perm.isBlank() ? "liuchat.soulspace.preview" : perm;
     }
+    @Override public String spaceSort() { return chat.getString("item.soulspace.sort", "count-desc"); }
 
     public BaseComponent[] renderPrivate(boolean outgoing, String server, String playerName, String uuid,
                                          String world, String targetName, Player sender, String message,

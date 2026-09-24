@@ -15,6 +15,9 @@ item:
     ring-pdc-key: 'soulspace:ring'
     # 点击预览所需权限；无权限点击仍是普通物品预览（未声明的权限默认只有 OP 有，需自行授权）
     preview-permission: 'liuchat.soulspace.preview'
+    # 预览默认排序：count-desc 数量从多到少（默认）、count-asc 从少到多、keep 保持空间原顺序。
+    # 玩家也可在预览界面点「排序」按钮即时切换（只影响当前界面，翻页保持）
+    sort: 'count-desc'
 
 # @ 提及：输入 @玩家ID，或直接输入在线玩家 ID（自动补 @）。
 # 被 @ 的玩家会收到提示音；玩家 ID 按 atColor 高亮并保留原消息的颜色/样式。

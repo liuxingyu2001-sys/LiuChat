@@ -32,13 +32,13 @@ public final class SoulSpaceHook {
     }
 
     /**
-     * 读取玩家空间内容（只读快照）。任意线程可调用，完成于主线程。
+     * 读取玩家空间内容（只读快照，携带真实数量供排序）。任意线程可调用，完成于主线程。
      *
      * @return {@code Optional.empty()} = SoulSpace 不可用/调用失败（不应缓存，可重试）；
      *         {@code Optional.of(list)} = 读取成功（list 可为空 = 空间为空，可缓存）
      */
-    public static CompletableFuture<Optional<List<ItemStack>>> fetch(UUID playerId) {
-        CompletableFuture<Optional<List<ItemStack>>> out = new CompletableFuture<>();
+    public static CompletableFuture<Optional<List<SpacePreview.Counted<ItemStack>>>> fetch(UUID playerId) {
+        CompletableFuture<Optional<List<SpacePreview.Counted<ItemStack>>>> out = new CompletableFuture<>();
         try {
             SoulSpaceApi api = SoulSpace.getApi();
             if (api == null) {
@@ -62,9 +62,9 @@ public final class SoulSpaceHook {
         return out;
     }
 
-    /** SpaceInfo -> GUI 展示物品：数量压到堆叠上限，超出部分写进 Lore（无限堆叠可远超 64）。 */
-    private static List<ItemStack> displayItems(SpaceInfo info) {
-        List<ItemStack> list = new ArrayList<>();
+    /** SpaceInfo -> GUI 展示堆叠：数量压到堆叠上限，超出部分写进 Lore（无限堆叠可远超 64）。 */
+    private static List<SpacePreview.Counted<ItemStack>> displayItems(SpaceInfo info) {
+        List<SpacePreview.Counted<ItemStack>> list = new ArrayList<>();
         for (SpaceInfo.StoredStack stack : info.stacks()) {
             ItemStack display = stack.cleanItem().clone();
             display.setAmount(SpacePreview.displayAmount(stack.count()));
@@ -78,7 +78,7 @@ public final class SoulSpaceHook {
                     display.setItemMeta(meta);
                 }
             }
-            list.add(display);
+            list.add(new SpacePreview.Counted<>(display, stack.count()));
         }
         return list;
     }

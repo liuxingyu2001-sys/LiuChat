@@ -14,7 +14,7 @@
 |---|---|
 | 聊天格式化 | `chat.yml` 的 `chat.default.format` 有序节点支持 hover/click/clickSuggest/url；`private.to.format` 和 `private.from.format` 独立控制私聊；控制台使用 `console-format` |
 | 物品与头像 | `[i]` 主手物品快照，悬浮显示原生数据组件（item_name、Lore、附魔），点击查看只读 GUI；**潜影盒点击查看盒内物品预览**（27 格只读，含染色潜影盒）；`${head}` 显示 UUID 头像。CE 物品名支持 zh_cn 资源包翻译键，CE 聊天表情保留其配置的图片与悬浮提示 |
-| 灵魂空间戒指预览 | 安装 SoulSpace 后，`[i]` 展示戒指可点击打开展示者空间的**只读预览**（54 格分页翻阅、无限堆叠标注真实数量、拿不走）；需 `liuchat.soulspace.preview` 权限，无权限点击仍是普通物品预览；每台服务器每条目仅首次点击读一次数据（本服在线零 IO），共用 MySQL 的多服跨服可预览 |
+| 灵魂空间戒指预览 | 安装 SoulSpace 后，`[i]` 展示戒指可点击打开展示者空间的**只读预览**（54 格分页翻阅、无限堆叠标注真实数量、拿不走）；**按数量排序**（默认从多到少，界面按钮可切换从少到多/空间原顺序，`item.soulspace.sort` 配置默认值）；需 `liuchat.soulspace.preview` 权限，无权限点击仍是普通物品预览；每台服务器每条目仅首次点击读一次数据（本服在线零 IO），共用 MySQL 的多服跨服可预览 |
 | **@ 提及** | `chat.yml` 的 `at` 节点：输入 `@玩家ID` 或直接输入在线玩家 ID（自动补 @），被 @ 的玩家收到提示音（`at.sound`，默认铁砧 `BLOCK_ANVIL_LAND`），玩家 ID 按 `atColor` 高亮并保留消息原有颜色/样式（`keepAt` 控制是否显示 @）；高亮在颜色权限裁决之后注入，**无 `liuchat.color` 权限的玩家 @ 人同样变色**；跨服在线玩家同样可被 @ |
 | 全服喇叭 | `/horn` 或 `/liuc horn`，可配置聊天/Title/ActionBar/BossBar 与音效 |
 | 快捷触发 | `shortcut.yml` 正则替换，支持 hover、点击命令/建议/复制/URL |
