@@ -25,6 +25,8 @@ public final class MessageManager {
 
     private final JavaPlugin plugin;
     private YamlConfiguration messages;
+    /** messages.yml 的 prefix-enable；false = 所有消息都不带前缀 */
+    private boolean prefixEnabled = true;
 
     public MessageManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -32,6 +34,7 @@ public final class MessageManager {
 
     public void load() {
         messages = ConfigDefaults.load(plugin, "messages.yml");
+        prefixEnabled = messages.getBoolean("prefix-enable", true);
     }
 
     public void reload() {
@@ -53,9 +56,14 @@ public final class MessageManager {
         return line;
     }
 
+    /** 当前消息前缀；prefix-enable 关闭时为空串 */
+    public String prefix() {
+        return prefixEnabled ? get("prefix") : "";
+    }
+
     /** 带 prefix 的完整消息 */
     public void send(CommandSender to, String key, String... placeholders) {
-        to.sendMessage(get("prefix") + get(key, placeholders));
+        to.sendMessage(prefix() + get(key, placeholders));
     }
 
     /** 模板颜色翻译：{@code &&}→字面 {@code &}，{@code <<}→字面 {@code <}，均躲开解析 */

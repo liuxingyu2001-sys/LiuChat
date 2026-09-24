@@ -1,5 +1,6 @@
 # 语言文件，${xxx} 为占位符，修改后执行 /liuc reload 生效
 # && 表示字面 &、<< 表示字面 <（都不参与颜色解析），如用法示例 <<&&a|&&#RRGGBB|off>>；占位符的值本来就不解析
+prefix-enable: true # 所有插件消息是否带下面的 prefix 前缀，false = 只发正文（/liuc reload 生效）
 prefix: "&8[&bLiuChat&8]&r "
 
 no-permission: "&c没有权限执行该命令。"
@@ -8,31 +9,31 @@ command.unknown: "&c未知子命令，输入 &e/liuc help &c查看帮助。"
 command.error: "&c命令执行出错，请联系管理员查看控制台。"
 reload.success: "&a配置与语言文件已重载。"
 
-# 帮助（desc 为各子命令在帮助里的说明）
+# 帮助（desc 为各子命令在帮助里的说明，用法参数直接接在说明后面，命令名由 help.cmd 拼）
 help.header: "&8========== &bLiuChat &8=========="
-help.line: "&8» &b/liuc ${sub} &8- ${desc}"
+help.cmd: "&8» &b${command} &8- ${desc}" # ${command}：绑过顶层命令的显示 /mute，其余显示 /liuc ask
 help.reload.desc: "&7重载配置与语言文件"
-help.mute.desc: "&7禁言玩家 &e/mute <玩家> <时长|0永久> [原因]"
-help.unmute.desc: "&7解除禁言 &e/unmute <玩家>"
-help.tell.desc: "&7私聊（跨服在线也能收到） &e/liuc tell <玩家> <消息>"
+help.mute.desc: "&7禁言玩家 &e<玩家> <时长|0永久> [原因]"
+help.unmute.desc: "&7解除禁言 &e<玩家>"
+help.tell.desc: "&7私聊（跨服在线也能收到） &e<玩家> <消息>"
 help.item.desc: "&7查看聊天中分享的物品"
-help.horn.desc: "&7全服喇叭 &e/liuc horn <消息>"
-help.ignore.desc: "&7屏蔽玩家 &e/liuc ignore <玩家>"
-help.unignore.desc: "&7取消屏蔽 &e/liuc unignore <玩家>"
+help.horn.desc: "&7全服喇叭 &e<消息>"
+help.ignore.desc: "&7屏蔽玩家 &e<玩家>"
+help.unignore.desc: "&7取消屏蔽 &e<玩家>"
 help.ignorelist.desc: "&7查看屏蔽列表"
-help.nick.desc: "&7修改聊天昵称 &e/liuc nick <昵称|off>"
-help.chatcolor.desc: "&7选择聊天颜色 &e/liuc chatcolor <&&a|&&#RRGGBB|off>"
-help.dialog.desc: "&7打开 AI 或聊天颜色 Dialog"
+help.nick.desc: "&7修改聊天昵称 &e<昵称|off>"
+help.chatcolor.desc: "&7选择聊天颜色 &e<&&a|&&#RRGGBB|off>"
+help.dialog.desc: "&7打开 AI 或聊天颜色 Dialog &e<ai|chatcolor>"
 dialog.disabled: "&cDialog 功能未启用。"
 dialog.usage: "&e用法：/liuc dialog ai 或 /liuc dialog chatcolor"
-profile.usage: "&c用法: /liuc nick <昵称|off> 或 /liuc chatcolor <&&a|&&#RRGGBB|off>"
+profile.usage: "&c用法: /nick <昵称|off> 或 /chatcolor <&&a|&&#RRGGBB|off> &7(或 /liuc nick ...)"
 profile.invalid: "&c颜色格式无效: &e${input} &7只支持颜色码，例: &&a、&&#FF0000、<<gradient:#FF0000:#00FF00>>，或 off 清除。"
 profile.saved: "&a聊天资料已更新。"
-horn.usage: "&c用法: /liuc horn <消息>，或 /liuc horn balance"
+horn.usage: "&c用法: /horn <消息>，或 /horn balance &7(别名 /lb)"
 horn.balance: "&7你还有 &e${count} &7个喇叭。"
 horn.empty: "&c你没有可用的喇叭，请联系管理员领取。"
 horn.storage: "&c喇叭数据暂不可用，请联系管理员。"
-horn.give-usage: "&c用法: /liuc horn give <玩家> <数量>"
+horn.give-usage: "&c用法: /horn give <玩家> <数量>"
 horn.give-invalid: "&c数量必须是 1-100000。"
 horn.give-success: "&a已向 &e${player} &a发放 &e${count} &a个喇叭。"
 horn.received: "&a管理员向你发放了 &e${count} &a个喇叭。"
@@ -71,11 +72,13 @@ ai.assistant-unknown: "&c默认助手 &e${assistant} &c未配置，请检查 ai.
 ai.skill-unknown: "&c找不到 skill: &e${skill} &7(输入 /liuc ask list 查看)"
 ai.unavailable: "&c聊天助手未启用或未配置接口和模型。"
 ai.too-long: "&c问题内容过长。"
-ai.thinking: "&7聊天助手正在回答..."
+ai.thinking: "&7${name}正在回答..." # ${name} = 助手显示名
 ai.failed: "&c聊天助手暂时不可用，请稍后再试。"
-ai.answer: "&b[聊天助手] &f${answer}"
-help.ask.desc: "&7询问聊天助手 &e/liuc ask <问题>"
-help.audit.desc: "&7审查最近 1-24 小时公开聊天 &e/liuc audit <小时>"
+# 助手回答：前缀 + 正文拼成一条消息发送，多段内容用换行分段（${answer} 里自带换行）
+ai.answer-prefix: "&b[${name}] " # 显示名前缀，ai.assistant.answer-prefix: false 时不输出
+ai.answer-text: "&f${answer}" # 回答正文
+help.ask.desc: "&7询问聊天助手 &e<问题> 或 &e<助手名> <问题>"
+help.audit.desc: "&7审查最近 1-24 小时公开聊天 &e<小时>"
 ai.audit-usage: "&c用法: /liuc audit <1-24>"
 ai.audit-disabled: "&c历史聊天审查未启用。"
 ai.audit-busy: "&e已有一轮审查进行中，请稍后。"
@@ -85,7 +88,7 @@ ai.audit-failed: "&c审查失败，请查看控制台日志；历史聊天仍保
 ai.audit-invalid: "&cAI 返回的审查格式无效，本轮未生成报告；历史聊天仍保留。"
 
 # 私聊
-tell.usage: "&c用法: /liuc tell <玩家> <消息>"
+tell.usage: "&c用法: /tell <玩家> <消息> &7(或 /msg ...)"
 tell.self: "&c不能和自己私聊。"
 tell.offline: "&c玩家 &e${player} &c不在线。"
 tell.cross-offline: "&c玩家 &e${player} &c不在线（含其他子服），消息未送达。"

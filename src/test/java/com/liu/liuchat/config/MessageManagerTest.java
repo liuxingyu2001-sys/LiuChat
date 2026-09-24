@@ -28,4 +28,18 @@ class MessageManagerTest {
         assertTrue(out.contains("§bLiuChat"), out);
         assertFalse(out.contains("&b"), out);
     }
+
+    @Test void bundledPrefixSwitchAndHelpTemplateExist() throws Exception {
+        try (var input = getClass().getResourceAsStream("/messages.yml")) {
+            var defaults = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(java.util.Objects.requireNonNull(input),
+                            java.nio.charset.StandardCharsets.UTF_8));
+            // 前缀开关和帮助行模板都得在语言文件里，否则老文件合并不到、改动不生效
+            assertTrue(defaults.getBoolean("prefix-enable"));
+            assertTrue(defaults.contains("prefix"));
+            assertTrue(defaults.getString("help.cmd").contains("${command}"),
+                    String.valueOf(defaults.getString("help.cmd")));
+            assertFalse(defaults.contains("help.line"));
+        }
+    }
 }

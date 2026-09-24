@@ -157,13 +157,13 @@ public final class LiuChat extends JavaPlugin {
         }
         mainCommand.setExecutor(router);
         mainCommand.setTabCompleter(router);
-        if (!bindDirect("msg", tell)) return;
-        if (!bindDirect("tell", tell)) return;
-        if (!bindDirect("horn", horn)) return;
-        if (!bindDirect("nick", nick)) return;
-        if (!bindDirect("chatcolor", chatColor)) return;
-        if (!bindDirect("mute", mute)) return;
-        if (!bindDirect("unmute", unmute)) return;
+        if (!bindDirect("msg", tell, router)) return;
+        if (!bindDirect("tell", tell, router)) return;
+        if (!bindDirect("horn", horn, router)) return;
+        if (!bindDirect("nick", nick, router)) return;
+        if (!bindDirect("chatcolor", chatColor, router)) return;
+        if (!bindDirect("mute", mute, router)) return;
+        if (!bindDirect("unmute", unmute, router)) return;
 
         // 5. 事件监听（跨服服务是 PluginMessageListener，注册发生在其构造器里）
         getServer().getPluginManager().registerEvents(items, this);
@@ -200,8 +200,8 @@ public final class LiuChat extends JavaPlugin {
         return command;
     }
 
-    /** 把一个 ChatCommand 绑成独立顶层命令（含 tab 补全） */
-    private boolean bindDirect(String name, ChatCommand command) {
+    /** 把一个 ChatCommand 绑成独立顶层命令（含 tab 补全），并登记到帮助里按顶层名展示 */
+    private boolean bindDirect(String name, ChatCommand command, CommandRouter router) {
         PluginCommand pluginCommand = requireCommand(name);
         if (pluginCommand == null) {
             return false;
@@ -209,6 +209,8 @@ public final class LiuChat extends JavaPlugin {
         DirectCommandBridge bridge = new DirectCommandBridge(command, messageManager);
         pluginCommand.setExecutor(bridge);
         pluginCommand.setTabCompleter(bridge);
+        // 同一子命令绑了多个顶层名（msg/tell）时后者胜出，帮助里展示更通用的那个
+        router.markDirect(command.name(), name);
         return true;
     }
 

@@ -116,9 +116,12 @@ public final class AiAssistantService {
         return Status.OK;
     }
 
-    /** 统一清洗：换行压平、颜色符号转义、按 max-answer 截断（截断前的部分才花过 token） */
+    /**
+     * 统一清洗：统一换行符（换行要原样留到显示，多段回答靠它分段）、颜色符号转义、
+     * 按 max-answer 截断（截断前的部分才花过 token）。
+     */
     private static String clean(String answer, int maxAnswer) {
-        String value = answer.replace('\r', ' ').replace('\n', ' ').replace('§', '&');
+        String value = answer.replace("\r\n", "\n").replace('\r', '\n').replace('§', '&');
         return value.substring(0, Math.min(value.length(), maxAnswer));
     }
 

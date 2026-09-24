@@ -8,6 +8,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -21,6 +22,8 @@ public final class CommandRouter implements CommandExecutor, TabCompleter {
 
     private final MessageManager messages;
     private final Map<String, ChatCommand> commands = new LinkedHashMap<>();
+    /** 子命令名 -> 已直挂成顶层的命令名（/mute、/msg 等），帮助里按顶层命令展示 */
+    private final Map<String, String> direct = new HashMap<>();
 
     public CommandRouter(MessageManager messages) {
         this.messages = messages;
@@ -28,6 +31,11 @@ public final class CommandRouter implements CommandExecutor, TabCompleter {
 
     public void register(ChatCommand command) {
         commands.put(command.name().toLowerCase(Locale.ROOT), command);
+    }
+
+    /** 同一个子命令被绑成顶层命令时登记，帮助行用 /顶层名 而不是 /liuc 子命令 */
+    public void markDirect(String sub, String topLevel) {
+        direct.put(sub.toLowerCase(Locale.ROOT), topLevel.toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -70,9 +78,25 @@ public final class CommandRouter implements CommandExecutor, TabCompleter {
             if (!CommandSupport.hasAccess(sender, sub)) {
                 continue;
             }
-            messages.send(sender, "help.line",
-                    "${sub}", sub.name(),
-                    "${desc}", messages.get("help." + sub.name() + ".desc"));
+            String name = sub.name();
+            String top = direct.get(name.toLowerCase(Locale.ROOT));
+            messages.send(sender, "help.cmd",
+                    "${command}", label(name, top),
+                    "${desc}", fixDesc(name, top, messages.get("help." + name + ".desc")));
         }
+    }
+
+    /** 帮助行的命令：绑过顶层的用 /mute，没绑的用 /liuc ask */
+    static String label(String sub, String top) {
+        return top == null ? "/liuc " + sub : "/" + top;
+    }
+
+    /**
+     * desc 里若重复写了命令名（老语言文件的用法是 {@code &e/liuc ask <问题>} 这种写法），
+     * 把它去掉，帮助行已经有命令了，别连着出现两遍。
+     */
+    static String fixDesc(String sub, String top, String desc) {
+        String out = desc.replace("/liuc " + sub + " ", "");
+        return top == null ? out : out.replace("/" + top + " ", "");
     }
 }

@@ -51,7 +51,8 @@ public final class AssistantDialog {
                         else messages.send(player, "ai.failed");
                     });
                     switch (result) {
-                        case OK -> messages.send(player, "ai.thinking");
+                        case OK -> messages.send(player, "ai.thinking", "${name}",
+                                com.liu.liuchat.util.TextUtil.color(config.aiAssistantTitle(name)));
                         case BUSY -> messages.send(player, "ai.pending");
                         case TOO_LONG -> messages.send(player, "ai.too-long");
                         case UNAVAILABLE -> messages.send(player, "ai.unavailable");

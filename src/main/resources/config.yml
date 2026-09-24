@@ -61,7 +61,9 @@ ai:
     max-answer: 600
     dialog-width: 520 # AI Dialog 回答正文宽度，范围 100-800
     timeout-seconds: 60 # 助手生成较长回答时可调至 30~120 秒
-    default: bot # /lc ask <问题> 使用此助手
+    default: bot # /lc ask <问题> 使用此助手（机器读的 ID）
+    name: '聊天助手' # 助手显示名称：回答前缀 [名称]、/liuc dialog ai 标题用
+    answer-prefix: true # 回答前加 [显示名] 前缀；false = 只发正文
     # ---------------- 省 token ----------------
     # 单次回答的输出 token 上限，0 = 不限制。
     # 超出 max-answer 的部分本来就会被截掉不显示，模型却已经生成并计费，这里直接不让它生成。
@@ -77,8 +79,10 @@ ai:
     profiles:
       bot:
         skill: '' # 填 plugins/LiuChat/skills 下的子目录名，例如 bot
+        name: '' # 该助手的自定义显示名称（如 久久酱），留空用 ai.assistant.name
       # guide:
       #   skill: guide
+      #   name: '游玩指南'
     default-skill: '' # 老配置兼容；未设置默认助手 skill 时使用
 
 # 每日聊天记录：plugins/LiuChat/logs/YYYY-MM-DD.log

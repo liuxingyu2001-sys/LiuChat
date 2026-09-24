@@ -81,6 +81,20 @@ public final class ConfigManager {
         return Math.max(5, Math.min(120, config.getInt("ai.assistant.timeout-seconds", 60)));
     }
     public String aiAssistantDefaultName() { return config.getString("ai.assistant.default", "bot").strip(); }
+    /** 助手默认显示名称：回答前缀、Dialog 标题用，区别于机器读的 default 助手 ID */
+    public String aiAssistantDefaultTitle() {
+        return config.getString("ai.assistant.name", "聊天助手").strip();
+    }
+    /** 指定助手的显示名称：profiles.<id>.name → ai.assistant.name；id 非法或未配置时用默认 */
+    public String aiAssistantTitle(String assistant) {
+        if (assistant != null && assistant.matches("[a-zA-Z0-9_-]{1,48}")) {
+            String own = config.getString("ai.assistant.profiles." + assistant + ".name", "");
+            if (own != null && !own.isBlank()) return own.strip();
+        }
+        return aiAssistantDefaultTitle();
+    }
+    /** 回答前是否加 [显示名] 前缀，false = 只发正文 */
+    public boolean aiAssistantAnswerPrefix() { return config.getBoolean("ai.assistant.answer-prefix", true); }
     public java.util.Map<String, String> aiAssistantProfiles() {
         org.bukkit.configuration.ConfigurationSection section = config.getConfigurationSection("ai.assistant.profiles");
         if (section == null) return java.util.Map.of();

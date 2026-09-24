@@ -48,7 +48,8 @@ public final class DialogCommand implements ChatCommand {
             case "ai" -> {
                 if (!options.getBoolean("buttons.assistant.enable", true)) { messages.send(player, "dialog.disabled"); return; }
                 if (!config.aiAssistantEnabled()) { messages.send(player, "ai.unavailable"); return; }
-                assistantDialog.open(player, config.aiAssistantDefaultName(), "聊天助手");
+                assistantDialog.open(player, config.aiAssistantDefaultName(),
+                        config.aiAssistantTitle(config.aiAssistantDefaultName()));
             }
             case "chatcolor" -> {
                 if (!options.getBoolean("buttons.chatcolor.enable", true)) { messages.send(player, "dialog.disabled"); return; }

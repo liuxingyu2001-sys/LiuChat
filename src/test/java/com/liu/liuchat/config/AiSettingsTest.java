@@ -25,4 +25,25 @@ class AiSettingsTest {
             assertTrue(defaults.getBoolean("ai.assistant.history-persist"));
         }
     }
+
+    @Test void bundledAssistantNamingDefaultsExist() throws Exception {
+        try (var input = getClass().getResourceAsStream("/config.yml")) {
+            var defaults = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(java.util.Objects.requireNonNull(input),
+                            java.nio.charset.StandardCharsets.UTF_8));
+            assertEquals("聊天助手", defaults.getString("ai.assistant.name"));
+            assertTrue(defaults.getBoolean("ai.assistant.answer-prefix"));
+            assertEquals("", defaults.getString("ai.assistant.profiles.bot.name"));
+        }
+    }
+
+    @Test void bundledAnswerMessageSplitsPrefixAndBody() throws Exception {
+        try (var input = getClass().getResourceAsStream("/messages.yml")) {
+            var defaults = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(java.util.Objects.requireNonNull(input),
+                            java.nio.charset.StandardCharsets.UTF_8));
+            assertEquals("&b[${name}] ", defaults.getString("ai.answer-prefix"));
+            assertEquals("&f${answer}", defaults.getString("ai.answer-text"));
+        }
+    }
 }

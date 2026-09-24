@@ -47,14 +47,15 @@ public final class AskCommand implements ChatCommand {
             start = 1;
         }
         String question = String.join(" ", Arrays.copyOfRange(args, start, args.length)).strip();
-        AiAssistantService.Status status = assistant.ask(player, name, question, result -> {
-            if (result.status() == AiAssistantService.Status.OK)
-                for (String line : AiAnswerFormatter.lines(result.answer()))
-                    messages.send(player, "ai.answer", "${answer}", TextUtil.color(line));
-            else messages.send(player, "ai.failed");
-        });
+        final String target = name;
+        AiAssistantService.Status status = assistant.ask(player, target, question,
+                result -> {
+                    if (result.status() == AiAssistantService.Status.OK) sendAnswer(player, target, result.answer());
+                    else messages.send(player, "ai.failed");
+                });
         switch (status) {
-            case OK -> messages.send(player, "ai.thinking");
+            case OK -> messages.send(player, "ai.thinking", "${name}",
+                    TextUtil.color(config.aiAssistantTitle(target)));
             case UNAVAILABLE -> messages.send(player, "ai.unavailable");
             case UNKNOWN_ASSISTANT -> messages.send(player, "ai.assistant-unknown", "${assistant}", name);
             case UNKNOWN_SKILL -> messages.send(player, "ai.skill-unknown", "${skill}",
@@ -63,6 +64,23 @@ public final class AskCommand implements ChatCommand {
             case BUSY -> messages.send(player, "ai.pending");
             default -> messages.send(player, "ai.failed");
         }
+    }
+
+    /**
+     * 多段回答拼成一条消息发出去（段落之间是空行、折行之间是换行），不再逐行刷屏。
+     * 前缀按 ai.assistant.answer-prefix 开关，显示名取该助手的自定义名称。
+     */
+    private void sendAnswer(Player player, String assistant, String answer) {
+        String prefix = "";
+        int reserved = 0;
+        if (config.aiAssistantAnswerPrefix()) {
+            prefix = messages.get("ai.answer-prefix", "${name}",
+                    TextUtil.color(config.aiAssistantTitle(assistant)));
+            reserved = AiAnswerFormatter.visibleWidth(prefix);
+        }
+        String body = messages.get("ai.answer-text", "${answer}",
+                TextUtil.color(AiAnswerFormatter.block(answer, reserved)));
+        player.sendMessage(messages.prefix() + prefix + body);
     }
 
     @Override public List<String> tabComplete(CommandSender sender, String[] args) {
