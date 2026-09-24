@@ -100,6 +100,13 @@ public final class CrossServerService implements PluginMessageListener, Listener
         return remotePlayers.complete(prefix, local, System.currentTimeMillis());
     }
 
+    /** 本服 + 其他子服在线玩家 ID，供聊天 @ 提及识别（含跨服玩家）。 */
+    public List<String> knownPlayerNames() {
+        List<String> names = new java.util.ArrayList<>(remotePlayers.names(System.currentTimeMillis()));
+        for (Player online : Bukkit.getOnlinePlayers()) names.add(online.getName());
+        return names;
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         if (!enabled) return;

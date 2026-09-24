@@ -26,4 +26,13 @@ class RemotePlayersTest {
         assertEquals(List.of("Alice"), directory.complete("", List.of(), 150_000L));
         assertEquals(List.of(), directory.complete("", List.of(), 210_000L));
     }
+
+    @Test void snapshotsRemoteNamesForMentions() {
+        RemotePlayers directory = new RemotePlayers();
+        directory.update("game", List.of("Alice", "Bob"), 0L);
+        directory.update("lobby", List.of("Carol"), 0L);
+        assertEquals(List.of("Alice", "Bob", "Carol"),
+                directory.names(1_000L).stream().sorted().toList());
+        assertEquals(List.of(), directory.names(200_000L));
+    }
 }

@@ -89,6 +89,8 @@ public final class LiuChat extends JavaPlugin {
 
         // 3. 跨服（BungeeCord plugin messaging；单服/无代理环境静默无副作用）
         crossServer = new CrossServerService(this, configManager, chatService);
+        // @ 提及的「输入玩家 ID 自动补 @」同时识别其他子服的在线玩家
+        presentation.setKnownNames(crossServer::knownPlayerNames);
         TellService tellService = new TellService(this, messageManager, crossServer);
         crossServer.setTellService(tellService);
         crossServer.setMuteService(muteService);

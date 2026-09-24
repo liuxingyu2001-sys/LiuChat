@@ -5,6 +5,7 @@ import com.liu.liuchat.config.ConfigDefaults;
 import com.liu.liuchat.hook.CraftEngineEmojiHook;
 import com.liu.liuchat.hook.NameplatesHook;
 import com.liu.liuchat.hook.PapiHook;
+import com.liu.liuchat.util.Mentions;
 import com.liu.liuchat.util.TextUtil;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
@@ -13,6 +14,7 @@ import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.chat.hover.content.Item;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -21,9 +23,12 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -40,6 +45,16 @@ public final class ChatPresentation {
     private static final Pattern PAPI_TOKEN = Pattern.compile("%[^%\\r\\n]{1,100}%");
     private final ThreadLocal<String> displayNick = ThreadLocal.withInitial(() -> "");
     private final ThreadLocal<String> privateTarget = ThreadLocal.withInitial(() -> "");
+    /** 跨服在线玩家 ID（用于「输入玩家 ID 自动补 @」），由主类注入 */
+    private Supplier<Collection<String>> knownNames = List::of;
+    /** 同一条消息会逐个玩家渲染，@ 提及的标记结果按消息缓存，避免重复扫描 */
+    private final Map<String, Mentions.Marked> mentionCache =
+            new LinkedHashMap<>(8, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Mentions.Marked> eldest) {
+                    return size() > 8;
+                }
+            };
 
     private record Shortcut(Pattern pattern, Pattern filter, String text, List<String> hover,
                             String click, String suggest, String url) { }
@@ -72,6 +87,47 @@ public final class ChatPresentation {
             }
         }
         shortcuts = List.copyOf(loaded);
+        synchronized (mentionCache) {
+            mentionCache.clear();
+        }
+    }
+
+    /** 注入跨服在线玩家名单（与本服在线玩家一起用于自动补 @）。 */
+    public void setKnownNames(Supplier<Collection<String>> source) {
+        this.knownNames = source == null ? List::of : source;
+    }
+
+    /**
+     * 标记 @ 提及：把玩家 ID 高亮成「@玩家」，并返回被 @ 的名字。
+     * 高亮在 liuchat.color 颜色权限裁决之后注入，没有颜色权限的玩家 @ 人同样会变色。
+     */
+    public Mentions.Marked markMentions(String message) {
+        if (message == null || message.isEmpty() || !chat.getBoolean("at.enable", false)) {
+            return new Mentions.Marked(message == null ? "" : message, List.of());
+        }
+        synchronized (mentionCache) {
+            Mentions.Marked cached = mentionCache.get(message);
+            if (cached != null) return cached;
+            List<String> names = new ArrayList<>();
+            for (Player online : Bukkit.getOnlinePlayers()) names.add(online.getName());
+            Collection<String> extra = knownNames.get();
+            if (extra != null) names.addAll(extra);
+            Mentions.Marked marked = Mentions.mark(message, names, chat.getBoolean("at.keepAt", true),
+                    TextUtil.color(chat.getString("at.atColor", "&b")));
+            mentionCache.put(message, marked);
+            return marked;
+        }
+    }
+
+    /** 给被 @ 的玩家播放提示音（at.sound，默认铁砧）。 */
+    public void playMentionSound(Player viewer) {
+        String name = chat.getString("at.sound", "BLOCK_ANVIL_LAND");
+        if (name == null || name.isBlank()) return;
+        try {
+            viewer.playSound(viewer.getLocation(), Sound.valueOf(name.trim().toUpperCase(Locale.ROOT)), 1f, 1f);
+        } catch (IllegalArgumentException ex) {
+            // Ignore invalid sound names in the configuration.
+        }
     }
 
     public String snapshotPlaceholders(Player player, String message) {
@@ -168,20 +224,12 @@ public final class ChatPresentation {
 
     private BaseComponent[] renderLine(String server, String playerName, String uuid, String world,
                                   Player sender, String message, String itemId, Player viewer, String formatPath) {
-        boolean mentioned = viewer != null && chat.getBoolean("at.enable", false)
-                && Pattern.compile("(?i)@" + Pattern.quote(viewer.getName()) + "(?![A-Za-z0-9_])")
-                        .matcher(message).find();
-        if (mentioned) {
-            String highlight = TextUtil.color(chat.getString("at.atColor", "&b"));
-            String replacement = highlight + (chat.getBoolean("at.keepAt", true) ? "@" : "")
-                    + viewer.getName() + "§r";
-            message = message.replaceAll("(?i)@" + Pattern.quote(viewer.getName()) + "(?![A-Za-z0-9_])",
-                    Matcher.quoteReplacement(replacement));
-            try {
-                viewer.playSound(viewer.getLocation(), Sound.valueOf(chat.getString("at.sound", "BLOCK_ANVIL_LAND")), 1, 1);
-            } catch (IllegalArgumentException ex) {
-                // Ignore invalid sound names in the configuration.
-            }
+        Mentions.Marked marked = markMentions(message);
+        message = marked.text();
+        // 提示音只发给被 @ 的玩家，自己 @ 自己不响
+        if (viewer != null && (sender == null || !sender.getUniqueId().equals(viewer.getUniqueId()))
+                && marked.mentions(viewer.getName())) {
+            playMentionSound(viewer);
         }
         TextComponent line = new TextComponent();
         ConfigurationSection nodes = chat.getConfigurationSection(formatPath);

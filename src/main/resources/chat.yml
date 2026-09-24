@@ -6,6 +6,19 @@ item:
   content: '&7物品展示 &e[ ${item} &e]&7'
   length: 18
 
+# @ 提及：输入 @玩家ID，或直接输入在线玩家 ID（自动补 @）。
+# 被 @ 的玩家会收到提示音；玩家 ID 按 atColor 高亮并保留原消息的颜色/样式。
+# 高亮在颜色权限（liuchat.color）裁决之后注入，没有颜色权限的玩家 @ 人同样会变色。
+at:
+  # 是否开启
+  enable: true
+  # 音效列表 https://bukkit.windit.net/javadoc/org/bukkit/Sound.html
+  sound: BLOCK_ANVIL_LAND
+  # 是否保留@符号
+  keepAt: true
+  # @默认的颜色
+  atColor: '&b'
+
 # 私聊格式独立于公共聊天。${player}/${nick} 是发送者，${target} 是接收者。
 # 两端可分别配置节点、hover、click、clickSuggest、url；跨服也会解析发送者的 PAPI 快照。
 private:

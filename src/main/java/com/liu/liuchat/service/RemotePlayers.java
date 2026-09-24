@@ -1,5 +1,6 @@
 package com.liu.liuchat.service;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -13,7 +14,7 @@ public final class RemotePlayers {
     private record Entry(String name, long seenAt) { }
     private final Map<String, Map<String, Entry>> servers = new HashMap<>();
 
-    public void update(String server, Collection<String> names, long now) {
+    public synchronized void update(String server, Collection<String> names, long now) {
         if (server == null || server.isBlank() || server.length() > 64) return;
         Map<String, Entry> players = servers.computeIfAbsent(server, ignored -> new HashMap<>());
         for (String name : names) {
@@ -21,12 +22,12 @@ public final class RemotePlayers {
         }
     }
 
-    public void remove(String server, String name) {
+    public synchronized void remove(String server, String name) {
         Map<String, Entry> players = servers.get(server);
         if (players != null && name != null) players.remove(name.toLowerCase(Locale.ROOT));
     }
 
-    public List<String> complete(String prefix, Collection<String> localNames, long now) {
+    public synchronized List<String> complete(String prefix, Collection<String> localNames, long now) {
         String search = prefix.toLowerCase(Locale.ROOT);
         Map<String, String> matches = new TreeMap<>();
         for (Map<String, Entry> players : servers.values()) {
@@ -42,6 +43,17 @@ public final class RemotePlayers {
                 matches.put(name.toLowerCase(Locale.ROOT), name);
         }
         return List.copyOf(matches.values());
+    }
+
+    /** 快照：所有未过期的远端玩家 ID，供聊天 @ 提及识别其他子服的玩家。 */
+    public synchronized List<String> names(long now) {
+        for (Map<String, Entry> players : servers.values())
+            players.values().removeIf(entry -> now - entry.seenAt() >= TTL_MILLIS);
+        servers.values().removeIf(Map::isEmpty);
+        List<String> names = new ArrayList<>();
+        for (Map<String, Entry> players : servers.values())
+            for (Entry entry : players.values()) names.add(entry.name());
+        return List.copyOf(names);
     }
 
     private static boolean validName(String name) {
