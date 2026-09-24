@@ -160,6 +160,13 @@ public final class CrossServerService implements PluginMessageListener, Listener
         }
     }
 
+    /** 以虚拟身份（公屏 AI 等）广播到其他子服；没有发送者连接时借任意在线玩家转发。 */
+    public void publishChatAs(String server, String uuid, String name,
+                              String message, String itemData, String placeholders, String nick) {
+        if (!enabled) return;
+        sendViaAny(() -> CrossServerCodec.encodeChat(server, uuid, name, message, itemData, placeholders, nick));
+    }
+
     /** 跨服私聊：广播给其他子服，只有目标所在服会投递并回执 */
     public boolean publishTell(Player via, String msgId, String senderName, String targetName, String message,
                                String placeholders, String nick) {

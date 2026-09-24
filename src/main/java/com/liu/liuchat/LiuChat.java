@@ -34,6 +34,7 @@ import com.liu.liuchat.service.IgnoreService;
 import com.liu.liuchat.service.ItemShowcase;
 import com.liu.liuchat.service.MuteService;
 import com.liu.liuchat.service.PlayerProfileService;
+import com.liu.liuchat.service.PublicChatAiService;
 import com.liu.liuchat.service.TellService;
 import com.liu.liuchat.storage.Database;
 import com.liu.liuchat.storage.DatabaseFactory;
@@ -90,8 +91,13 @@ public final class LiuChat extends JavaPlugin {
 
         // 3. 跨服（BungeeCord plugin messaging；单服/无代理环境静默无副作用）
         crossServer = new CrossServerService(this, configManager, chatService);
-        // @ 提及的「输入玩家 ID 自动补 @」同时识别其他子服的在线玩家
-        presentation.setKnownNames(crossServer::knownPlayerNames);
+        // @ 提及的「输入玩家 ID 自动补 @」同时识别其他子服的在线玩家与公屏 AI
+        presentation.setKnownNames(() -> {
+            java.util.List<String> names = new java.util.ArrayList<>(crossServer.knownPlayerNames());
+            if (configManager.aiChatEnabled() && !configManager.aiChatName().isEmpty())
+                names.add(configManager.aiChatName());
+            return names;
+        });
         TellService tellService = new TellService(this, messageManager, crossServer);
         crossServer.setTellService(tellService);
         crossServer.setMuteService(muteService);
@@ -122,6 +128,10 @@ public final class LiuChat extends JavaPlugin {
         aiSessions.start(this);
         AiAssistantService assistantService =
                 new AiAssistantService(this, configManager, aiClient, skills, aiSessions);
+        // 公屏 AI 聊天：AI 以固定虚拟玩家身份参与公共聊天，点名即回
+        PublicChatAiService publicChatAi = new PublicChatAiService(this, configManager, assistantService,
+                chatService, crossServer);
+        chatService.setPublicChatAi(publicChatAi);
         router.register(new AskCommand(configManager, messageManager, assistantService));
         ColorDialog colorDialog = new ColorDialog(this, profiles, messageManager);
         AssistantDialog assistantDialog = new AssistantDialog(this, configManager, messageManager, assistantService);
@@ -173,9 +183,10 @@ public final class LiuChat extends JavaPlugin {
         getServer().getPluginManager().registerEvents(ignores, this);
         getServer().getPluginManager().registerEvents(profiles, this);
         getServer().getPluginManager().registerEvents(new CommandAliasListener(configManager), this);
-        getServer().getPluginManager().registerEvents(
-                new ChatListener(this, configManager, messageManager, muteService, chatService, crossServer,
-                        audit), this);
+        ChatListener chatListener = new ChatListener(this, configManager, messageManager, muteService,
+                chatService, crossServer, audit);
+        chatListener.setPublicChatAi(publicChatAi);
+        getServer().getPluginManager().registerEvents(chatListener, this);
 
         // 6. 定时与数据库对账（跨服共享禁言的同步入口）
         int syncInterval = configManager.syncInterval();

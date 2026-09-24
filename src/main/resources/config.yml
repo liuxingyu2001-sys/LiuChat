@@ -84,6 +84,18 @@ ai:
       #   skill: guide
       #   name: '游玩指南'
     default-skill: '' # 老配置兼容；未设置默认助手 skill 时使用
+  # 公屏 AI 聊天：AI 像普通玩家一样参与公共聊天。需要 ai.enable 与 ai.assistant.enable。
+  # 公屏点名（@AI 或消息里提到它的名字）就回复，回答以它的玩家名走正常聊天渲染（本服 + 跨服）。
+  chat:
+    enable: false
+    name: '小派蒙' # 公屏里 AI 的玩家名（固定虚拟 UUID，跨服一致；/lc ignore 也能屏蔽它）
+    assistant: '' # 用 ai.assistant.profiles 里的哪个助手（机器读的 ID）；留空用 ai.assistant.default
+    chance: 0.0 # 没点名也插话的概率 0~1（0 = 只在被点名时回复；想让它日常搭话可设 0.05~0.2）
+    cooldown-seconds: 10 # 全局回复冷却，防刷屏
+    respond-remote: false # 是否响应其他子服的公屏消息；多台服都开 AI 时保持 false 避免同时抢答
+    max-answer: 200 # 公屏一行回复长度上限（像玩家说话，别太长）
+    context-messages: 12 # 带多少条最近公屏消息作为聊天氛围上下文，0 = 不带
+    # 提问拼接受 ai.assistant.max-question 限制（默认 300），想带更多上下文把它调大（上限 2000）
 
 # 每日聊天记录：plugins/LiuChat/logs/YYYY-MM-DD.log
 chat-log:

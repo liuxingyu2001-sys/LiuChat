@@ -24,6 +24,7 @@ public final class ChatService {
     private IgnoreService ignores;
     private PlayerProfileService profiles;
     private ChatLogService logs;
+    private PublicChatAiService publicAi;
 
     public void setPlayerProfileService(PlayerProfileService profiles) { this.profiles = profiles; }
 
@@ -37,6 +38,8 @@ public final class ChatService {
     }
 
     public void setIgnoreService(IgnoreService ignores) { this.ignores = ignores; }
+
+    public void setPublicChatAi(PublicChatAiService ai) { this.publicAi = ai; }
 
     public record Dispatch(String message, String itemData, String placeholders, String nick) { }
 
@@ -78,6 +81,12 @@ public final class ChatService {
     public void broadcastRemote(String originServer, String uuid, String playerName,
                                 String message, String itemData, String placeholders, String nick) {
         deliver(originServer, uuid, playerName, "-", null, message, itemData, placeholders, nick);
+        if (publicAi != null) publicAi.onRemoteMessage(uuid, playerName, message);
+    }
+
+    /** 以虚拟身份广播公屏消息（公屏 AI 等）：sender 为 null，走与跨服消息相同的渲染路径。 */
+    public void broadcastAs(String server, String uuid, String playerName, String nick, String message) {
+        deliver(server, uuid, playerName, "-", null, message, "", "", nick);
     }
 
     private void deliver(String server, String uuid, String playerName, String world,

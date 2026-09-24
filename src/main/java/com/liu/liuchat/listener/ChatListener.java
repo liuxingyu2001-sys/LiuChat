@@ -6,6 +6,7 @@ import com.liu.liuchat.model.MuteData;
 import com.liu.liuchat.service.HourlyChatAudit;
 import com.liu.liuchat.service.ChatReviewPolicy;
 import com.liu.liuchat.service.ChatService;
+import com.liu.liuchat.service.PublicChatAiService;
 import com.liu.liuchat.service.CrossServerService;
 import com.liu.liuchat.service.MuteService;
 import com.liu.liuchat.util.RepeatCheck;
@@ -41,6 +42,10 @@ public final class ChatListener implements Listener {
     private final Map<UUID, Long> lastChatAt = new ConcurrentHashMap<>();
     /** 重复/相似发言检测（含「上次发言」记录） */
     private final RepeatCheck repeats = new RepeatCheck();
+    /** 公屏 AI 聊天（可选）：玩家发言交给它判定是否点名了 AI */
+    private PublicChatAiService publicAi;
+
+    public void setPublicChatAi(PublicChatAiService ai) { this.publicAi = ai; }
 
     public ChatListener(JavaPlugin plugin, ConfigManager config, MessageManager messages,
                         MuteService muteService, ChatService chatService,
@@ -121,6 +126,7 @@ public final class ChatListener implements Listener {
         audit.record(uuid.toString(), player.getName(), text);
         crossServer.publishChat(player, dispatch.message(), dispatch.itemData(),
                 dispatch.placeholders(), dispatch.nick());
+        if (publicAi != null) publicAi.onLocalMessage(uuid.toString(), player.getName(), text);
     }
 
     private void notifyModerators(Player sender, String text) {

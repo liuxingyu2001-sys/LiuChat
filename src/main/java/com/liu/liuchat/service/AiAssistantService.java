@@ -33,7 +33,7 @@ public final class AiAssistantService {
     private final AiSkillService skills;
     private final AiSessionStore sessions;
     private final AiAnswerCache cache = new AiAnswerCache(CACHE_ENTRIES);
-    private final Set<UUID> pending = new HashSet<>();
+    private final Set<String> pending = new HashSet<>();
 
     public AiAssistantService(JavaPlugin plugin, ConfigManager config, AiClient client, AiSkillService skills,
                               AiSessionStore sessions) {
@@ -45,6 +45,25 @@ public final class AiAssistantService {
     }
 
     public Status ask(Player player, String assistant, String question, Consumer<Result> onResult) {
+        UUID uuid = player.getUniqueId();
+        return askKeyed(uuid.toString(), assistant, assistant, question, result -> {
+            // 玩家等待期间退出/重进后不再回调，避免旧请求落到新会话
+            if (Bukkit.getPlayer(uuid) == player) onResult.accept(result);
+        });
+    }
+
+    /** 会话就用助手名的便捷重载（/lc ask、NPC 对话）。 */
+    public Status askKeyed(String pendingKey, String assistant, String question, Consumer<Result> onResult) {
+        return askKeyed(pendingKey, assistant, assistant, question, onResult);
+    }
+
+    /**
+     * 以任意会话键提问：公屏 AI 聊天等没有提问者玩家的场景也接在同一套助手上。
+     *
+     * @param session 会话键（与助手名解耦，公屏群聊可单独一份上下文）
+     */
+    public Status askKeyed(String pendingKey, String assistant, String session, String question,
+                           Consumer<Result> onResult) {
         if (!config.aiAssistantEnabled() || config.aiAssistantUrl().isBlank() || config.aiAssistantModel().isBlank())
             return Status.UNAVAILABLE;
         Map<String, String> profiles = config.aiAssistantProfiles();
@@ -55,8 +74,7 @@ public final class AiAssistantService {
         String instructions = skill.isEmpty() ? "" : skills.content(skill);
         if (!skill.isEmpty() && instructions == null) return Status.UNKNOWN_SKILL;
         if (question.isBlank() || question.length() > config.aiAssistantMaxQuestion()) return Status.TOO_LONG;
-        UUID uuid = player.getUniqueId();
-        if (!pending.add(uuid)) return Status.BUSY;
+        if (!pending.add(pendingKey)) return Status.BUSY;
         String prompt = config.aiAssistantPrompt();
         if (instructions != null && !instructions.isEmpty())
             prompt += "\n\nAssistant: " + assistant + "\nSkill: " + skill + "\n" + instructions;
@@ -69,7 +87,7 @@ public final class AiAssistantService {
 
         AiSessionStore.Limits limits = new AiSessionStore.Limits(config.aiAssistantHistoryMessages(),
                 config.aiAssistantHistoryChars(), config.aiAssistantHistorySeconds());
-        List<AiClient.Msg> history = limits.enabled() ? sessions.context(assistant, limits) : List.of();
+        List<AiClient.Msg> history = limits.enabled() ? sessions.context(session, limits) : List.of();
         // 缓存 key = 配置指纹 + 上下文指纹 + 问题：换模型/改提示词/会话推进都会自动失效
         String cacheKey = AiAnswerCache.sha256(url + '\n' + model + '\n' + prompt)
                 + '\n' + AiAnswerCache.fingerprint(history) + '\n' + question;
@@ -78,18 +96,18 @@ public final class AiAssistantService {
             String cached = cache.get(cacheKey, System.currentTimeMillis());
             if (cached != null) {
                 // 命中也照样入会话，后续玩家的上下文才是完整的
-                if (limits.enabled()) sessions.finish(sessions.open(assistant, limits, question), cached, limits);
+                if (limits.enabled()) sessions.finish(sessions.open(session, limits, question), cached, limits);
                 String display = clean(cached, config.aiAssistantMaxAnswer());
                 Bukkit.getScheduler().runTask(plugin, () -> {
-                    pending.remove(uuid); // 缓存命中不走网络，也必须在这里解锁，否则该玩家永久 BUSY
-                    if (!plugin.isEnabled() || Bukkit.getPlayer(uuid) != player) return;
+                    pending.remove(pendingKey); // 缓存命中不走网络，也必须在这里解锁，否则该会话永久 BUSY
+                    if (!plugin.isEnabled()) return;
                     onResult.accept(new Result(Status.OK, display));
                 });
                 return Status.OK;
             }
         }
 
-        AiSessionStore.Turn turn = limits.enabled() ? sessions.open(assistant, limits, question) : null;
+        AiSessionStore.Turn turn = limits.enabled() ? sessions.open(session, limits, question) : null;
         client.complete(url, key, model, prompt, history, question, timeout, config.aiAssistantMaxTokens())
                 .whenComplete((answer, error) -> {
                     if (!plugin.isEnabled()) return;
@@ -101,8 +119,7 @@ public final class AiAssistantService {
                         } else if (turn != null) {
                             sessions.fail(turn);
                         }
-                        pending.remove(uuid);
-                        if (Bukkit.getPlayer(uuid) != player) return;
+                        pending.remove(pendingKey);
                         if (error != null) {
                             plugin.getLogger().warning("AI 聊天助手请求失败 (skill=" + selectedSkill
                                     + ", 提示词字符数=" + promptLength + ", 上下文字符数=" + historyChars(history)

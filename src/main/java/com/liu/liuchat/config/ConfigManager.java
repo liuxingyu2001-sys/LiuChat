@@ -122,6 +122,23 @@ public final class ConfigManager {
     /** 会话是否写入 ai-sessions.json，重启不丢 */
     public boolean aiAssistantHistoryPersist() { return config.getBoolean("ai.assistant.history-persist", true); }
 
+    // ---------------- 公屏 AI 聊天（像普通玩家一样参与公共聊天） ----------------
+    public boolean aiChatEnabled() { return aiAssistantEnabled() && config.getBoolean("ai.chat.enable", false); }
+    public String aiChatName() { return config.getString("ai.chat.name", "小派蒙").trim(); }
+    /** 公屏 AI 用哪个助手（ai.assistant.profiles 的 ID）；留空用 ai.assistant.default */
+    public String aiChatAssistant() {
+        String id = config.getString("ai.chat.assistant", "").trim();
+        return id.isEmpty() ? aiAssistantDefaultName() : id;
+    }
+    /** 没点名也插话的概率 0~1（0 = 只在被点名时回复） */
+    public double aiChatChance() {
+        return Math.max(0, Math.min(1, config.getDouble("ai.chat.chance", 0)));
+    }
+    public int aiChatCooldownSeconds() { return Math.max(0, config.getInt("ai.chat.cooldown-seconds", 10)); }
+    public boolean aiChatRespondRemote() { return config.getBoolean("ai.chat.respond-remote", false); }
+    public int aiChatMaxAnswer() { return Math.max(20, Math.min(400, config.getInt("ai.chat.max-answer", 200))); }
+    public int aiChatContextMessages() { return Math.max(0, Math.min(100, config.getInt("ai.chat.context-messages", 12))); }
+
     public boolean logEnabled() { return config.getBoolean("chat-log.enable", true); }
 
     public String logFormat() {
