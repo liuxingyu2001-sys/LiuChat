@@ -95,6 +95,9 @@ ai:
     respond-remote: false # 是否响应其他子服的公屏消息；多台服都开 AI 时保持 false 避免同时抢答
     max-answer: 200 # 公屏一行回复长度上限（像玩家说话，别太长）
     context-messages: 12 # 带多少条最近公屏消息作为聊天氛围上下文，0 = 不带
+    # 公屏聊天格式（固定）：只替换 ${player} = AI 名字、${message} = 回复内容，
+    # 不解析聊天格式节点、PAPI 变量与其他占位符；& 颜色码只对格式生效，回复内容原样显示
+    format: '&7[AI] &b${player}&7: &f${message}'
     # 提问拼接受 ai.assistant.max-question 限制（默认 300），想带更多上下文把它调大（上限 2000）
 
 # 每日聊天记录：plugins/LiuChat/logs/YYYY-MM-DD.log

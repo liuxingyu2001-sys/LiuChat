@@ -80,13 +80,27 @@ public final class ChatService {
 
     public void broadcastRemote(String originServer, String uuid, String playerName,
                                 String message, String itemData, String placeholders, String nick) {
-        deliver(originServer, uuid, playerName, "-", null, message, itemData, placeholders, nick);
+        if (publicAi != null && publicAi.isAiSender(uuid, playerName)) {
+            // 公屏 AI：假人拿不到占位符，用固定格式渲染成品行，不解析变量
+            broadcastPlain(uuid, playerName, PublicChatAiService.formatLine(config.aiChatFormat(), playerName, message),
+                    message);
+        } else {
+            deliver(originServer, uuid, playerName, "-", null, message, itemData, placeholders, nick);
+        }
         if (publicAi != null) publicAi.onRemoteMessage(uuid, playerName, message);
     }
 
-    /** 以虚拟身份广播公屏消息（公屏 AI 等）：sender 为 null，走与跨服消息相同的渲染路径。 */
-    public void broadcastAs(String server, String uuid, String playerName, String nick, String message) {
-        deliver(server, uuid, playerName, "-", null, message, "", "", nick);
+    /**
+     * 固定格式广播（公屏 AI 等）：发送成品行，不解析聊天格式节点/变量；
+     * 仍走忽略列表与聊天日志。
+     */
+    public void broadcastPlain(String uuid, String playerName, String line, String rawMessage) {
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (ignores != null && ignores.ignores(online, uuid, playerName)) continue;
+            online.sendMessage(line);
+        }
+        Bukkit.getConsoleSender().sendMessage(line);
+        if (logs != null) logs.record("CHAT", config.server(), playerName, "*", rawMessage);
     }
 
     private void deliver(String server, String uuid, String playerName, String world,

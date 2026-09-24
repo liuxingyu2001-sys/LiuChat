@@ -138,6 +138,10 @@ public final class ConfigManager {
     public boolean aiChatRespondRemote() { return config.getBoolean("ai.chat.respond-remote", false); }
     public int aiChatMaxAnswer() { return Math.max(20, Math.min(400, config.getInt("ai.chat.max-answer", 200))); }
     public int aiChatContextMessages() { return Math.max(0, Math.min(100, config.getInt("ai.chat.context-messages", 12))); }
+    public String aiChatFormat() {
+        String format = config.getString("ai.chat.format", "&7[AI] &b${player}&7: &f${message}");
+        return format == null || format.isBlank() ? "&7[AI] &b${player}&7: &f${message}" : format;
+    }
 
     public boolean logEnabled() { return config.getBoolean("chat-log.enable", true); }
 

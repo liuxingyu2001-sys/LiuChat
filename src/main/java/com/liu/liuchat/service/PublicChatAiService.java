@@ -2,6 +2,7 @@ package com.liu.liuchat.service;
 
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.util.AiChatTriggers;
+import org.bukkit.ChatColor;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.nio.charset.StandardCharsets;
@@ -89,8 +90,26 @@ public final class PublicChatAiService {
         String uuid = aiUuid().toString();
         remember(aiName, reply);
         lastReplyAt = System.currentTimeMillis();
-        chatService.broadcastAs(config.server(), uuid, aiName, aiName, reply);
+        chatService.broadcastPlain(uuid, aiName, formatLine(config.aiChatFormat(), aiName, reply), reply);
         crossServer.publishChatAs(config.server(), uuid, aiName, reply, "", "", aiName);
+    }
+
+    /** 跨服来的这条发言是否是公屏 AI：固定格式渲染，不走聊天格式节点/变量解析。 */
+    public boolean isAiSender(String uuid, String name) {
+        String aiName = config.aiChatName();
+        return !aiName.isEmpty()
+                && (aiUuid().toString().equals(uuid) || aiName.equalsIgnoreCase(name));
+    }
+
+    /**
+     * 固定聊天格式：只替换 ${player} = AI 名字、${message} = 回复内容。
+     * 假人拿不到玩家上下文，PAPI 等其他插件占位符解析不出来，所以一律不解析变量；
+     * & 颜色码只对格式做所见即所得的直译（不合并、不美化），回复内容原样显示。
+     */
+    public static String formatLine(String format, String aiName, String message) {
+        String template = format == null || format.isBlank() ? "&7[AI] &b${player}&7: &f${message}" : format;
+        return ChatColor.translateAlternateColorCodes('&', template.replace("${player}", aiName == null ? "" : aiName))
+                .replace("${message}", message == null ? "" : message);
     }
 
     /** 公屏发言一行说完：换行压成空格、颜色码转字面、按 max-answer 截断。 */
