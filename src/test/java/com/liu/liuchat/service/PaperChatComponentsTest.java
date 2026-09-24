@@ -20,4 +20,16 @@ class PaperChatComponentsTest {
         assertNotNull(result.hoverEvent());
         assertEquals("Alice", PlainTextComponentSerializer.plainText().serialize(result));
     }
+
+    @Test void preservesCustomNameplatesFontAndActions() {
+        String mini = "<font:custom_nameplates:default>\uE001</font><red>Alice</red>";
+        TextComponent node = new TextComponent("");
+        node.setInsertion("liuchat-image:" + java.util.Base64.getEncoder().encodeToString(
+                mini.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        node.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpa Alice"));
+        var result = PaperChatComponents.convert(new TextComponent[]{node}, null).children().get(0);
+        assertEquals("/tpa Alice", result.clickEvent().value());
+        assertEquals("\uE001Alice", PlainTextComponentSerializer.plainText().serialize(result));
+        assertEquals(net.kyori.adventure.key.Key.key("custom_nameplates:default"), result.children().get(0).font());
+    }
 }

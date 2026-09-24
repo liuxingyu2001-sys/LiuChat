@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.object.ObjectContents;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.md_5.bungee.api.chat.BaseComponent;
@@ -25,6 +26,10 @@ public final class PaperChatComponents {
         if (part.getInsertion() != null && part.getInsertion().startsWith("liuchat-head:")) {
             result = Component.object(ObjectContents.playerHead(
                     java.util.UUID.fromString(part.getInsertion().substring("liuchat-head:".length()))));
+        } else if (part.getInsertion() != null && part.getInsertion().startsWith("liuchat-image:")) {
+            String mini = new String(java.util.Base64.getDecoder().decode(
+                    part.getInsertion().substring("liuchat-image:".length())), java.nio.charset.StandardCharsets.UTF_8);
+            result = MiniMessage.miniMessage().deserialize(mini);
         } else if (part instanceof TextComponent text) {
             result = Component.text(text.getText());
         } else {

@@ -4,7 +4,7 @@
 
   <groupId>com.liuxingyu</groupId>
   <artifactId>LiuChat</artifactId>
-  <version>0.3.0</version>
+  <version>0.3.1</version>
   <packaging>jar</packaging>
 
   <name>LiuChat</name>
@@ -28,6 +28,10 @@
       <id>placeholderapi</id>
       <url>https://repo.extendedclip.com/releases/</url>
     </repository>
+    <repository>
+      <id>momirealms</id>
+      <url>https://repo.momirealms.net/releases/</url>
+    </repository>
   </repositories>
 
   <dependencies>
@@ -41,6 +45,12 @@
       <groupId>me.clip</groupId>
       <artifactId>placeholderapi</artifactId>
       <version>${placeholderapi.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.momirealms</groupId>
+      <artifactId>custom-nameplates</artifactId>
+      <version>3.0.33</version>
       <scope>provided</scope>
     </dependency>
     <!-- 运行期由 plugin.yml 的 libraries（Paper 自动下载）/ 服务端自带驱动提供，不打进 jar -->

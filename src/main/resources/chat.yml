@@ -22,6 +22,11 @@ chat:
         hover:
           - '&7点击回复 ${player}'
         clickSuggest: '/tell ${player} '
+# image.type: background | nameplate，image.id: CustomNameplates 图片 ID（需安装插件和资源包）。
+# 仅支持不含 ${message}、${head} 的独立节点；插件/ID 不可用时原样显示节点文本。
+# 示例：在 player 节点下使用 text: '&e${nick}'，并添加：
+#   image: {type: background, id: bedrock_1, left-margin: 1, right-margin: 1}
+# 如需头像，请放在单独节点。
 # click 以 / 开头时点击执行；非 / 开头时点击复制；
 # clickSuggest 点击填入聊天框；url 点击打开链接。
 # 不要在可执行命令中插入玩家消息 ${message}。

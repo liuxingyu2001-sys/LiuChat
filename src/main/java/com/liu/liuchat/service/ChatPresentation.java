@@ -2,6 +2,7 @@ package com.liu.liuchat.service;
 
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.ConfigDefaults;
+import com.liu.liuchat.hook.NameplatesHook;
 import com.liu.liuchat.hook.PapiHook;
 import com.liu.liuchat.util.TextUtil;
 import net.md_5.bungee.api.chat.BaseComponent;
@@ -9,6 +10,8 @@ import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.chat.hover.content.Item;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -162,7 +165,9 @@ public final class ChatPresentation {
                 HoverEvent hint = hover.isEmpty() ? null : hover(template(hover, server, playerName, world, sender));
                 int position = text.indexOf("${message}");
                 if (position < 0) {
-                    append(line, template(text, server, playerName, world, sender), hint, action, uuid);
+                    String rendered = template(text, server, playerName, world, sender);
+                    if (!appendImage(line, rendered, node, hint, action))
+                        append(line, rendered, hint, action, uuid);
                 } else {
                     append(line, template(text.substring(0, position), server, playerName, world, sender), hint, action, uuid);
                     appendMessage(line, message, server, playerName, world, sender, itemId, hint, action);
@@ -171,6 +176,26 @@ public final class ChatPresentation {
             }
         }
         return line.getExtra() == null ? new BaseComponent[0] : line.getExtra().toArray(BaseComponent[]::new);
+    }
+
+    private static boolean appendImage(TextComponent line, String text, ConfigurationSection node,
+                                       HoverEvent hint, ClickEvent action) {
+        String kind = node.getString("image.type", "");
+        String id = node.getString("image.id", "");
+        if (kind.isEmpty() || id.isEmpty() || text.contains("${head}")
+                || !org.bukkit.Bukkit.getPluginManager().isPluginEnabled("CustomNameplates")) return false;
+        String mini = MiniMessage.miniMessage().serialize(LegacyComponentSerializer.legacySection().deserialize(text));
+        String generated = NameplatesHook.withImage(mini, kind, id,
+                (float) node.getDouble("image.left-margin", 1),
+                (float) node.getDouble("image.right-margin", 1));
+        if (generated == null) return false;
+        TextComponent segment = new TextComponent("");
+        segment.setInsertion("liuchat-image:" + java.util.Base64.getEncoder().encodeToString(
+                generated.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        if (hint != null) segment.setHoverEvent(hint);
+        if (action != null) segment.setClickEvent(action);
+        line.addExtra(segment);
+        return true;
     }
 
     private void appendMessage(TextComponent line, String message, String server, String player,

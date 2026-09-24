@@ -6,7 +6,7 @@
 - **平台**：Paper / Leaf 1.21.11（Java 21；完整物品悬浮及 Dialogs 使用 Paper API）
 - **存储**：SQLite（单服）/ MySQL（跨服共享），驱动经 plugin.yml `libraries` 由 Paper 自动下载
 - **跨服**：BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持）
-- **可选依赖**：PlaceholderAPI（含 CustomNameplates 的 PAPI 占位符）、CraftEngine；无这些插件时基础聊天可用。
+- **可选依赖**：PlaceholderAPI（含 CustomNameplates 的 PAPI 占位符）、CustomNameplates API（聊天图片节点）、CraftEngine；无这些插件时基础聊天可用。
 
 ## 功能（v0.3）
 
@@ -67,6 +67,8 @@
 ## 配置要点
 
 聊天交互在 `chat.yml`，正则快捷触发在 `shortcut.yml`，Paper Dialog 快捷操作在 `dialogs.yml`；`config.yml` 控制喇叭、AI、每日聊天记录与跨服。启动或 `/lc reload` 自动补全缺失键，不覆盖现有值。记录写到 `plugins/LiuChat/logs/YYYY-MM-DD.log`。`liuchat.color` 只允许玩家输入颜色/样式标签，不能注入点击指令。
+
+CustomNameplates API 支持：在 `chat.yml` 独立的玩家节点设置 `text: '&e${nick}'` 和 `image: {type: background, id: bedrock_1, left-margin: 1, right-margin: 1}`；也可用 `type: nameplate` 和对应的铭牌 ID。安装 CustomNameplates 并让客户端加载其资源包后生效；未安装或 ID 不存在时显示原文本。图片节点不能同时包含 `${message}` 或 `${head}`，头像可拆为另一个节点。跨服聊天由接收服使用相同 ID 生成图片，所有子服应安装并配置相同的图片资源。原有 `%nameplates_...%` 变量仍通过 PlaceholderAPI 在发送服预解析。
 
 CMI 同名指令由 `commands.prefer-liuchat: true` 将 `/msg`、`/tell`、`/w`、`/pm`、`/horn` 转到 `liuchat:` 命名空间；不自动修改服务器 `commands.yml`。
 
