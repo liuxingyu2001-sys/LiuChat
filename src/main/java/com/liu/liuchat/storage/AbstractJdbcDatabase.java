@@ -39,6 +39,7 @@ abstract class AbstractJdbcDatabase implements Database {
 
     /** 插入或更新语句（SQLite: INSERT OR REPLACE / MySQL: ON DUPLICATE KEY UPDATE） */
     protected abstract String upsertSql();
+    protected abstract String upsertProfileSql();
 
     /** 描述用的连接目标（日志展示） */
     protected abstract String describe();
@@ -52,6 +53,10 @@ abstract class AbstractJdbcDatabase implements Database {
             connection = DriverManager.getConnection(jdbcUrl(), username(), password());
             try (Statement statement = connection.createStatement()) {
                 statement.executeUpdate(createTableSql());
+                statement.executeUpdate("CREATE TABLE IF NOT EXISTS chat_ignore (owner VARCHAR(36) NOT NULL, "
+                        + "ignored_name VARCHAR(32) NOT NULL, PRIMARY KEY (owner, ignored_name))");
+                statement.executeUpdate("CREATE TABLE IF NOT EXISTS chat_profile (owner VARCHAR(36) PRIMARY KEY, "
+                        + "nick VARCHAR(64), color VARCHAR(80))");
             }
             ready = true;
         } catch (Exception e) {
@@ -91,6 +96,7 @@ abstract class AbstractJdbcDatabase implements Database {
             }
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "读取禁言数据失败", e);
+            return null;
         }
         return result;
     }
@@ -131,6 +137,73 @@ abstract class AbstractJdbcDatabase implements Database {
             ps.executeUpdate();
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "删除禁言数据失败", e);
+        }
+    }
+
+    @Override
+    public synchronized Profile loadProfile(String owner) {
+        if (!ready) return new Profile("", "");
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT nick, color FROM chat_profile WHERE owner = ?")) {
+            ps.setString(1, owner);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return new Profile(rs.getString(1) == null ? "" : rs.getString(1),
+                        rs.getString(2) == null ? "" : rs.getString(2));
+            }
+        } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "读取聊天资料失败", e); }
+        return new Profile("", "");
+    }
+
+    @Override
+    public synchronized void saveProfile(String owner, Profile profile) {
+        if (!ready) return;
+        try (PreparedStatement ps = connection.prepareStatement(upsertProfileSql())) {
+            ps.setString(1, owner);
+            ps.setString(2, profile.nick());
+            ps.setString(3, profile.color());
+            ps.executeUpdate();
+        } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "保存聊天资料失败", e); }
+    }
+
+    @Override
+    public synchronized List<String> loadIgnores(String owner) {
+        List<String> names = new ArrayList<>();
+        if (!ready) return names;
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT ignored_name FROM chat_ignore WHERE owner = ?")) {
+            ps.setString(1, owner);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) names.add(rs.getString(1));
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "读取屏蔽列表失败", e);
+        }
+        return names;
+    }
+
+    @Override
+    public synchronized void addIgnore(String owner, String name) {
+        if (!ready) return;
+        try (PreparedStatement ps = connection.prepareStatement(
+                "INSERT INTO chat_ignore (owner, ignored_name) VALUES (?, ?)")) {
+            ps.setString(1, owner);
+            ps.setString(2, name);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "保存屏蔽列表失败", e);
+        }
+    }
+
+    @Override
+    public synchronized void removeIgnore(String owner, String name) {
+        if (!ready) return;
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM chat_ignore WHERE owner = ? AND ignored_name = ?")) {
+            ps.setString(1, owner);
+            ps.setString(2, name);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "删除屏蔽项失败", e);
         }
     }
 

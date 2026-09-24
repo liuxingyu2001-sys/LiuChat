@@ -1,7 +1,7 @@
 package com.liu.liuchat.command;
 
 import com.liu.liuchat.config.MessageManager;
-import com.liu.liuchat.util.TextUtil;
+import com.liu.liuchat.service.TellService;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -10,14 +10,17 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * /lc tell <玩家> <消息>
+ * /lc tell、/msg、/tell 共用的私聊命令：本服直达，目标不在线则走跨服链路
+ * （离线判定与送达提示由 {@link TellService} 的回执机制负责）。
  */
 public final class TellCommand implements ChatCommand {
 
     private final MessageManager messages;
+    private final TellService tellService;
 
-    public TellCommand(MessageManager messages) {
+    public TellCommand(MessageManager messages, TellService tellService) {
         this.messages = messages;
+        this.tellService = tellService;
     }
 
     @Override
@@ -47,16 +50,13 @@ public final class TellCommand implements ChatCommand {
             messages.send(from, "tell.self");
             return;
         }
-        Player target = Bukkit.getPlayerExact(targetName);
-        if (target == null) {
-            messages.send(from, "tell.offline", "${player}", targetName);
-            return;
-        }
         String text = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
-        // 与聊天同一条颜色规则：没 liuchat.color 权限则 & 原样展示
-        String message = from.hasPermission("liuchat.color") ? TextUtil.color(text) : text;
-        messages.send(from, "tell.to-tell", "${player}", target.getName(), "${message}", message);
-        messages.send(target, "tell.from", "${player}", from.getName(), "${message}", message);
+        Player target = Bukkit.getPlayerExact(targetName);
+        if (target != null) {
+            tellService.deliverLocal(from, target, text);
+        } else {
+            tellService.sendCross(from, targetName, text);
+        }
     }
 
     @Override

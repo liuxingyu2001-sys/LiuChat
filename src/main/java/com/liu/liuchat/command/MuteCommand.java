@@ -2,6 +2,7 @@ package com.liu.liuchat.command;
 
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.model.MuteData;
+import com.liu.liuchat.service.CrossServerService;
 import com.liu.liuchat.service.MuteService;
 import com.liu.liuchat.util.TextUtil;
 import org.bukkit.Bukkit;
@@ -19,10 +20,12 @@ public final class MuteCommand implements ChatCommand {
 
     private final MessageManager messages;
     private final MuteService muteService;
+    private final CrossServerService crossServer;
 
-    public MuteCommand(MessageManager messages, MuteService muteService) {
+    public MuteCommand(MessageManager messages, MuteService muteService, CrossServerService crossServer) {
         this.messages = messages;
         this.muteService = muteService;
+        this.crossServer = crossServer;
     }
 
     @Override
@@ -57,6 +60,7 @@ public final class MuteCommand implements ChatCommand {
                 target.getName() != null ? target.getName() : targetName,
                 expireAt, reason, sender.getName());
         muteService.mute(mute);
+        crossServer.publishMute(mute);
 
         String timeText = messages.muteTimeText(mute);
         messages.send(sender, "mute.success",

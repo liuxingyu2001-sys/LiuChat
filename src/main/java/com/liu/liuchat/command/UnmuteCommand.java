@@ -2,6 +2,7 @@ package com.liu.liuchat.command;
 
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.model.MuteData;
+import com.liu.liuchat.service.CrossServerService;
 import com.liu.liuchat.service.MuteService;
 import org.bukkit.command.CommandSender;
 
@@ -16,10 +17,12 @@ public final class UnmuteCommand implements ChatCommand {
 
     private final MessageManager messages;
     private final MuteService muteService;
+    private final CrossServerService crossServer;
 
-    public UnmuteCommand(MessageManager messages, MuteService muteService) {
+    public UnmuteCommand(MessageManager messages, MuteService muteService, CrossServerService crossServer) {
         this.messages = messages;
         this.muteService = muteService;
+        this.crossServer = crossServer;
     }
 
     @Override
@@ -45,6 +48,7 @@ public final class UnmuteCommand implements ChatCommand {
         }
         MuteData mute = found.get();
         muteService.unmute(mute);
+        crossServer.publishUnmute(mute.uuid());
         messages.send(sender, "unmute.success", "${player}", mute.name());
     }
 

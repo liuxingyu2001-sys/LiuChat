@@ -1,9 +1,17 @@
 package com.liu.liuchat;
 
 import com.liu.liuchat.command.ChatCommand;
+import com.liu.liuchat.command.AskCommand;
+import com.liu.liuchat.command.AuditCommand;
 import com.liu.liuchat.command.CommandRouter;
 import com.liu.liuchat.command.DirectCommandBridge;
+import com.liu.liuchat.command.DialogCommand;
+import com.liu.liuchat.command.ColorDialog;
+import com.liu.liuchat.command.AssistantDialog;
+import com.liu.liuchat.command.HornCommand;
+import com.liu.liuchat.command.IgnoreCommand;
 import com.liu.liuchat.command.MuteCommand;
+import com.liu.liuchat.command.ProfileCommand;
 import com.liu.liuchat.command.ReloadCommand;
 import com.liu.liuchat.command.TellCommand;
 import com.liu.liuchat.command.UnmuteCommand;
@@ -11,11 +19,25 @@ import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.hook.PapiHook;
 import com.liu.liuchat.listener.ChatListener;
+import com.liu.liuchat.listener.CommandAliasListener;
+import com.liu.liuchat.listener.NpcAssistantBridge;
+import com.liu.liuchat.service.HourlyChatAudit;
+import com.liu.liuchat.service.AiClient;
+import com.liu.liuchat.service.AiAssistantService;
+import com.liu.liuchat.service.AiSkillService;
+import com.liu.liuchat.service.ChatLogService;
+import com.liu.liuchat.service.ChatPresentation;
 import com.liu.liuchat.service.ChatService;
 import com.liu.liuchat.service.CrossServerService;
+import com.liu.liuchat.service.IgnoreService;
+import com.liu.liuchat.service.ItemShowcase;
 import com.liu.liuchat.service.MuteService;
+import com.liu.liuchat.service.PlayerProfileService;
+import com.liu.liuchat.service.TellService;
 import com.liu.liuchat.storage.Database;
 import com.liu.liuchat.storage.DatabaseFactory;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -36,6 +58,7 @@ public final class LiuChat extends JavaPlugin {
     private Database database;
     private MuteService muteService;
     private CrossServerService crossServer;
+    private ChatLogService chatLogs;
 
     public static LiuChat instance() {
         return instance;
@@ -56,17 +79,61 @@ public final class LiuChat extends JavaPlugin {
         muteService = new MuteService(database);
         muteService.loadAll();
 
-        ChatService chatService = new ChatService(configManager);
+        ItemShowcase items = new ItemShowcase();
+        ChatPresentation presentation = new ChatPresentation(this, configManager, items);
+        ChatService chatService = new ChatService(this, configManager, presentation, items);
+        chatLogs = new ChatLogService(this, configManager);
+        chatService.setChatLogService(chatLogs);
 
         // 3. 跨服（BungeeCord plugin messaging；单服/无代理环境静默无副作用）
         crossServer = new CrossServerService(this, configManager, chatService);
+        TellService tellService = new TellService(this, messageManager, crossServer);
+        crossServer.setTellService(tellService);
+        crossServer.setMuteService(muteService);
+        IgnoreService ignores = new IgnoreService(database);
+        PlayerProfileService profiles = new PlayerProfileService(database);
+        chatService.setPlayerProfileService(profiles);
+        chatService.setIgnoreService(ignores);
+        tellService.setIgnoreService(ignores);
+        tellService.setChatLogService(chatLogs);
 
         // 4. 命令：/lc 子命令 + 顶层直注册的 /msg /tell
         CommandRouter router = new CommandRouter(messageManager);
-        router.register(new ReloadCommand(configManager, messageManager));
-        router.register(new MuteCommand(messageManager, muteService));
-        router.register(new UnmuteCommand(messageManager, muteService));
-        ChatCommand tell = new TellCommand(messageManager);
+        AiClient aiClient = new AiClient();
+        HourlyChatAudit audit = new HourlyChatAudit(this, configManager, messageManager, chatLogs, aiClient);
+        audit.start();
+        router.register(new AuditCommand(configManager, messageManager, audit));
+        AiSkillService skills = new AiSkillService(getDataFolder().toPath().resolve("skills"));
+        try {
+            skills.reload();
+        } catch (java.io.IOException e) {
+            getLogger().warning("AI skills 加载失败: " + e.getMessage());
+        }
+        AiAssistantService assistantService = new AiAssistantService(this, configManager, aiClient, skills);
+        router.register(new AskCommand(configManager, messageManager, assistantService));
+        ColorDialog colorDialog = new ColorDialog(this, profiles, messageManager);
+        AssistantDialog assistantDialog = new AssistantDialog(this, configManager, messageManager, assistantService);
+        DialogCommand dialog = new DialogCommand(this, messageManager, configManager, colorDialog, assistantDialog);
+        NpcAssistantBridge npcBridge = new NpcAssistantBridge(this, assistantDialog);
+        router.register(new ReloadCommand(configManager, messageManager, presentation, dialog, skills, npcBridge));
+        router.register(new ChatCommand() {
+            @Override public String name() { return "item"; }
+            @Override public boolean playerOnly() { return true; }
+            @Override public void execute(CommandSender sender, String[] args) {
+                if (args.length == 1) items.open((Player) sender, args[0]);
+                else messageManager.send(sender, "item.usage");
+            }
+        });
+        router.register(new MuteCommand(messageManager, muteService, crossServer));
+        router.register(new UnmuteCommand(messageManager, muteService, crossServer));
+        ChatCommand horn = new HornCommand(messageManager, chatService, crossServer, muteService);
+        router.register(horn);
+        router.register(new IgnoreCommand("ignore", messageManager, ignores));
+        router.register(new IgnoreCommand("unignore", messageManager, ignores));
+        router.register(new IgnoreCommand("ignorelist", messageManager, ignores));
+        router.register(new ProfileCommand("nick", profiles, messageManager));
+        router.register(dialog);
+        ChatCommand tell = new TellCommand(messageManager, tellService);
         router.register(tell);
 
         PluginCommand mainCommand = requireCommand("liuchat");
@@ -77,10 +144,16 @@ public final class LiuChat extends JavaPlugin {
         mainCommand.setTabCompleter(router);
         bindDirect("msg", tell);
         bindDirect("tell", tell);
+        bindDirect("horn", horn);
 
         // 5. 事件监听（跨服服务是 PluginMessageListener，注册发生在其构造器里）
+        getServer().getPluginManager().registerEvents(items, this);
+        getServer().getPluginManager().registerEvents(ignores, this);
+        getServer().getPluginManager().registerEvents(profiles, this);
+        getServer().getPluginManager().registerEvents(new CommandAliasListener(configManager), this);
         getServer().getPluginManager().registerEvents(
-                new ChatListener(configManager, messageManager, muteService, chatService, crossServer), this);
+                new ChatListener(this, configManager, messageManager, muteService, chatService, crossServer,
+                        audit), this);
 
         // 6. 定时与数据库对账（跨服共享禁言的同步入口）
         int syncInterval = configManager.syncInterval();
@@ -124,6 +197,7 @@ public final class LiuChat extends JavaPlugin {
         if (crossServer != null) {
             crossServer.close();
         }
+        if (chatLogs != null) chatLogs.close();
         if (database != null) {
             database.close();
         }

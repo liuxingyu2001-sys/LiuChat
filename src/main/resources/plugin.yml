@@ -9,9 +9,13 @@ folia-supported: false
 
 softdepend:
   - PlaceholderAPI
+  - CraftEngine
+  - CustomNameplates
+  - Citizens
+  - CMI
 
 # 依赖库交给 Paper 自己下载并挂到本插件类加载器，不打进 jar；
-# Spigot 服务端自带 org.sqlite 驱动（MySQL 需 Paper 或手动放置驱动）。
+# Paper/Leaf 会为插件加载 JDBC 驱动；CraftEngine、CustomNameplates、CMI、PAPI 均为可选软依赖。
 libraries:
   - org.xerial:sqlite-jdbc:3.47.0.0
   - com.mysql:mysql-connector-j:8.0.33
@@ -26,11 +30,33 @@ commands:
     description: 私聊其他玩家
     aliases: [w, whisper, pm]
     usage: /msg <玩家> <消息>
+  horn:
+    description: 全服喇叭
+    aliases: [lb]
+    usage: /horn <消息>
   tell:
     description: 私聊其他玩家
     usage: /tell <玩家> <消息>
 
 permissions:
+  liuchat.audit:
+    description: 手动审核聊天历史
+    default: op
+  liuchat.audit.notify:
+    description: 接收历史聊天审查报告
+    default: op
+  liuchat.ask:
+    description: 使用 AI 聊天助手
+    default: true
+  liuchat.nick:
+    description: 修改聊天昵称
+    default: op
+  liuchat.chatcolor:
+    description: 选择聊天颜色
+    default: true
+  liuchat.horn:
+    description: 发送全服喇叭
+    default: true
   liuchat.mute:
     description: 禁言玩家
     default: op

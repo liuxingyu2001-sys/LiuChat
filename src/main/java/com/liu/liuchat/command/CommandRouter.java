@@ -72,7 +72,7 @@ public final class CommandRouter implements CommandExecutor, TabCompleter {
             }
             messages.send(sender, "help.line",
                     "${sub}", sub.name(),
-                    "${desc}", messages.getRaw("help." + sub.name() + ".desc"));
+                    "${desc}", messages.get("help." + sub.name() + ".desc"));
         }
     }
 }

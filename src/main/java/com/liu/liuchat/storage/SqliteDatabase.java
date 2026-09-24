@@ -44,6 +44,11 @@ final class SqliteDatabase extends AbstractJdbcDatabase {
         return "INSERT OR REPLACE INTO mute (uuid, name, expire_at, reason, operator) VALUES (?, ?, ?, ?, ?)";
     }
 
+    protected String upsertProfileSql() {
+        return "INSERT INTO chat_profile (owner, nick, color) VALUES (?, ?, ?) "
+                + "ON CONFLICT(owner) DO UPDATE SET nick = excluded.nick, color = excluded.color";
+    }
+
     @Override
     protected String describe() {
         return dbFile.getAbsolutePath();

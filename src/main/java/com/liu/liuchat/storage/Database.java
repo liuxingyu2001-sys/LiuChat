@@ -20,6 +20,18 @@ public interface Database extends AutoCloseable {
 
     void deleteMute(String uuid);
 
+    record Profile(String nick, String color) { }
+
+    Profile loadProfile(String owner);
+
+    void saveProfile(String owner, Profile profile);
+
+    List<String> loadIgnores(String owner);
+
+    void addIgnore(String owner, String name);
+
+    void removeIgnore(String owner, String name);
+
     @Override
     void close();
 }

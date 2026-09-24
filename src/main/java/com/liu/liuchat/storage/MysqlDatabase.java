@@ -1,10 +1,7 @@
 package com.liu.liuchat.storage;
 
 import com.liu.liuchat.config.ConfigManager;
-import com.liu.liuchat.model.MuteData;
 import org.bukkit.plugin.java.JavaPlugin;
-
-import java.sql.PreparedStatement;
 
 /**
  * MySQL 实现：跨服共享数据用，各子服连同一个库，
@@ -60,16 +57,12 @@ final class MysqlDatabase extends AbstractJdbcDatabase {
                                         reason = VALUES(reason), operator = VALUES(operator)""";
     }
 
-    /** MySQL 的 upsert 要求 1~5 占位符再绑一遍 */
-    @Override
-    protected void bindUpsertTail(PreparedStatement ps, MuteData mute) throws Exception {
-        ps.setString(6, mute.uuid());
-        ps.setString(7, mute.name());
-        ps.setLong(8, mute.expireAt());
-        ps.setString(9, mute.reason());
-        ps.setString(10, mute.operator());
+    protected String upsertProfileSql() {
+        return "INSERT INTO chat_profile (owner, nick, color) VALUES (?, ?, ?) "
+                + "ON DUPLICATE KEY UPDATE nick = VALUES(nick), color = VALUES(color)";
     }
 
+    /** MySQL UPDATE 子句使用 VALUES()，不需要重复绑定参数。 */
     @Override
     protected String describe() {
         return config.mysqlUrl();

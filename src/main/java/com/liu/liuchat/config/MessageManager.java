@@ -6,8 +6,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.File;
-
 /**
  * messages.yml 语言访问层。
  * <p>
@@ -25,11 +23,7 @@ public final class MessageManager {
     }
 
     public void load() {
-        File file = new File(plugin.getDataFolder(), "messages.yml");
-        if (!file.exists()) {
-            plugin.saveResource("messages.yml", false);
-        }
-        messages = YamlConfiguration.loadConfiguration(file);
+        messages = ConfigDefaults.load(plugin, "messages.yml");
     }
 
     public void reload() {

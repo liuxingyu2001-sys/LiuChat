@@ -3,10 +3,14 @@ package com.liu.liuchat.listener;
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.model.MuteData;
+import com.liu.liuchat.service.HourlyChatAudit;
+import com.liu.liuchat.service.ChatReviewPolicy;
 import com.liu.liuchat.service.ChatService;
 import com.liu.liuchat.service.CrossServerService;
 import com.liu.liuchat.service.MuteService;
 import com.liu.liuchat.util.TextUtil;
+import org.bukkit.Bukkit;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -25,11 +29,13 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ChatListener implements Listener {
 
+    private final JavaPlugin plugin;
     private final ConfigManager config;
     private final MessageManager messages;
     private final MuteService muteService;
     private final ChatService chatService;
     private final CrossServerService crossServer;
+    private final HourlyChatAudit audit;
 
     /** 每人最近一次发言时间（冷却用） */
     private final Map<UUID, Long> lastChatAt = new ConcurrentHashMap<>();
@@ -39,26 +45,41 @@ public final class ChatListener implements Listener {
     private record LastSaid(long time, String text) {
     }
 
-    public ChatListener(ConfigManager config, MessageManager messages,
+    public ChatListener(JavaPlugin plugin, ConfigManager config, MessageManager messages,
                         MuteService muteService, ChatService chatService,
-                        CrossServerService crossServer) {
+                        CrossServerService crossServer, HourlyChatAudit audit) {
+        this.plugin = plugin;
         this.config = config;
         this.messages = messages;
         this.muteService = muteService;
         this.chatService = chatService;
         this.crossServer = crossServer;
+        this.audit = audit;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onChat(AsyncPlayerChatEvent event) {
-        Player player = event.getPlayer();
-        UUID uuid = player.getUniqueId();
+        // Cancel before handing off: Bukkit/PAPI/plugin messaging must run on the server thread.
+        event.setCancelled(true);
+        UUID uuid = event.getPlayer().getUniqueId();
+        String text = event.getMessage();
+        if (event.isAsynchronous()) {
+            Bukkit.getScheduler().runTask(plugin, () -> processChat(uuid, text));
+        } else {
+            processChat(uuid, text);
+        }
+    }
+
+    private void processChat(UUID uuid, String text) {
+        Player player = Bukkit.getPlayer(uuid);
+        if (player == null) {
+            return;
+        }
         long now = System.currentTimeMillis();
 
         // 1. 禁言
         Optional<MuteData> muted = muteService.check(uuid.toString(), player.getName());
         if (muted.isPresent()) {
-            event.setCancelled(true);
             MuteData mute = muted.get();
             messages.send(player, "chat.muted",
                     "${time}", messages.muteTimeText(mute),
@@ -72,7 +93,6 @@ public final class ChatListener implements Listener {
             long last = lastChatAt.getOrDefault(uuid, 0L);
             long waitMs = last + cooldown * 1000L - now;
             if (waitMs > 0) {
-                event.setCancelled(true);
                 long seconds = (waitMs + 999) / 1000;
                 messages.send(player, "chat.cooldown", "${time}", String.valueOf(seconds));
                 return;
@@ -80,23 +100,26 @@ public final class ChatListener implements Listener {
         }
 
         // 3. 重复/相似发言
-        if (isSpam(player, event.getMessage(), now)) {
-            event.setCancelled(true);
+        if (isSpam(player, text, now)) {
             return;
         }
 
+        if (config.aiEnabled() && ChatReviewPolicy.blocked(text, config.aiReviewKeywords(),
+                config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())) {
+            messages.send(player, "ai.local-blocked");
+            return;
+        }
         lastChatAt.put(uuid, now);
-        lastSaid.put(uuid, new LastSaid(now, event.getMessage()));
+        lastSaid.put(uuid, new LastSaid(now, text));
 
-        // 4. 颜色裁决：本服与跨服共用同一份处理后的文本
         String message = player.hasPermission("liuchat.color")
-                ? TextUtil.color(event.getMessage())
-                : event.getMessage();
+                ? com.liu.liuchat.util.ColorParser.playerText(text)
+                : text.replace('§', '&');
 
-        // 5. 自行分发 + 跨服转发
-        event.setCancelled(true);
-        chatService.broadcast(player, message);
-        crossServer.publish(player, message);
+        ChatService.Dispatch dispatch = chatService.broadcast(player, message);
+        audit.record(uuid.toString(), player.getName(), text);
+        crossServer.publishChat(player, dispatch.message(), dispatch.itemData(),
+                dispatch.placeholders(), dispatch.nick());
     }
 
     /**

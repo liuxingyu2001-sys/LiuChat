@@ -25,6 +25,57 @@ console-format: "&8[${server}] &7[控制台] &e${player}&8» &f${message}"
 cross-server:
   enable: true
 
+# 冲突指令优先交给 LiuChat。可在 /lc reload 后生效；关闭则交由 CMI/其他插件自行处理。
+commands:
+  prefer-liuchat: true
+
+# 审核不阻塞发言；本地规则即时拦截，AI 每小时汇总本服公开聊天并生成报告。
+ai:
+  enable: false
+  url: ''
+  api-key: ''
+  model: ''
+  review:
+    enable: false # 每小时审核历史；不影响普通聊天速度
+    manual-enable: true # 管理员可用 /lc audit <1-24> 手动审查
+    interval-minutes: 60 # 定时审查最近一小时；/lc reload 生效
+    timeout-seconds: 90
+    prompt: '审核 Minecraft 聊天记录，识别违规发言并返回结构化 JSON。'
+    keywords: [广告, 代充, 加群, 私服, cnm] # 所有屏蔽词直接拦截，不请求 AI；支持 * 和 ?
+    contacts: true # 数字联系方式直接屏蔽
+    block-ips: true # 有效 IPv4 与 IPv4:端口直接屏蔽，不请求 AI
+    block-domains: true # 域名、域名:端口、URL 中的域名直接屏蔽
+  assistant:
+    enable: false
+    url: '' # 留空时沿用 ai.url；可填 /v1 或完整 /v1/chat/completions
+    api-key: '' # 留空时沿用 ai.api-key，再回退 LIUCHAT_AI_API_KEY
+    model: '' # 留空时沿用 ai.model
+    prompt: '你是 Minecraft 服务器聊天助手。简洁回答玩家的问题。不要声称已执行游戏内操作。'
+    max-question: 300
+    max-answer: 600
+    dialog-width: 520 # AI Dialog 回答正文宽度，范围 100-800
+    timeout-seconds: 60 # 助手生成较长回答时可调至 30~120 秒
+    default: bot # /lc ask <问题> 使用此助手
+    profiles:
+      bot:
+        skill: '' # 填 plugins/LiuChat/skills 下的子目录名，例如 bot
+      # guide:
+      #   skill: guide
+    default-skill: '' # 老配置兼容；未设置默认助手 skill 时使用
+
+# 每日聊天记录：plugins/LiuChat/logs/YYYY-MM-DD.log
+chat-log:
+  enable: true
+  format: '[${time}] [${type}] [${server}] ${player} -> ${target}: ${message}'
+
+# 全服喇叭：/lc horn <内容>，默认 liuchat.horn 权限。
+horn:
+  format: "&6[全服喇叭] &e${player}&7: &f${message}"
+  modes: [chat, title, actionbar, bossbar]
+  title: '&6全服喇叭'
+  sound: 'BLOCK_NOTE_BLOCK_BELL' # 留空关闭
+  duration-ticks: 100
+
 # ------------------------------------------------------------
 # 存储
 # ------------------------------------------------------------

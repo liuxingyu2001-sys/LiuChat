@@ -1,0 +1,9 @@
+# Citizens NPC ID -> AI 助手名（对应 config.yml 的 ai.assistant.profiles）。
+# /npc select 后使用 /npc id 查看 ID；只接管列在这里的 NPC 右键。
+max-distance: 6
+cancel-other-actions: true # 绑定的 NPC 不再同时执行 Citizens 的其他点击操作
+npcs: {}
+#  '12':
+#    enable: true
+#    assistant: bot
+#    title: '向服务器向导提问'

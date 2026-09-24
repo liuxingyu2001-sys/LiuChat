@@ -24,18 +24,21 @@ public final class MuteService {
     private final Database database;
     /** key = uuid */
     private final Map<String, MuteData> cache = new ConcurrentHashMap<>();
+    private final java.util.concurrent.atomic.AtomicLong revisions = new java.util.concurrent.atomic.AtomicLong();
 
     public MuteService(Database database) {
         this.database = database;
     }
 
     /** 对账式全量刷新，见类注释 */
-    public void loadAll() {
+    public synchronized void loadAll() {
         if (!database.isReady()) {
             return;
         }
+        long revision = revisions.get();
         long now = System.currentTimeMillis();
         List<MuteData> rows = database.loadMutes();
+        if (rows == null || revision != revisions.get()) return;
         Set<String> seen = new HashSet<>();
         for (MuteData row : rows) {
             seen.add(row.uuid());
@@ -50,14 +53,26 @@ public final class MuteService {
         cache.keySet().removeIf(uuid -> !seen.contains(uuid));
     }
 
-    public void mute(MuteData mute) {
+    public synchronized void mute(MuteData mute) {
+        revisions.incrementAndGet();
         cache.put(mute.uuid(), mute);
         database.saveMute(mute);
     }
 
-    public void unmute(MuteData mute) {
+    public synchronized void unmute(MuteData mute) {
+        revisions.incrementAndGet();
         cache.remove(mute.uuid());
         database.deleteMute(mute.uuid());
+    }
+
+    public synchronized void applyRemote(MuteData mute) {
+        revisions.incrementAndGet();
+        cache.put(mute.uuid(), mute);
+    }
+
+    public synchronized void removeRemote(String uuid) {
+        revisions.incrementAndGet();
+        cache.remove(uuid);
     }
 
     /**

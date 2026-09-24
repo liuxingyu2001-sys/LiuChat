@@ -1,0 +1,9 @@
+# Paper Dialog 独立入口：/lc dialog ai 与 /lc dialog chatcolor
+# AI 回答正文宽度在 config.yml 的 ai.assistant.dialog-width 设置。
+enable: true
+buttons:
+  chatcolor:
+    enable: true
+  assistant:
+    enable: true
+    requires: ai.assistant

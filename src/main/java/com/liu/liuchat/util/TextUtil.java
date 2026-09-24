@@ -1,7 +1,5 @@
 package com.liu.liuchat.util;
 
-import org.bukkit.ChatColor;
-
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,7 +16,7 @@ public final class TextUtil {
 
     /** & 颜色码转 §（只认 &，所以插入到本方法之后的玩家文本不受影响） */
     public static String color(String text) {
-        return text == null ? null : ChatColor.translateAlternateColorCodes('&', text);
+        return ColorParser.parse(text);
     }
 
     /**

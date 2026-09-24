@@ -1,0 +1,20 @@
+# 快捷触发：匹配聊天内容中的片段并替换为可点击文本。
+# pattern 正则搜索；text-filter 从命中片段提取 {0}（整体）/ {1}...（分组）。
+# 可配置 display.text / hover / click / clickSuggest / url。
+enable: true
+
+tp:
+  pattern: '(?i)tp我|tpme'
+  display:
+    text: '&8[&a点击传送&8]'
+    hover:
+      - '&7传送到 ${player}'
+    click: '/tpa ${player}'
+
+website:
+  pattern: 'https?://[^\s]+'
+  display:
+    text: '&8[&b点击访问网站&8]'
+    hover:
+      - '&7{0}'
+    url: '{0}'

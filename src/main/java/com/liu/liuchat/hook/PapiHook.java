@@ -23,12 +23,12 @@ public final class PapiHook {
     }
 
     public static void init(JavaPlugin plugin, ConfigManager config, MuteService muteService) {
-        registered = false;
-        if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") == null) {
+        registered = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
+        if (!registered) {
             return;
         }
         try {
-            registered = new LiuChatExpansion(config, muteService, plugin).register();
+            new LiuChatExpansion(config, muteService, plugin).register();
         } catch (Throwable t) {
             plugin.getLogger().log(Level.WARNING, "PlaceholderAPI 挂载失败", t);
         }

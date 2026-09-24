@@ -1,0 +1,27 @@
+# 聊天节点按配置顺序拼接；${server} ${player} ${world} ${message} 可用。
+# ${head} 在 1.21.9+ 客户端显示发送玩家的皮肤头像。
+item:
+  enable: true
+  format: '[i]'
+  content: '&7物品展示 &e[ ${item} &e]&7'
+  length: 18
+
+chat:
+  default:
+    enable: true
+    format:
+      server:
+        text: '&8[${server}] '
+      player:
+        text: '&e${head} ${nick}&8» '
+        hover:
+          - '&7点击传送到 ${player}'
+        click: '/tpa ${player}'
+      msg:
+        text: '&f${message}'
+        hover:
+          - '&7点击回复 ${player}'
+        clickSuggest: '/tell ${player} '
+# click 以 / 开头时点击执行；非 / 开头时点击复制；
+# clickSuggest 点击填入聊天框；url 点击打开链接。
+# 不要在可执行命令中插入玩家消息 ${message}。
