@@ -7,17 +7,18 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 /** Ignore lists persist per player; MySQL makes the list available after server transfers. */
 public final class IgnoreService implements Listener {
     private final Database database;
-    private final Map<String, Set<String>> lists = new HashMap<>();
+    // 异步聊天/跨服消息线程会读，主线程会写，必须并发安全（写少读多用 COW 集合）
+    private final Map<String, Set<String>> lists = new ConcurrentHashMap<>();
 
     public IgnoreService(Database database) { this.database = database; }
 
@@ -25,7 +26,14 @@ public final class IgnoreService implements Listener {
     private static String owner(Player player) { return player.getUniqueId().toString(); }
 
     private Set<String> list(Player player) {
-        return lists.computeIfAbsent(owner(player), uuid -> new HashSet<>(database.loadIgnores(uuid)));
+        String uuid = owner(player);
+        Set<String> cached = lists.get(uuid);
+        if (cached != null) return cached;
+        // JDBC 加载放在 map 之外，避免阻塞其他线程
+        Set<String> loaded = new CopyOnWriteArraySet<>();
+        for (String name : database.loadIgnores(uuid)) loaded.add(key(name));
+        Set<String> prev = lists.putIfAbsent(uuid, loaded);
+        return prev != null ? prev : loaded;
     }
 
     public boolean ignores(Player viewer, String senderUuid, String senderName) {

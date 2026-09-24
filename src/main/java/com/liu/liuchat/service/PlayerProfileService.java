@@ -7,18 +7,26 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Per-player nickname and selected chat color, shared via MySQL after server transfers. */
 public final class PlayerProfileService implements Listener {
     private final Database database;
-    private final Map<String, Database.Profile> profiles = new HashMap<>();
+    // 聊天(异步事件)与跨服消息线程都会读，主线程会写，必须是并发安全的
+    private final Map<String, Database.Profile> profiles = new ConcurrentHashMap<>();
 
     public PlayerProfileService(Database database) { this.database = database; }
     private static String id(Player player) { return player.getUniqueId().toString(); }
     public Database.Profile get(Player player) {
-        return profiles.computeIfAbsent(id(player), database::loadProfile);
+        String key = id(player);
+        Database.Profile cached = profiles.get(key);
+        if (cached != null) return cached;
+        // 阻塞式 JDBC 加载放在 map 之外，避免持着桶锁做 IO
+        Database.Profile loaded = database.loadProfile(key);
+        if (loaded == null) loaded = new Database.Profile("", "");
+        Database.Profile prev = profiles.putIfAbsent(key, loaded);
+        return prev != null ? prev : loaded;
     }
     public void nick(Player player, String name) {
         Database.Profile old = get(player);

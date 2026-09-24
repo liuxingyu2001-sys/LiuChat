@@ -13,15 +13,16 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Snapshots displayed items; the GUI never exposes a mutable inventory item. */
 public final class ItemShowcase implements Listener {
     private static final long LIFETIME = 10 * 60 * 1000L;
-    private final Map<String, Entry> entries = new HashMap<>();
+    // register() 在异步聊天线程执行，GUI 点击在主线程，必须并发安全
+    private final Map<String, Entry> entries = new ConcurrentHashMap<>();
     private final CraftEngineNames ceNames = new CraftEngineNames();
     private final VanillaItemNames vanillaNames = new VanillaItemNames();
 
