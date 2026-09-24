@@ -2,6 +2,7 @@ package com.liu.liuchat.command;
 
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.service.PlayerProfileService;
+import com.liu.liuchat.util.ProfileText;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -20,18 +21,16 @@ public final class ProfileCommand implements ChatCommand {
     @Override public boolean playerOnly() { return true; }
     @Override public void execute(CommandSender sender, String[] args) {
         Player player = (Player) sender;
-        if (args.length != 1) { messages.send(player, "profile.usage"); return; }
+        if (args.length == 0) { messages.send(player, "profile.usage"); return; }
+        String input = String.join(" ", args);
         if (type.equals("nick")) {
-            if (!args[0].equalsIgnoreCase("off") && !args[0].matches("[\\p{L}\\p{N}_]{2,24}")) {
-                messages.send(player, "profile.invalid"); return;
-            }
-            profiles.nick(player, args[0].equalsIgnoreCase("off") ? "" : args[0]);
+            boolean formatted = player.hasPermission("liuchat.nick.format");
+            String value = ProfileText.normalize(input, formatted);
+            profiles.nick(player, value);
         } else {
-            if (!args[0].equalsIgnoreCase("off")
-                    && !args[0].matches("(?i)&[0-9a-f]|&#[0-9a-f]{6}|<#[0-9a-f]{6}>|<(black|red|green|yellow|blue|aqua|gold|white|gray|dark_[a-z_]+)>") ) {
-                messages.send(player, "profile.invalid"); return;
-            }
-            profiles.color(player, args[0].equalsIgnoreCase("off") ? "" : args[0]);
+            boolean formatted = player.hasPermission("liuchat.chatcolor.format");
+            String value = ProfileText.normalize(input, formatted);
+            profiles.color(player, value);
         }
         messages.send(player, "profile.saved");
     }

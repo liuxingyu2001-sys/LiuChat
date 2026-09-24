@@ -37,6 +37,12 @@ commands:
   tell:
     description: 私聊其他玩家
     usage: /tell <玩家> <消息>
+  chatcolor:
+    description: 设置聊天颜色
+    usage: /chatcolor <颜色或MiniMessage>
+  nick:
+    description: 设置聊天昵称
+    usage: /nick <昵称或MiniMessage>
 
 permissions:
   liuchat.audit:
@@ -57,8 +63,14 @@ permissions:
   liuchat.nick:
     description: 修改聊天昵称
     default: op
+  liuchat.nick.format:
+    description: 使用MiniMessage和颜色格式设置昵称
+    default: false
   liuchat.chatcolor:
     description: 选择聊天颜色
+    default: false
+  liuchat.chatcolor.format:
+    description: 使用MiniMessage和颜色格式设置聊天颜色
     default: false
   liuchat.horn:
     description: 使用全服喇叭（需要喇叭数量）

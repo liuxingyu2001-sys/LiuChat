@@ -132,7 +132,10 @@ public final class LiuChat extends JavaPlugin {
         router.register(new IgnoreCommand("ignore", messageManager, ignores));
         router.register(new IgnoreCommand("unignore", messageManager, ignores));
         router.register(new IgnoreCommand("ignorelist", messageManager, ignores));
-        router.register(new ProfileCommand("nick", profiles, messageManager));
+        ChatCommand nick = new ProfileCommand("nick", profiles, messageManager);
+        ChatCommand chatColor = new ProfileCommand("chatcolor", profiles, messageManager);
+        router.register(nick);
+        router.register(chatColor);
         router.register(dialog);
         ChatCommand tell = new TellCommand(messageManager, tellService, configManager);
         router.register(tell);
@@ -143,9 +146,11 @@ public final class LiuChat extends JavaPlugin {
         }
         mainCommand.setExecutor(router);
         mainCommand.setTabCompleter(router);
-        bindDirect("msg", tell);
-        bindDirect("tell", tell);
-        bindDirect("horn", horn);
+        if (!bindDirect("msg", tell)) return;
+        if (!bindDirect("tell", tell)) return;
+        if (!bindDirect("horn", horn)) return;
+        if (!bindDirect("nick", nick)) return;
+        if (!bindDirect("chatcolor", chatColor)) return;
 
         // 5. 事件监听（跨服服务是 PluginMessageListener，注册发生在其构造器里）
         getServer().getPluginManager().registerEvents(items, this);
@@ -183,14 +188,15 @@ public final class LiuChat extends JavaPlugin {
     }
 
     /** 把一个 ChatCommand 绑成独立顶层命令（含 tab 补全） */
-    private void bindDirect(String name, ChatCommand command) {
+    private boolean bindDirect(String name, ChatCommand command) {
         PluginCommand pluginCommand = requireCommand(name);
         if (pluginCommand == null) {
-            return;
+            return false;
         }
         DirectCommandBridge bridge = new DirectCommandBridge(command, messageManager);
         pluginCommand.setExecutor(bridge);
         pluginCommand.setTabCompleter(bridge);
+        return true;
     }
 
     @Override

@@ -56,7 +56,8 @@ abstract class AbstractJdbcDatabase implements Database {
                 statement.executeUpdate("CREATE TABLE IF NOT EXISTS chat_ignore (owner VARCHAR(36) NOT NULL, "
                         + "ignored_name VARCHAR(32) NOT NULL, PRIMARY KEY (owner, ignored_name))");
                 statement.executeUpdate("CREATE TABLE IF NOT EXISTS chat_profile (owner VARCHAR(36) PRIMARY KEY, "
-                        + "nick VARCHAR(64), color VARCHAR(80))");
+                        + "nick TEXT, color TEXT)");
+                migrateProfileSchema(statement);
                 statement.executeUpdate("CREATE TABLE IF NOT EXISTS horn_balance (owner VARCHAR(36) PRIMARY KEY, credits INT NOT NULL DEFAULT 0)");
             }
             ready = true;
@@ -79,6 +80,10 @@ abstract class AbstractJdbcDatabase implements Database {
     @Override
     public boolean isReady() {
         return ready;
+    }
+
+    /** Allows dialect-specific migrations for existing installations. */
+    protected void migrateProfileSchema(Statement statement) {
     }
 
     @Override

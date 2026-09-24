@@ -70,6 +70,15 @@ final class MysqlDatabase extends AbstractJdbcDatabase {
     }
 
     @Override
+    protected void migrateProfileSchema(java.sql.Statement statement) {
+        try {
+            statement.executeUpdate("ALTER TABLE chat_profile MODIFY COLUMN nick TEXT");
+        } catch (java.sql.SQLException ignored) {
+            // Existing TEXT columns and SQLite-style schemas need no migration.
+        }
+    }
+
+    @Override
     protected String describe() {
         return config.mysqlUrl();
     }
