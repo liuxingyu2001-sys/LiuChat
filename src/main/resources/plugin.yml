@@ -28,7 +28,7 @@ commands:
   # 提示：若 BungeeCord 代理端的 /msg 拦截了输入，需在代理侧禁用该命令
   msg:
     description: 私聊其他玩家
-    aliases: [w, whisper, pm]
+    aliases: [w, whisper]
     usage: /msg <玩家> <消息>
   horn:
     description: 全服喇叭

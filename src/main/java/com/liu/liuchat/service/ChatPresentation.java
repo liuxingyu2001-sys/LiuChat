@@ -322,7 +322,7 @@ public final class ChatPresentation {
             TextComponent emoji = new TextComponent("");
             emoji.setInsertion("liuchat-image:" + java.util.Base64.getEncoder().encodeToString(
                     emojis.get(matched).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-            if (hint != null) emoji.setHoverEvent(hint);
+            // CE content supplies its own hover; the message node must not mask it.
             if (action != null) emoji.setClickEvent(action);
             line.addExtra(emoji);
             offset = index + matched.length();

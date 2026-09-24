@@ -6,7 +6,7 @@
 - **平台**：Paper / Leaf 1.21.11（Java 21；完整物品悬浮及 Dialogs 使用 Paper API）
 - **存储**：SQLite（单服）/ MySQL（跨服共享），驱动经 plugin.yml `libraries` 由 Paper 自动下载
 - **跨服**：BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持）
-- **可选依赖**：PlaceholderAPI（含 CustomNameplates 的 PAPI 占位符）、CustomNameplates API（聊天图片节点）、CraftEngine；无这些插件时基础聊天可用。
+- **可选依赖**：PlaceholderAPI（含 CustomNameplates 的 PAPI 占位符）、CustomNameplates API（聊天图片节点与聊天气泡）、CraftEngine；无这些插件时基础聊天可用。
 
 ## 功能（v0.3）
 
@@ -19,7 +19,7 @@
 | 屏蔽与资料 | `/lc ignore`、`unignore`、`ignorelist`、`nick`；MySQL 共享持久化 |
 | 扩展 | PAPI（含 CustomNameplates 的 PAPI 占位符）、Paper Dialog 可配置布局、独立开关的 AI 聊天审核与私聊助手、每日聊天日志 |
 | **跨服聊天** | 经代理转发到其他子服，收端按自己的 format 渲染、`${server}` 显示发送端子服；无代理/单服开着无副作用 |
-| **顶层私聊命令** | 直接注册 `/msg`（别名 `/w` `/whisper` `/pm`）与 `/tell`，全部带 tab 补全；跨服在线名单由子服同步供玩家名补全 |
+| **顶层私聊命令** | 直接注册 `/msg`（别名 `/w` `/whisper`）与 `/tell`，全部带 tab 补全；跨服在线名单由子服同步供玩家名补全 |
 | **跨服私聊** | 目标在其他子服也能收到；TELL 广播只在目标所在服落地，**回执机制**保证送达 —— 3 秒未收到回执则提示“不在线，消息未送达”，不会静默丢失 |
 | 禁言 | `/lc mute`，`30s / 5m / 1h30m / 0=永久`，过期自动清；uuid + 名字双查兜底 |
 | **MySQL 跨服共享禁言** | 写库并广播 MUTE/UNMUTE 到其他子服内存；发送服无在线玩家或目标服断线时由共享库的定时对账补漏 |
@@ -35,7 +35,7 @@
 /lc reload                       重载配置        权限: liuchat.reload
 /lc mute <玩家> <时长|0永久> [原因]  禁言           权限: liuchat.mute
 /lc unmute <玩家>                 解除禁言         权限: liuchat.unmute
-/msg <玩家> <消息>                私聊（别名 w/whisper/pm，跨服）  权限: liuchat.tell
+/msg <玩家> <消息>                私聊（别名 w/whisper，跨服）  权限: liuchat.tell
 /tell <玩家> <消息>               私聊（跨服）             权限: liuchat.tell
 /horn <消息>                      全服喇叭             权限: liuchat.horn
 /lc ignore <玩家>                 屏蔽玩家
@@ -68,11 +68,11 @@
 
 ## 配置要点
 
-聊天交互在 `chat.yml`，正则快捷触发在 `shortcut.yml`，Paper Dialog 快捷操作在 `dialogs.yml`；`config.yml` 控制喇叭、AI、每日聊天记录与跨服。启动或 `/lc reload` 自动补全缺失键，不覆盖现有值。记录写到 `plugins/LiuChat/logs/YYYY-MM-DD.log`。`liuchat.color` 只允许玩家输入颜色/样式标签，不能注入点击指令。CE 表情以发送者权限调用其 CHAT 解析器，图片和悬浮内容会在跨服消息中随占位符快照传递；发送服需要安装 CraftEngine，客户端需加载对应资源包。
+聊天交互在 `chat.yml`，正则快捷触发在 `shortcut.yml`，Paper Dialog 快捷操作在 `dialogs.yml`；`config.yml` 控制喇叭、AI、每日聊天记录与跨服。启动或 `/lc reload` 自动补全缺失键，不覆盖现有值。记录写到 `plugins/LiuChat/logs/YYYY-MM-DD.log`。`liuchat.color` 只允许玩家输入颜色/样式标签，不能注入点击指令。CE 表情以发送者权限调用其 CHAT 解析器，图片和悬浮内容会在跨服消息中随占位符快照传递；发送服需要安装 CraftEngine，客户端需加载对应资源包。本服公聊审核通过后会调用 CustomNameplates 的 `ChatManager.onChat` 触发聊天气泡（频道 `Global`）；气泡的显示仍受其 `bubble.yml` 的 `sender-requirements`、`viewer-requirements`、`blacklist-channels`、`max-lines` 等设置控制，不满足条件时正常聊天不受影响。
 
 CustomNameplates API 支持：在 `chat.yml` 独立的玩家节点设置 `text: '&e${nick}'` 和 `image: {type: background, id: bedrock_1, left-margin: 1, right-margin: 1}`；也可用 `type: nameplate` 和对应的铭牌 ID。安装 CustomNameplates 并让客户端加载其资源包后生效；未安装或 ID 不存在时显示原文本。图片节点不能同时包含 `${message}` 或 `${head}`，头像可拆为另一个节点。跨服聊天由接收服使用相同 ID 生成图片，所有子服应安装并配置相同的图片资源。原有 `%nameplates_...%` 变量仍通过 PlaceholderAPI 在发送服预解析。
 
-CMI 同名指令由 `commands.prefer-liuchat: true` 将 `/msg`、`/tell`、`/w`、`/pm`、`/horn` 转到 `liuchat:` 命名空间；不自动修改服务器 `commands.yml`。
+CMI 同名指令由 `commands.prefer-liuchat: true` 将 `/msg`、`/tell`、`/w`、`/whisper`、`/horn` 转到 `liuchat:` 命名空间；不自动修改服务器 `commands.yml`。`/pm` 不由 LiuChat 注册或重定向。
 
 `ai.enable` 是即时本地屏蔽和历史采集的总开关：屏蔽词（含 `*`、`?` 有限通配）、数字联系方式、IPv4 和域名在发送时直接拦截，未命中则立即广播。`ai.review.enable: true` 才启动定时 AI 审查，默认每 60 分钟分析最近 1 小时本服已发送的公开聊天；`ai.review.manual-enable: true` 允许管理员用 `/lc audit <1-24>` 审查指定小时数。两项开关互不影响。记录单独存于 `audit-history/YYYY-MM-DD.jsonl`，不依赖可自定义格式的普通聊天日志；报告写入 `audit-reports/` 并通知 `liuchat.audit.notify` 管理员。每次最多提交最近 250 条、每条最多 300 字，报告记录超量丢弃数；模型只生成待人工复核的报告，不自动禁言。跨服需在各子服分别执行审核。审核 URL/模型沿用 `ai.url` / `ai.model`，`ai.review.prompt` 与 `ai.review.timeout-seconds` 单独配置。`/lc reload` 可切换定时/手动开关。
 

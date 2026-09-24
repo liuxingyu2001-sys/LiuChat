@@ -36,13 +36,15 @@ class PaperChatComponentsTest {
     @Test void craftEngineEmojiKeepsItsOwnHoverInsideChatNode() {
         TextComponent line = new TextComponent();
         ChatPresentation.appendEmojis(line, "hi :8ball:!", java.util.Map.of(":8ball:",
-                "<hover:show_text:'使用 :8ball: 发送表情'><white>⑧</white></hover>"),
+                "<hover:show_text:'使用<yellow>\":8ball:\"</yellow>来发送表情\"⑧\"'><!shadow><white>⑧</white></!shadow></hover><bold>"),
                 new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText("node hint")), null);
         var result = PaperChatComponents.convert(line.getExtra().toArray(net.md_5.bungee.api.chat.BaseComponent[]::new), null);
         assertEquals("hi ⑧!", PlainTextComponentSerializer.plainText().serialize(result));
         var emoji = result.children().get(1);
-        assertNotNull(emoji.hoverEvent());
-        assertEquals("使用 :8ball: 发送表情", PlainTextComponentSerializer.plainText().serialize(
-                (net.kyori.adventure.text.Component) emoji.hoverEvent().value()));
+        assertEquals(null, emoji.hoverEvent());
+        var glyph = emoji.children().get(0);
+        assertNotNull(glyph.hoverEvent());
+        assertEquals("使用\":8ball:\"来发送表情\"⑧\"", PlainTextComponentSerializer.plainText().serialize(
+                (net.kyori.adventure.text.Component) glyph.hoverEvent().value()));
     }
 }

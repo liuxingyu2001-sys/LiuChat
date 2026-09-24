@@ -31,6 +31,7 @@ public final class CraftEngineEmojiHook {
             }
             return results;
         } catch (LinkageError | RuntimeException ex) {
+            Bukkit.getLogger().warning("LiuChat: CraftEngine 表情解析失败: " + ex);
             return Map.of();
         }
     }

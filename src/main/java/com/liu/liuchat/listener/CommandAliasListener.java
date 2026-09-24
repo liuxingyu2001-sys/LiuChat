@@ -12,7 +12,7 @@ import java.util.Map;
 /** Routes conflicting short command labels to our namespaced Bukkit registrations. */
 public final class CommandAliasListener implements Listener {
     private static final Map<String, String> ROUTES = Map.of(
-            "msg", "msg", "tell", "tell", "w", "msg", "whisper", "msg", "pm", "msg",
+            "msg", "msg", "tell", "tell", "w", "msg", "whisper", "msg",
             "horn", "horn", "lb", "horn");
     private final ConfigManager config;
 

@@ -1,6 +1,7 @@
 package com.liu.liuchat.service;
 
 import com.liu.liuchat.config.ConfigManager;
+import com.liu.liuchat.hook.NameplatesChatHook;
 import com.liu.liuchat.hook.PapiHook;
 import com.liu.liuchat.util.TextUtil;
 import net.md_5.bungee.api.chat.BaseComponent;
@@ -62,6 +63,7 @@ public final class ChatService {
             message = message.replace(presentation.itemToken(), "§7[物品不可展示]§r");
         }
         String placeholders = presentation.snapshotPlaceholders(player, message);
+        NameplatesChatHook.publish(player, message);
         deliver(config.server(), player.getUniqueId().toString(), player.getName(),
                 player.getWorld().getName(), player, message, itemData, placeholders, nick);
         return new Dispatch(message, itemData, placeholders, nick);
