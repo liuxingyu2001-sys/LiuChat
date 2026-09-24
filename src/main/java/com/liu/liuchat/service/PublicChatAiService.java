@@ -2,7 +2,10 @@ package com.liu.liuchat.service;
 
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.util.AiChatTriggers;
-import org.bukkit.ChatColor;
+import com.liu.liuchat.util.Mentions;
+import com.liu.liuchat.util.TextUtil;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.nio.charset.StandardCharsets;
@@ -21,6 +24,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * 最近的公屏消息作为聊天氛围上下文一起送给模型。所有回调在主线程。
  */
 public final class PublicChatAiService {
+
+    /** 固定聊天格式的缺省值（与 config.yml / ConfigManager 一致） */
+    private static final String DEFAULT_FORMAT = "&7[AI] &b${player}&7: &f${message}";
 
     /** 公屏请求的会话键：同时只处理一个公屏问题 */
     private static final String PENDING_KEY = "liuchat:public-chat";
@@ -90,8 +96,23 @@ public final class PublicChatAiService {
         String uuid = aiUuid().toString();
         remember(aiName, reply);
         lastReplyAt = System.currentTimeMillis();
-        chatService.broadcastPlain(uuid, aiName, formatLine(config.aiChatFormat(), aiName, reply), reply);
+        chatService.broadcastPlain(uuid, aiName,
+                formatComponents(config.aiChatFormat(), aiName, reply, aiHeadUuid()),
+                formatLine(config.aiChatFormat(), aiName, reply), reply);
         crossServer.publishChatAs(config.server(), uuid, aiName, reply, "", "", aiName);
+    }
+
+    /** ${head} 头像解析用的 UUID：配置 head-uuid（真实皮肤）优先，否则用 AI 虚拟 UUID。 */
+    public UUID aiHeadUuid() {
+        String value = config.aiChatHeadUuid();
+        if (!value.isEmpty()) {
+            try {
+                return UUID.fromString(value);
+            } catch (IllegalArgumentException ignored) {
+                // 配置写错时回退虚拟 UUID，不阻断聊天
+            }
+        }
+        return aiUuid();
     }
 
     /** 跨服来的这条发言是否是公屏 AI：固定格式渲染，不走聊天格式节点/变量解析。 */
@@ -102,14 +123,45 @@ public final class PublicChatAiService {
     }
 
     /**
-     * 固定聊天格式：只替换 ${player} = AI 名字、${message} = 回复内容。
-     * 假人拿不到玩家上下文，PAPI 等其他插件占位符解析不出来，所以一律不解析变量；
-     * & 颜色码只对格式做所见即所得的直译（不合并、不美化），回复内容原样显示。
+     * 固定聊天格式（纯文本）：只替换 ${player} = AI 名字、${message} = 回复内容，${head} 去掉。
+     * 假人拿不到玩家上下文，PAPI 等其他插件占位符解析不出来，所以变量一律不解析；
+     * 回复内容最后插入、原样显示（内容里的 & 、占位符、MiniMessage 标签都不解析）。
+     * 供控制台/聊天日志等纯文本场景使用。
      */
     public static String formatLine(String format, String aiName, String message) {
-        String template = format == null || format.isBlank() ? "&7[AI] &b${player}&7: &f${message}" : format;
-        return ChatColor.translateAlternateColorCodes('&', template.replace("${player}", aiName == null ? "" : aiName))
+        String template = format == null || format.isBlank() ? DEFAULT_FORMAT : format;
+        return TextUtil.color(template.replace("${player}", aiName == null ? "" : aiName)
+                .replace("${head}", ""))
                 .replace("${message}", message == null ? "" : message);
+    }
+
+    /**
+     * 固定聊天格式（聊天组件）：同 {@link #formatLine}，另把 {@code ${head}} 解析成皮肤头像
+     * （与普通聊天 ${head} 相同的 liuchat-head 机制）。回复里的 {@code ${head}} 原样显示。
+     */
+    public static BaseComponent[] formatComponents(String format, String aiName, String message, UUID headUuid) {
+        String template = format == null || format.isBlank() ? DEFAULT_FORMAT : format;
+        String colored = TextUtil.color(template.replace("${player}", aiName == null ? "" : aiName));
+        String body = message == null ? "" : message;
+        java.util.List<BaseComponent> out = new java.util.ArrayList<>();
+        int pos = 0;
+        int index;
+        while ((index = colored.indexOf("${head}", pos)) >= 0) {
+            String prefix = pos == 0 ? "" : Mentions.state(colored.substring(0, pos));
+            addLegacy(out, prefix + colored.substring(pos, index).replace("${message}", body));
+            TextComponent head = new TextComponent("");
+            if (headUuid != null) head.setInsertion("liuchat-head:" + headUuid);
+            out.add(head);
+            pos = index + "${head}".length();
+        }
+        String prefix = pos == 0 ? "" : Mentions.state(colored.substring(0, pos));
+        addLegacy(out, prefix + colored.substring(pos).replace("${message}", body));
+        return out.toArray(new BaseComponent[0]);
+    }
+
+    private static void addLegacy(java.util.List<BaseComponent> out, String text) {
+        if (text.isEmpty()) return;
+        java.util.Collections.addAll(out, TextComponent.fromLegacyText(text));
     }
 
     /** 公屏发言一行说完：换行压成空格、颜色码转字面、按 max-answer 截断。 */

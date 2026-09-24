@@ -142,6 +142,8 @@ public final class ConfigManager {
         String format = config.getString("ai.chat.format", "&7[AI] &b${player}&7: &f${message}");
         return format == null || format.isBlank() ? "&7[AI] &b${player}&7: &f${message}" : format;
     }
+    /** ${head} 头像用的皮肤 UUID；留空 = AI 虚拟 UUID（默认皮肤） */
+    public String aiChatHeadUuid() { return config.getString("ai.chat.head-uuid", "").trim(); }
 
     public boolean logEnabled() { return config.getBoolean("chat-log.enable", true); }
 

@@ -81,8 +81,11 @@ public final class ChatService {
     public void broadcastRemote(String originServer, String uuid, String playerName,
                                 String message, String itemData, String placeholders, String nick) {
         if (publicAi != null && publicAi.isAiSender(uuid, playerName)) {
-            // 公屏 AI：假人拿不到占位符，用固定格式渲染成品行，不解析变量
-            broadcastPlain(uuid, playerName, PublicChatAiService.formatLine(config.aiChatFormat(), playerName, message),
+            // 公屏 AI：假人拿不到占位符，用固定格式渲染成品行，不解析变量；${head} 解析皮肤头像
+            broadcastPlain(uuid, playerName,
+                    PublicChatAiService.formatComponents(config.aiChatFormat(), playerName, message,
+                            publicAi.aiHeadUuid()),
+                    PublicChatAiService.formatLine(config.aiChatFormat(), playerName, message),
                     message);
         } else {
             deliver(originServer, uuid, playerName, "-", null, message, itemData, placeholders, nick);
@@ -91,15 +94,16 @@ public final class ChatService {
     }
 
     /**
-     * 固定格式广播（公屏 AI 等）：发送成品行，不解析聊天格式节点/变量；
-     * 仍走忽略列表与聊天日志。
+     * 固定格式广播（公屏 AI 等）：发送成品聊天组件，不解析聊天格式节点/变量；
+     * 仍走忽略列表与聊天日志。consoleLine 为纯文本（无头像）。
      */
-    public void broadcastPlain(String uuid, String playerName, String line, String rawMessage) {
+    public void broadcastPlain(String uuid, String playerName, BaseComponent[] line,
+                               String consoleLine, String rawMessage) {
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (ignores != null && ignores.ignores(online, uuid, playerName)) continue;
-            online.sendMessage(line);
+            online.sendMessage(PaperChatComponents.convert(line, items));
         }
-        Bukkit.getConsoleSender().sendMessage(line);
+        Bukkit.getConsoleSender().sendMessage(consoleLine);
         if (logs != null) logs.record("CHAT", config.server(), playerName, "*", rawMessage);
     }
 
