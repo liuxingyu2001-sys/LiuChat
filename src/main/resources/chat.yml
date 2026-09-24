@@ -5,6 +5,16 @@ item:
   format: '[i]'
   content: '&7物品展示 &e[ ${item} &e]&7'
   length: 18
+  # 灵魂空间戒指展示（需安装 SoulSpace）：点击 [i] 展示的戒指，打开展示者灵魂空间的只读预览。
+  # 每台服务器的每个展示条目只在首次点击时读取一次数据（本服在线玩家零 IO），之后点击不读库；
+  # 多服部署共用 MySQL 时，任意服务器点开预览读到的都是同一份数据。
+  soulspace:
+    # 总开关；关闭或未安装 SoulSpace 时，戒指按普通物品展示
+    enable: true
+    # 识别戒指的 PDC 键（对应 SoulSpace gui.yml 的 gui.ring.pdc-key，默认 soulspace:ring）
+    ring-pdc-key: 'soulspace:ring'
+    # 点击预览所需权限；无权限点击仍是普通物品预览（未声明的权限默认只有 OP 有，需自行授权）
+    preview-permission: 'liuchat.soulspace.preview'
 
 # @ 提及：输入 @玩家ID，或直接输入在线玩家 ID（自动补 @）。
 # 被 @ 的玩家会收到提示音；玩家 ID 按 atColor 高亮并保留原消息的颜色/样式。

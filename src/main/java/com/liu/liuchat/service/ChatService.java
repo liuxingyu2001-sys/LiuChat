@@ -83,7 +83,7 @@ public final class ChatService {
     private void deliver(String server, String uuid, String playerName, String world,
                          Player sender, String message, String itemData, String placeholders, String nick) {
         String itemId = presentation.itemEnabled() && message.contains(presentation.itemToken())
-                ? items.register(playerName, itemData) : null;
+                ? items.register(playerName, uuid, itemData) : null;
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (ignores != null && ignores.ignores(online, uuid, playerName)) continue;
             BaseComponent[] line = presentation.render(server, playerName, uuid, world,

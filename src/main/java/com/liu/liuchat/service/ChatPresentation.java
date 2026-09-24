@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /** Ordered chat nodes and message shortcuts from configuration. */
-public final class ChatPresentation {
+public final class ChatPresentation implements ItemShowcase.SpaceSettings {
     private final JavaPlugin plugin;
     private final ConfigManager config;
     private final ItemShowcase items;
@@ -161,6 +161,16 @@ public final class ChatPresentation {
     }
 
     public boolean privateEnabled() { return chat.getBoolean("private.enable", true); }
+
+    @Override public boolean spacePreviewEnabled() { return chat.getBoolean("item.soulspace.enable", true); }
+    @Override public String spaceRingKey() {
+        String key = chat.getString("item.soulspace.ring-pdc-key", "soulspace:ring");
+        return key == null || key.isBlank() ? "soulspace:ring" : key;
+    }
+    @Override public String spacePreviewPermission() {
+        String perm = chat.getString("item.soulspace.preview-permission", "liuchat.soulspace.preview");
+        return perm == null || perm.isBlank() ? "liuchat.soulspace.preview" : perm;
+    }
 
     public BaseComponent[] renderPrivate(boolean outgoing, String server, String playerName, String uuid,
                                          String world, String targetName, Player sender, String message,

@@ -1,7 +1,10 @@
 package com.liu.liuchat.service;
 
+import com.liu.liuchat.hook.SoulSpaceHook;
+import com.liu.liuchat.util.SpacePreview;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Container;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -15,8 +18,10 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,11 +33,36 @@ public final class ItemShowcase implements Listener {
     private final Map<String, Entry> entries = new ConcurrentHashMap<>();
     private final CraftEngineNames ceNames = new CraftEngineNames();
     private final VanillaItemNames vanillaNames = new VanillaItemNames();
+    /** 灵魂空间预览配置（由 ChatPresentation 提供，reload 后自动生效）。 */
+    private volatile SpaceSettings spaceSettings;
 
     public ItemShowcase() { ceNames.reload(); }
     public void reloadTranslations() { ceNames.reload(); }
+    public void setSpaceSettings(SpaceSettings settings) { this.spaceSettings = settings; }
 
-    private record Entry(String owner, ItemStack item, long expires) { }
+    /** 灵魂空间预览配置提供者。 */
+    public interface SpaceSettings {
+        boolean spacePreviewEnabled();
+        String spaceRingKey();
+        String spacePreviewPermission();
+    }
+
+    private static final class Entry {
+        final String owner;
+        final UUID ownerUuid;
+        final ItemStack item;
+        final long expires;
+        /** 空间预览数据：null = 尚未获取；首次点击获取一次后复用，条目过期即释放。 */
+        volatile List<ItemStack> space;
+        volatile boolean spaceLoading;
+
+        Entry(String owner, UUID ownerUuid, ItemStack item, long expires) {
+            this.owner = owner;
+            this.ownerUuid = ownerUuid;
+            this.item = item;
+            this.expires = expires;
+        }
+    }
 
     public String snapshot(Player player) {
         ItemStack hand = player.getInventory().getItemInMainHand();
@@ -46,7 +76,7 @@ public final class ItemShowcase implements Listener {
         return data.length() <= 16000 ? data : "";
     }
 
-    public String register(String owner, String serialized) {
+    public String register(String owner, String ownerUuid, String serialized) {
         if (serialized == null || serialized.isEmpty() || serialized.length() > 16000) {
             return null;
         }
@@ -66,7 +96,8 @@ public final class ItemShowcase implements Listener {
                 }
             }
             String id = UUID.randomUUID().toString();
-            entries.put(id, new Entry(owner, item.clone(), System.currentTimeMillis() + LIFETIME));
+            entries.put(id, new Entry(owner, parseUuid(ownerUuid), item.clone(),
+                    System.currentTimeMillis() + LIFETIME));
             return id;
         } catch (Exception ex) {
             return null;
@@ -114,6 +145,13 @@ public final class ItemShowcase implements Listener {
             viewer.sendMessage("§c该物品展示已过期。");
             return;
         }
+        SpaceSettings settings = spaceSettings;
+        if (settings != null && settings.spacePreviewEnabled() && SoulSpaceHook.available()
+                && entry.ownerUuid != null && viewer.hasPermission(settings.spacePreviewPermission())
+                && isSoulSpaceRing(entry.item, settings.spaceRingKey())) {
+            openSpace(viewer, entry);
+            return;
+        }
         if (isShulkerBox(entry.item.getType())) {
             openShulker(viewer, entry.owner, entry.item);
             return;
@@ -146,21 +184,130 @@ public final class ItemShowcase implements Listener {
         return container.getInventory().getContents();
     }
 
+    /** 灵魂空间戒指识别：以 SoulSpace 的 PDC 标记为准（名称/材质可被伪造，PDC 不能）。 */
+    public static boolean isSoulSpaceRing(ItemStack item, String pdcKey) {
+        if (item == null || pdcKey == null || pdcKey.isBlank()) return false;
+        NamespacedKey key = NamespacedKey.fromString(pdcKey.trim());
+        if (key == null) return false;
+        ItemMeta meta = item.getItemMeta();
+        return meta != null && meta.getPersistentDataContainer().has(key, PersistentDataType.INTEGER);
+    }
+
+    /**
+     * 灵魂空间只读预览：数据每条目只在首次点击时读取一次（本服在线零 IO），
+     * 缓存在条目上复用；读取失败不缓存，下次点击重试。
+     */
+    private void openSpace(Player viewer, Entry entry) {
+        if (entry.space != null) {
+            openSpaceGui(viewer, entry, 0);
+            return;
+        }
+        if (entry.spaceLoading) {
+            viewer.sendMessage("§7灵魂空间读取中，请稍候再点。");
+            return;
+        }
+        entry.spaceLoading = true;
+        viewer.sendMessage("§7正在读取灵魂空间…");
+        SoulSpaceHook.fetch(entry.ownerUuid).whenComplete((result, err) -> {
+            entry.spaceLoading = false;
+            if (err != null || result == null || result.isEmpty()) {
+                if (viewer.isOnline()) viewer.sendMessage("§c灵魂空间数据读取失败，请稍后再试。");
+                return;
+            }
+            entry.space = result.get();
+            if (viewer.isOnline()) openSpaceGui(viewer, entry, 0);
+        });
+    }
+
+    /** 空间预览 GUI：54 格只读，前 5 行 45 格放物品，末行翻页（拿不走任何物品）。 */
+    private void openSpaceGui(Player viewer, Entry entry, int page) {
+        List<ItemStack> items = entry.space == null ? List.of() : entry.space;
+        int pageCount = SpacePreview.pageCount(items.size());
+        int index = SpacePreview.clampPage(page, pageCount);
+        SpacePreviewHolder holder = new SpacePreviewHolder(entry, index, pageCount);
+        Inventory inventory = Bukkit.createInventory(holder, 54, entry.owner + " 的灵魂空间");
+        holder.inventory = inventory;
+        int from = SpacePreview.from(index, items.size());
+        int to = SpacePreview.to(index, items.size());
+        for (int i = from; i < to; i++) {
+            inventory.setItem(i - from, items.get(i).clone());
+        }
+        if (index > 0) inventory.setItem(SpacePreview.NAV_PREV, navArrow("§e上一页"));
+        ItemStack info = new ItemStack(Material.PAPER);
+        ItemMeta infoMeta = info.getItemMeta();
+        if (infoMeta != null) {
+            infoMeta.setDisplayName("§f第 §e" + (index + 1) + " §f/ §e" + pageCount + " §f页");
+            infoMeta.setLore(List.of("§7共 §f" + items.size() + " §7种堆叠"));
+            info.setItemMeta(infoMeta);
+        }
+        inventory.setItem(SpacePreview.NAV_INFO, info);
+        if (index < pageCount - 1) inventory.setItem(SpacePreview.NAV_NEXT, navArrow("§e下一页"));
+        viewer.openInventory(inventory);
+    }
+
+    private static ItemStack navArrow(String name) {
+        ItemStack arrow = new ItemStack(Material.ARROW);
+        ItemMeta meta = arrow.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(name);
+            arrow.setItemMeta(meta);
+        }
+        return arrow;
+    }
+
+    private static UUID parseUuid(String value) {
+        if (value == null || value.isEmpty()) return null;
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
     private static final class ShowcaseHolder implements InventoryHolder {
         private Inventory inventory;
         @Override public Inventory getInventory() { return inventory; }
     }
 
+    private static final class SpacePreviewHolder implements InventoryHolder {
+        final Entry entry;
+        final int page;
+        final int pageCount;
+        private Inventory inventory;
+
+        SpacePreviewHolder(Entry entry, int page, int pageCount) {
+            this.entry = entry;
+            this.page = page;
+            this.pageCount = pageCount;
+        }
+
+        @Override public Inventory getInventory() { return inventory; }
+    }
+
     @EventHandler
     public void onClick(InventoryClickEvent event) {
-        if (event.getView().getTopInventory().getHolder() instanceof ShowcaseHolder) {
+        Inventory top = event.getView().getTopInventory();
+        if (top.getHolder() instanceof ShowcaseHolder) {
             event.setCancelled(true);
+            return;
+        }
+        if (top.getHolder() instanceof SpacePreviewHolder holder) {
+            event.setCancelled(true);
+            if (event.getClickedInventory() != top || !(event.getWhoClicked() instanceof Player viewer)) {
+                return;
+            }
+            if (event.getRawSlot() == SpacePreview.NAV_PREV && holder.page > 0) {
+                openSpaceGui(viewer, holder.entry, holder.page - 1);
+            } else if (event.getRawSlot() == SpacePreview.NAV_NEXT && holder.page < holder.pageCount - 1) {
+                openSpaceGui(viewer, holder.entry, holder.page + 1);
+            }
         }
     }
 
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() instanceof ShowcaseHolder) {
+        Inventory top = event.getView().getTopInventory();
+        if (top.getHolder() instanceof ShowcaseHolder || top.getHolder() instanceof SpacePreviewHolder) {
             event.setCancelled(true);
         }
     }

@@ -4,7 +4,7 @@
 
   <groupId>com.liuxingyu</groupId>
   <artifactId>LiuChat</artifactId>
-  <version>0.4.1</version>
+  <version>0.4.2</version>
   <packaging>jar</packaging>
 
   <name>LiuChat</name>
@@ -51,6 +51,13 @@
       <groupId>net.momirealms</groupId>
       <artifactId>custom-nameplates</artifactId>
       <version>3.0.33</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- 可选接入：灵魂空间戒指预览（SoulSpace-api 由本地仓库提供，运行时未安装 SoulSpace 则戒指按普通物品展示） -->
+    <dependency>
+      <groupId>com.soulspace</groupId>
+      <artifactId>soulspace-api</artifactId>
+      <version>2.2.5</version>
       <scope>provided</scope>
     </dependency>
     <dependency>

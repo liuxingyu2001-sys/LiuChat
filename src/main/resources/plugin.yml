@@ -13,6 +13,7 @@ softdepend:
   - CustomNameplates
   - Citizens
   - CMI
+  - SoulSpace
 
 # 依赖库交给 Paper 自己下载并挂到本插件类加载器，不打进 jar；
 # Paper/Leaf 会为插件加载 JDBC 驱动；CraftEngine、CustomNameplates、CMI、PAPI 均为可选软依赖。

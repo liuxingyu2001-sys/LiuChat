@@ -22,4 +22,11 @@ class ItemShowcaseTest {
         assertFalse(ItemShowcase.isShulkerBox(Material.DIAMOND));
         assertFalse(ItemShowcase.isShulkerBox(null));
     }
+
+    @Test void soulSpaceRingCheckRejectsBlankInput() {
+        assertFalse(ItemShowcase.isSoulSpaceRing(null, "soulspace:ring"));
+        assertFalse(ItemShowcase.isSoulSpaceRing(null, null));
+        assertFalse(ItemShowcase.isSoulSpaceRing(null, ""));
+        assertFalse(ItemShowcase.isSoulSpaceRing(null, "not a key"));
+    }
 }

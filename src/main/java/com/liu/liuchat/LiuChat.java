@@ -83,6 +83,7 @@ public final class LiuChat extends JavaPlugin {
 
         ItemShowcase items = new ItemShowcase();
         ChatPresentation presentation = new ChatPresentation(this, configManager, items);
+        items.setSpaceSettings(presentation);
         ChatService chatService = new ChatService(this, configManager, presentation, items);
         chatLogs = new ChatLogService(this, configManager);
         chatService.setChatLogService(chatLogs);
