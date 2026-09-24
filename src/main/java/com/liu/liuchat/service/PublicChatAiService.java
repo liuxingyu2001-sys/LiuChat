@@ -97,10 +97,13 @@ public final class PublicChatAiService {
         String uuid = aiUuid().toString();
         remember(aiName, reply);
         lastReplyAt = System.currentTimeMillis();
+        String format = config.aiChatFormat();
+        UUID headUuid = aiHeadUuid();
         chatService.broadcastPlain(uuid, aiName,
-                formatComponents(config.aiChatFormat(), aiName, reply, aiHeadUuid()),
-                formatLine(config.aiChatFormat(), aiName, reply), reply);
-        crossServer.publishChatAs(config.server(), uuid, aiName, reply, "", "", aiName);
+                formatComponents(format, aiName, reply, headUuid),
+                formatLine(format, aiName, reply), reply);
+        crossServer.publishChatAs(config.server(), uuid, aiName, reply, "",
+                AiChatSnapshot.encode(format, headUuid), aiName);
     }
 
     /** ${head} 头像解析用的 UUID：配置 head-uuid（真实皮肤）优先，否则用 AI 虚拟 UUID。 */
@@ -119,8 +122,8 @@ public final class PublicChatAiService {
     /** 跨服来的这条发言是否是公屏 AI：固定格式渲染，不走聊天格式节点/变量解析。 */
     public boolean isAiSender(String uuid, String name) {
         String aiName = config.aiChatName();
-        return !aiName.isEmpty()
-                && (aiUuid().toString().equals(uuid) || aiName.equalsIgnoreCase(name));
+        return !aiName.isEmpty() && aiName.equalsIgnoreCase(name)
+                && aiUuid(aiName).toString().equals(uuid);
     }
 
     /**
@@ -182,6 +185,10 @@ public final class PublicChatAiService {
 
     /** AI 的固定虚拟 UUID：名字派生、跨服稳定，忽略列表/头像插件都能持续识别它。 */
     public UUID aiUuid() {
-        return UUID.nameUUIDFromBytes(("LiuChatAI:" + config.aiChatName()).getBytes(StandardCharsets.UTF_8));
+        return aiUuid(config.aiChatName());
+    }
+
+    static UUID aiUuid(String name) {
+        return UUID.nameUUIDFromBytes(("LiuChatAI:" + name).getBytes(StandardCharsets.UTF_8));
     }
 }

@@ -80,12 +80,15 @@ public final class ChatService {
 
     public void broadcastRemote(String originServer, String uuid, String playerName,
                                 String message, String itemData, String placeholders, String nick) {
-        if (publicAi != null && publicAi.isAiSender(uuid, playerName)) {
-            // 公屏 AI：假人拿不到占位符，用固定格式渲染成品行，不解析变量；${head} 解析皮肤头像
+        AiChatSnapshot.Appearance appearance = AiChatSnapshot.decode(placeholders, playerName, uuid);
+        if (appearance == null && publicAi != null && publicAi.isAiSender(uuid, playerName)) {
+            appearance = new AiChatSnapshot.Appearance(config.aiChatFormat(), publicAi.aiHeadUuid());
+        }
+        if (appearance != null) {
             broadcastPlain(uuid, playerName,
-                    PublicChatAiService.formatComponents(config.aiChatFormat(), playerName, message,
-                            publicAi.aiHeadUuid()),
-                    PublicChatAiService.formatLine(config.aiChatFormat(), playerName, message),
+                    PublicChatAiService.formatComponents(appearance.format(), playerName, message,
+                            appearance.headUuid()),
+                    PublicChatAiService.formatLine(appearance.format(), playerName, message),
                     message);
         } else {
             deliver(originServer, uuid, playerName, "-", null, message, itemData, placeholders, nick);
