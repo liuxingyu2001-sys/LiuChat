@@ -40,6 +40,12 @@ public final class ChatService {
 
     public record Dispatch(String message, String itemData, String placeholders, String nick) { }
 
+    /** [i] 物品展示消息：每次展示的物品都可能不同，重复检测要整条跳过。 */
+    public boolean isItemShow(String message) {
+        return message != null && presentation.itemEnabled()
+                && message.contains(presentation.itemToken());
+    }
+
     public void sendOwnChat(Player player, String message) {
         var profile = profiles == null ? null : profiles.get(player);
         String nick = profile == null || profile.nick().isBlank() ? player.getName() : profile.nick();

@@ -2,6 +2,8 @@ package com.liu.liuchat.service;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.Container;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -12,6 +14,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.BlockStateMeta;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -100,10 +103,19 @@ public final class ItemShowcase implements Listener {
         return vanilla;
     }
 
+    /** 潜影盒（含 16 种染色）：点击展示消息打开盒内物品预览，而不是单个物品预览。 */
+    public static boolean isShulkerBox(Material type) {
+        return type == Material.SHULKER_BOX || type != null && type.name().endsWith("_SHULKER_BOX");
+    }
+
     public void open(Player viewer, String id) {
         Entry entry = entries.get(id);
         if (entry == null || entry.expires < System.currentTimeMillis()) {
             viewer.sendMessage("§c该物品展示已过期。");
+            return;
+        }
+        if (isShulkerBox(entry.item.getType())) {
+            openShulker(viewer, entry.owner, entry.item);
             return;
         }
         ShowcaseHolder holder = new ShowcaseHolder();
@@ -111,6 +123,27 @@ public final class ItemShowcase implements Listener {
         holder.inventory = inventory;
         inventory.setItem(13, entry.item.clone());
         viewer.openInventory(inventory);
+    }
+
+    /** 潜影盒预览：27 格只读 GUI 展示盒内物品（空盒为空界面）。 */
+    private void openShulker(Player viewer, String owner, ItemStack item) {
+        ShowcaseHolder holder = new ShowcaseHolder();
+        Inventory inventory = Bukkit.createInventory(holder, 27, owner + " 展示的潜影盒");
+        holder.inventory = inventory;
+        ItemStack[] contents = shulkerContents(item);
+        for (int slot = 0; slot < 27 && slot < contents.length; slot++) {
+            inventory.setItem(slot, contents[slot] == null ? null : contents[slot].clone());
+        }
+        viewer.openInventory(inventory);
+    }
+
+    /** 读取潜影盒物品的盒内数据；拿不到（无方块数据）时视为空盒。 */
+    private static ItemStack[] shulkerContents(ItemStack item) {
+        ItemMeta meta = item.getItemMeta();
+        if (!(meta instanceof BlockStateMeta stateMeta) || !stateMeta.hasBlockState()) return new ItemStack[0];
+        BlockState state = stateMeta.getBlockState();
+        if (!(state instanceof Container container)) return new ItemStack[0];
+        return container.getInventory().getContents();
     }
 
     private static final class ShowcaseHolder implements InventoryHolder {

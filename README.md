@@ -13,7 +13,7 @@
 | 功能 | 说明 |
 |---|---|
 | 聊天格式化 | `chat.yml` 的 `chat.default.format` 有序节点支持 hover/click/clickSuggest/url；`private.to.format` 和 `private.from.format` 独立控制私聊；控制台使用 `console-format` |
-| 物品与头像 | `[i]` 主手物品快照，悬浮显示原生数据组件（item_name、Lore、附魔），点击查看只读 GUI；`${head}` 显示 UUID 头像。CE 物品名支持 zh_cn 资源包翻译键，CE 聊天表情保留其配置的图片与悬浮提示 |
+| 物品与头像 | `[i]` 主手物品快照，悬浮显示原生数据组件（item_name、Lore、附魔），点击查看只读 GUI；**潜影盒点击查看盒内物品预览**（27 格只读，含染色潜影盒）；`${head}` 显示 UUID 头像。CE 物品名支持 zh_cn 资源包翻译键，CE 聊天表情保留其配置的图片与悬浮提示 |
 | **@ 提及** | `chat.yml` 的 `at` 节点：输入 `@玩家ID` 或直接输入在线玩家 ID（自动补 @），被 @ 的玩家收到提示音（`at.sound`，默认铁砧 `BLOCK_ANVIL_LAND`），玩家 ID 按 `atColor` 高亮并保留消息原有颜色/样式（`keepAt` 控制是否显示 @）；高亮在颜色权限裁决之后注入，**无 `liuchat.color` 权限的玩家 @ 人同样变色**；跨服在线玩家同样可被 @ |
 | 全服喇叭 | `/horn` 或 `/liuc horn`，可配置聊天/Title/ActionBar/BossBar 与音效 |
 | 快捷触发 | `shortcut.yml` 正则替换，支持 hover、点击命令/建议/复制/URL |
@@ -26,7 +26,7 @@
 | 禁言 | `/mute`（亦可 `/liuc mute`），`30s / 5m / 1h30m / 0=永久`，过期自动清；uuid + 名字双查兜底 |
 | **MySQL 跨服共享禁言** | 写库并广播 MUTE/UNMUTE 到其他子服内存；发送服无在线玩家或目标服断线时由共享库的定时对账补漏 |
 | 聊天冷却 | 按权限节点分级（`liuchat.cooldown.<键>`），`liuchat.cooldown.bypass` 免除 |
-| 重复/相似发言检测 | 时间窗口 + Levenshtein 相似度 |
+| 重复/相似发言检测 | `repeat-check` 时间窗口 + Levenshtein 相似度：完全相同不受 `min-length` 限制，相似度比较要求长度达标；**含 `[i]` 物品展示的消息整条跳过**（每次展示的物品可能不同，同文案不算刷屏） |
 | 颜色权限 | `liuchat.color` 控制玩家消息里的其他 `&` 颜色代码与安全的样式标签；所有玩家可在公聊、私聊和喇叭中使用 `&f`、`&r` 重置颜色（本服/跨服同一套裁决） |
 | PAPI 变量 | `%liuchat_nick%`（未设置则原名）、`%liuchat_nick_raw%`（未设置则空）、`%liuchat_server%` `%liuchat_world%` `%liuchat_muted%` `%liuchat_muted_time%` `%liuchat_muted_reason%` |
 

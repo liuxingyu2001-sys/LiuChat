@@ -187,11 +187,11 @@ public final class ConfigManager {
     }
 
     public double repeatSimilarity() {
-        return config.getDouble("repeat-check.similarity", 80);
+        return config.getDouble("repeat-check.similarity", 95);
     }
 
     public int repeatMinLength() {
-        return config.getInt("repeat-check.min-length", 4);
+        return config.getInt("repeat-check.min-length", 5);
     }
 
     /**

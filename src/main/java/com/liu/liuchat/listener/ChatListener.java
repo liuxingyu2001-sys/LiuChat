@@ -8,7 +8,7 @@ import com.liu.liuchat.service.ChatReviewPolicy;
 import com.liu.liuchat.service.ChatService;
 import com.liu.liuchat.service.CrossServerService;
 import com.liu.liuchat.service.MuteService;
-import com.liu.liuchat.util.TextUtil;
+import com.liu.liuchat.util.RepeatCheck;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.entity.Player;
@@ -39,11 +39,8 @@ public final class ChatListener implements Listener {
 
     /** 每人最近一次发言时间（冷却用） */
     private final Map<UUID, Long> lastChatAt = new ConcurrentHashMap<>();
-    /** 每人最近一次发言内容（重复检测用） */
-    private final Map<UUID, LastSaid> lastSaid = new ConcurrentHashMap<>();
-
-    private record LastSaid(long time, String text) {
-    }
+    /** 重复/相似发言检测（含「上次发言」记录） */
+    private final RepeatCheck repeats = new RepeatCheck();
 
     public ChatListener(JavaPlugin plugin, ConfigManager config, MessageManager messages,
                         MuteService muteService, ChatService chatService,
@@ -99,8 +96,10 @@ public final class ChatListener implements Listener {
             }
         }
 
-        // 3. 重复/相似发言
-        if (isSpam(player, text, now)) {
+        // 3. 重复/相似发言；[i] 物品展示跳过（每次展示的物品可能不同，同文案不算刷屏）
+        if (repeats.spam(uuid, text, now, config.repeatTime(), config.repeatSimilarity(),
+                config.repeatMinLength(), chatService.isItemShow(text))) {
+            messages.send(player, "chat.repeat");
             return;
         }
 
@@ -114,7 +113,6 @@ public final class ChatListener implements Listener {
             return;
         }
         lastChatAt.put(uuid, now);
-        lastSaid.put(uuid, new LastSaid(now, text));
 
         String message = com.liu.liuchat.util.ColorParser.playerText(text,
                 player.hasPermission("liuchat.color"));
@@ -131,43 +129,11 @@ public final class ChatListener implements Listener {
             if (online.hasPermission("liuchat.moderation.notify")) online.sendMessage(notice);
         }
     }
-    /**
-     * 窗口期内与上次发言完全相同或相似度达标则判为刷屏。
-     * 完全相同不受 min-length 限制；相似度比较要求长度达标。
-     */
-    private boolean isSpam(Player player, String message, long now) {
-        int window = config.repeatTime();
-        if (window <= 0) {
-            return false;
-        }
-        LastSaid prev = lastSaid.get(player.getUniqueId());
-        if (prev == null || now - prev.time() > window * 1000L) {
-            return false;
-        }
-        String current = message.trim();
-        String previous = prev.text().trim();
-        if (current.isEmpty()) {
-            return false;
-        }
-        boolean spam;
-        if (current.equals(previous)) {
-            spam = true;
-        } else if (current.length() >= config.repeatMinLength()) {
-            spam = TextUtil.similarity(previous, current) >= config.repeatSimilarity();
-        } else {
-            spam = false;
-        }
-        if (spam) {
-            messages.send(player, "chat.repeat");
-        }
-        return spam;
-    }
-
     /** 退出时清掉该玩家的临时状态；禁言缓存是全局的，不动 */
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         lastChatAt.remove(uuid);
-        lastSaid.remove(uuid);
+        repeats.clear(uuid);
     }
 }
