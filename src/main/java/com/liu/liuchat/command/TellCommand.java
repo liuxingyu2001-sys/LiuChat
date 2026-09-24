@@ -62,8 +62,8 @@ public final class TellCommand implements ChatCommand {
         if (config.aiEnabled() && ChatReviewPolicy.blocked(text, config.aiReviewKeywords(),
                 config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())
                 && !from.hasPermission("liuchat.moderation.bypass")) {
-            String shown = from.hasPermission("liuchat.color")
-                    ? com.liu.liuchat.util.ColorParser.playerText(text) : text.replace('§', '&');
+            String shown = com.liu.liuchat.util.ColorParser.playerText(text,
+                    from.hasPermission("liuchat.color"));
             messages.send(from, "tell.blocked-self", "${player}", targetName, "${message}", shown);
             String notice = messages.get("tell.blocked-notify", "${player}", from.getName(),
                     "${target}", targetName, "${message}", text);

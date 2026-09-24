@@ -30,6 +30,15 @@ public final class ColorParser {
         }
     }
 
+    public static String playerText(String input, boolean fullColorPermission) {
+        if (input == null) return "";
+        if (!fullColorPermission) {
+            String safe = input.replace('§', '&');
+            return safe.replaceAll("(?i)&([fr])", "§$1");
+        }
+        return playerText(input);
+    }
+
     public static String playerText(String input) {
         if (input == null) return "";
         try {

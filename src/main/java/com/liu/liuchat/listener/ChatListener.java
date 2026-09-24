@@ -107,8 +107,8 @@ public final class ChatListener implements Listener {
         if (config.aiEnabled() && ChatReviewPolicy.blocked(text, config.aiReviewKeywords(),
                 config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())
                 && !player.hasPermission("liuchat.moderation.bypass")) {
-            String shown = player.hasPermission("liuchat.color")
-                    ? com.liu.liuchat.util.ColorParser.playerText(text) : text.replace('§', '&');
+            String shown = com.liu.liuchat.util.ColorParser.playerText(text,
+                    player.hasPermission("liuchat.color"));
             chatService.sendOwnChat(player, shown);
             notifyModerators(player, text);
             return;
@@ -116,9 +116,8 @@ public final class ChatListener implements Listener {
         lastChatAt.put(uuid, now);
         lastSaid.put(uuid, new LastSaid(now, text));
 
-        String message = player.hasPermission("liuchat.color")
-                ? com.liu.liuchat.util.ColorParser.playerText(text)
-                : text.replace('§', '&');
+        String message = com.liu.liuchat.util.ColorParser.playerText(text,
+                player.hasPermission("liuchat.color"));
 
         ChatService.Dispatch dispatch = chatService.broadcast(player, message);
         audit.record(uuid.toString(), player.getName(), text);

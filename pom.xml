@@ -4,7 +4,7 @@
 
   <groupId>com.liuxingyu</groupId>
   <artifactId>LiuChat</artifactId>
-  <version>0.3.3</version>
+  <version>0.3.4</version>
   <packaging>jar</packaging>
 
   <name>LiuChat</name>
@@ -51,6 +51,18 @@
       <groupId>net.momirealms</groupId>
       <artifactId>custom-nameplates</artifactId>
       <version>3.0.33</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.momirealms</groupId>
+      <artifactId>craft-engine-bukkit</artifactId>
+      <version>26.9.1</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.momirealms</groupId>
+      <artifactId>craft-engine-core</artifactId>
+      <version>26.9.1</version>
       <scope>provided</scope>
     </dependency>
     <!-- 运行期由 plugin.yml 的 libraries（Paper 自动下载）/ 服务端自带驱动提供，不打进 jar -->

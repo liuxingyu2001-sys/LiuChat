@@ -2,6 +2,7 @@ package com.liu.liuchat.service;
 
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.ConfigDefaults;
+import com.liu.liuchat.hook.CraftEngineEmojiHook;
 import com.liu.liuchat.hook.NameplatesHook;
 import com.liu.liuchat.hook.PapiHook;
 import com.liu.liuchat.util.TextUtil;
@@ -35,6 +36,7 @@ public final class ChatPresentation {
     private YamlConfiguration chat;
     private List<Shortcut> shortcuts = List.of();
     private final ThreadLocal<Map<String, String>> remoteValues = ThreadLocal.withInitial(Map::of);
+    private final ThreadLocal<Map<String, String>> emojiValues = ThreadLocal.withInitial(Map::of);
     private static final Pattern PAPI_TOKEN = Pattern.compile("%[^%\\r\\n]{1,100}%");
     private final ThreadLocal<String> displayNick = ThreadLocal.withInitial(() -> "");
     private final ThreadLocal<String> privateTarget = ThreadLocal.withInitial(() -> "");
@@ -72,7 +74,7 @@ public final class ChatPresentation {
         shortcuts = List.copyOf(loaded);
     }
 
-    public String snapshotPlaceholders(Player player) {
+    public String snapshotPlaceholders(Player player, String message) {
         if (player == null) return "";
         String source = chat.saveToString() + config.format() + config.consoleFormat();
         Matcher matcher = PAPI_TOKEN.matcher(source);
@@ -86,6 +88,11 @@ public final class ChatPresentation {
             String key = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
                     entry.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8));
             yaml.set("values." + key, entry.getValue());
+        }
+        for (var entry : CraftEngineEmojiHook.resolve(player, message).entrySet()) {
+            String key = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                    entry.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            yaml.set("emojis." + key, entry.getValue());
         }
         String serialized = yaml.saveToString();
         return serialized.length() <= 8000 ? serialized : "";
@@ -122,7 +129,8 @@ public final class ChatPresentation {
                                           Player sender, String message, String itemId, Player viewer,
                                           String resolved, String nick, String formatPath) {
         Map<String, String> values = new LinkedHashMap<>();
-        if (sender == null && resolved != null && !resolved.isEmpty() && resolved.length() <= 8000) {
+        Map<String, String> emojis = new LinkedHashMap<>();
+        if (resolved != null && !resolved.isEmpty() && resolved.length() <= 8000) {
             try {
                 YamlConfiguration yaml = new YamlConfiguration();
                 yaml.loadFromString(resolved);
@@ -131,17 +139,29 @@ public final class ChatPresentation {
                     try {
                         String token = new String(java.util.Base64.getUrlDecoder().decode(key),
                                 java.nio.charset.StandardCharsets.UTF_8);
-                        if (PAPI_TOKEN.matcher(token).matches()) values.put(token, section.getString(key, ""));
+                        if (sender == null && PAPI_TOKEN.matcher(token).matches())
+                            values.put(token, section.getString(key, ""));
+                    } catch (IllegalArgumentException ignored) { }
+                }
+                ConfigurationSection emojiSection = yaml.getConfigurationSection("emojis");
+                if (emojiSection != null) for (String key : emojiSection.getKeys(false)) {
+                    try {
+                        String token = new String(java.util.Base64.getUrlDecoder().decode(key),
+                                java.nio.charset.StandardCharsets.UTF_8);
+                        if (!token.isEmpty() && token.length() <= 100 && emojis.size() < 16)
+                            emojis.put(token, emojiSection.getString(key, ""));
                     } catch (IllegalArgumentException ignored) { }
                 }
             } catch (Exception ignored) { }
         }
         remoteValues.set(values);
+        emojiValues.set(emojis);
         displayNick.set(nick);
         try {
             return renderLine(server, playerName, uuid, world, sender, message, itemId, viewer, formatPath);
         } finally {
             remoteValues.remove();
+            emojiValues.remove();
             displayNick.remove();
         }
     }
@@ -263,7 +283,7 @@ public final class ChatPresentation {
                 }
             }
             if (found == null) break;
-            append(line, message.substring(offset, match.start()), hint, action);
+            appendEmojis(line, message.substring(offset, match.start()), emojiValues.get(), hint, action);
             String[] groups = new String[10];
             groups[0] = match.group();
             Matcher filtered = found.filter == null ? null : found.filter.matcher(match.group());
@@ -280,7 +300,34 @@ public final class ChatPresentation {
             offset = match.end();
             count++;
         }
-        append(line, message.substring(offset), hint, action);
+        appendEmojis(line, message.substring(offset), emojiValues.get(), hint, action);
+    }
+
+    static void appendEmojis(TextComponent line, String text, Map<String, String> emojis,
+                             HoverEvent hint, ClickEvent action) {
+        int offset = 0;
+        for (int count = 0; count < 16; count++) {
+            String matched = null;
+            int index = -1;
+            for (String keyword : emojis.keySet()) {
+                int candidate = text.indexOf(keyword, offset);
+                if (candidate >= 0 && (index < 0 || candidate < index
+                        || candidate == index && keyword.length() > matched.length())) {
+                    matched = keyword;
+                    index = candidate;
+                }
+            }
+            if (matched == null) break;
+            append(line, text.substring(offset, index), hint, action);
+            TextComponent emoji = new TextComponent("");
+            emoji.setInsertion("liuchat-image:" + java.util.Base64.getEncoder().encodeToString(
+                    emojis.get(matched).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            if (hint != null) emoji.setHoverEvent(hint);
+            if (action != null) emoji.setClickEvent(action);
+            line.addExtra(emoji);
+            offset = index + matched.length();
+        }
+        append(line, text.substring(offset), hint, action);
     }
 
     private String expand(String text, String[] groups, String server, String player, String world, Player sender) {

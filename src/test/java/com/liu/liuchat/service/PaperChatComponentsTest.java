@@ -32,4 +32,17 @@ class PaperChatComponentsTest {
         assertEquals("\uE001Alice", PlainTextComponentSerializer.plainText().serialize(result));
         assertEquals(net.kyori.adventure.key.Key.key("custom_nameplates:default"), result.children().get(0).font());
     }
+
+    @Test void craftEngineEmojiKeepsItsOwnHoverInsideChatNode() {
+        TextComponent line = new TextComponent();
+        ChatPresentation.appendEmojis(line, "hi :8ball:!", java.util.Map.of(":8ball:",
+                "<hover:show_text:'使用 :8ball: 发送表情'><white>⑧</white></hover>"),
+                new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText("node hint")), null);
+        var result = PaperChatComponents.convert(line.getExtra().toArray(net.md_5.bungee.api.chat.BaseComponent[]::new), null);
+        assertEquals("hi ⑧!", PlainTextComponentSerializer.plainText().serialize(result));
+        var emoji = result.children().get(1);
+        assertNotNull(emoji.hoverEvent());
+        assertEquals("使用 :8ball: 发送表情", PlainTextComponentSerializer.plainText().serialize(
+                (net.kyori.adventure.text.Component) emoji.hoverEvent().value()));
+    }
 }

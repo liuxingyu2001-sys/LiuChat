@@ -58,7 +58,8 @@ public final class PaperChatComponents {
                 && click != null && click.getValue().startsWith("/liuc item ")) {
             ItemStack stack = items.item(click.getValue().substring("/liuc item ".length()));
             if (stack != null) result = result.hoverEvent(stack.asHoverEvent(event -> event));
-        } else if (hover != null && hover.getAction() == net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT) {
+        } else if (hover != null && hover.getAction() == net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT
+                && result.hoverEvent() == null) {
             result = result.hoverEvent(HoverEvent.showText(convert(hover.getValue(), items)));
         }
         if (part.getExtra() != null) for (BaseComponent child : part.getExtra())

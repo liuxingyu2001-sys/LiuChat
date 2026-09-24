@@ -24,6 +24,12 @@ class ColorParserTest {
         assertTrue(output.contains("<click:"));
     }
 
+    @Test void defaultPlayersMayResetAndUseWhiteOnly() {
+        String output = ColorParser.playerText("&f白 &r重置 &c红 <click:run_command:'/op Alice'>x</click>", false);
+        assertEquals("§f白 §r重置 &c红 <click:run_command:'/op Alice'>x</click>", output);
+        assertEquals("§f白 §r重置 §c红", ColorParser.playerText("&f白 &r重置 &c红", true));
+    }
+
     @Test void nullInput() {
         assertEquals(null, ColorParser.parse(null));
     }

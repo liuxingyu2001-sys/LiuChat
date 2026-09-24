@@ -46,7 +46,7 @@ public final class ChatService {
             message = ProfileChatColor.apply(profile.color(), message, presentation.itemToken());
         BaseComponent[] line = presentation.render(config.server(), player.getName(),
                 player.getUniqueId().toString(), player.getWorld().getName(), player, message,
-                null, player, presentation.snapshotPlaceholders(player), nick);
+                null, player, presentation.snapshotPlaceholders(player, message), nick);
         player.sendMessage(PaperChatComponents.convert(line, items));
     }
     public Dispatch broadcast(Player player, String message) {
@@ -61,7 +61,7 @@ public final class ChatService {
             player.sendMessage("§c手上没有可展示的物品，或物品数据超出跨服消息限制。");
             message = message.replace(presentation.itemToken(), "§7[物品不可展示]§r");
         }
-        String placeholders = presentation.snapshotPlaceholders(player);
+        String placeholders = presentation.snapshotPlaceholders(player, message);
         deliver(config.server(), player.getUniqueId().toString(), player.getName(),
                 player.getWorld().getName(), player, message, itemData, placeholders, nick);
         return new Dispatch(message, itemData, placeholders, nick);

@@ -63,8 +63,8 @@ public final class HornCommand implements ChatCommand {
             return;
         }
         String text = String.join(" ", args);
-        String message = player.hasPermission("liuchat.color")
-                ? com.liu.liuchat.util.ColorParser.playerText(text) : text.replace('§', '&');
+        String message = com.liu.liuchat.util.ColorParser.playerText(text,
+                player.hasPermission("liuchat.color"));
         chat.horn(player, message);
         cross.publishHorn(player, message);
     }

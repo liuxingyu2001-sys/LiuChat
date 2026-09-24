@@ -61,12 +61,14 @@ public final class TellService {
             messages.send(from, "tell.offline", "${player}", target.getName());
             return;
         }
-        String message = from.hasPermission("liuchat.color")
-                ? com.liu.liuchat.util.ColorParser.playerText(text) : text.replace('§', '&');
+        String message = com.liu.liuchat.util.ColorParser.playerText(text,
+                from.hasPermission("liuchat.color"));
+        String resolved = presentation != null && presentation.privateEnabled()
+                ? presentation.snapshotPlaceholders(from, message) : "";
         privateMessage(from, true, config.server(), from.getName(), from.getUniqueId().toString(),
-                from.getWorld().getName(), target.getName(), from, message, "", nickname(from));
+                from.getWorld().getName(), target.getName(), from, message, resolved, nickname(from));
         privateMessage(target, false, config.server(), from.getName(), from.getUniqueId().toString(),
-                from.getWorld().getName(), target.getName(), from, message, "", nickname(from));
+                from.getWorld().getName(), target.getName(), from, message, resolved, nickname(from));
         if (logs != null) {
             logs.local("TELL", from.getName(), target.getName(), message);
             if (config != null) logs.recordPrivate(from.getUniqueId().toString(), from.getName(), target.getName(), message);
@@ -81,14 +83,14 @@ public final class TellService {
             messages.send(sender, "tell.offline", "${player}", targetName);
             return;
         }
-        String message = sender.hasPermission("liuchat.color")
-                ? com.liu.liuchat.util.ColorParser.playerText(text) : text.replace('§', '&');
+        String message = com.liu.liuchat.util.ColorParser.playerText(text,
+                sender.hasPermission("liuchat.color"));
         String msgId = UUID.randomUUID().toString();
         pending.put(msgId, new Pending(sender.getUniqueId().toString(), targetName));
 
         // 回执只决定后续要不要补未送达提示。
         String placeholders = presentation != null && presentation.privateEnabled()
-                ? presentation.snapshotPlaceholders(sender) : "";
+                ? presentation.snapshotPlaceholders(sender, message) : "";
         if (!crossServer.publishTell(sender, msgId, sender.getName(), targetName, message,
                 placeholders, nickname(sender))) {
             pending.remove(msgId);
@@ -96,7 +98,7 @@ public final class TellService {
             return;
         }
         privateMessage(sender, true, config.server(), sender.getName(), sender.getUniqueId().toString(),
-                sender.getWorld().getName(), targetName, sender, message, "", nickname(sender));
+                sender.getWorld().getName(), targetName, sender, message, placeholders, nickname(sender));
         if (logs != null) {
             logs.local("TELL", sender.getName(), targetName, message);
             if (config != null) logs.recordPrivate(sender.getUniqueId().toString(), sender.getName(), targetName, message);
