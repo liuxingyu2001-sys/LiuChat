@@ -22,15 +22,20 @@ public final class ProfileCommand implements ChatCommand {
     @Override public void execute(CommandSender sender, String[] args) {
         Player player = (Player) sender;
         if (args.length == 0) { messages.send(player, "profile.usage"); return; }
-        String input = String.join(" ", args);
+        String input = String.join(" ", args).trim();
         if (type.equals("nick")) {
             boolean formatted = player.hasPermission("liuchat.nick.format");
-            String value = ProfileText.normalize(input, formatted);
-            profiles.nick(player, value);
+            profiles.nick(player, ProfileText.normalize(input, formatted));
+        } else if (input.equalsIgnoreCase("off")) {
+            profiles.color(player, "");
+        } else if (!ProfileText.isColorOnly(input)) {
+            // 拒绝正文与未知标签：存进去会成为每条消息的颜色前缀
+            messages.send(player, "profile.invalid", "${input}", input.replace('§', '&'));
+            return;
         } else {
-            boolean formatted = player.hasPermission("liuchat.chatcolor.format");
-            String value = ProfileText.normalize(input, formatted);
-            profiles.color(player, value);
+            // 与 Dialog 同一存储形式（&a / &#RRGGBB / <gradient:...>），
+            // ProfileChatColor.apply 与 ColorDialog.fromStored 都认这个格式
+            profiles.color(player, input);
         }
         messages.send(player, "profile.saved");
     }

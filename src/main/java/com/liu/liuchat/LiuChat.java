@@ -99,7 +99,7 @@ public final class LiuChat extends JavaPlugin {
         tellService.setConfig(configManager);
         tellService.setChatLogService(chatLogs);
 
-        // 4. 命令：/lc 子命令 + 顶层直注册的 /msg /tell
+        // 4. 命令：/lc 子命令 + 顶层直注册的 /msg /tell /mute /unmute
         CommandRouter router = new CommandRouter(messageManager);
         AiClient aiClient = new AiClient();
         HourlyChatAudit audit = new HourlyChatAudit(this, configManager, messageManager, chatLogs, aiClient);
@@ -126,8 +126,10 @@ public final class LiuChat extends JavaPlugin {
                 else messageManager.send(sender, "item.usage");
             }
         });
-        router.register(new MuteCommand(messageManager, muteService, crossServer));
-        router.register(new UnmuteCommand(messageManager, muteService, crossServer));
+        ChatCommand mute = new MuteCommand(messageManager, muteService, crossServer);
+        ChatCommand unmute = new UnmuteCommand(messageManager, muteService, crossServer);
+        router.register(mute);
+        router.register(unmute);
         ChatCommand horn = new HornCommand(messageManager, chatService, crossServer, muteService, database);
         router.register(horn);
         router.register(new IgnoreCommand("ignore", messageManager, ignores));
@@ -152,6 +154,8 @@ public final class LiuChat extends JavaPlugin {
         if (!bindDirect("horn", horn)) return;
         if (!bindDirect("nick", nick)) return;
         if (!bindDirect("chatcolor", chatColor)) return;
+        if (!bindDirect("mute", mute)) return;
+        if (!bindDirect("unmute", unmute)) return;
 
         // 5. 事件监听（跨服服务是 PluginMessageListener，注册发生在其构造器里）
         getServer().getPluginManager().registerEvents(items, this);

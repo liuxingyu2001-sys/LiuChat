@@ -12,8 +12,16 @@ import org.bukkit.plugin.java.JavaPlugin;
  * 关键约定：<b>先翻译模板自身的 & 颜色，再原样插入占位符的值</b> ——
  * 这样玩家可控的内容（如消息文本）不会被顺手把 & 也翻译成颜色，
  * 颜色权限（liuchat.color）才能真正拦得住。
+ * <p>
+ * 模板里需要输出字面 {@code &}（例如用法示例 {@code <&a|&#RRGGBB|off>}）时写成
+ * {@code &&}；需要字面 {@code <}（例如示例 {@code <gradient:...>} 不被当成 MiniMessage
+ * 标签）时写成 {@code <<}。两者都在颜色翻译前藏起来，翻译完再还原。
  */
 public final class MessageManager {
+
+    /** 私用区哨兵：不会出现在语言文件里，也不会被 MiniMessage 当标签解析 */
+    private static final String LITERAL_AMPERSAND = "\uE000";
+    private static final String LITERAL_ANGLE = "\uE001";
 
     private final JavaPlugin plugin;
     private YamlConfiguration messages;
@@ -38,7 +46,7 @@ public final class MessageManager {
 
     /** 替换占位符并翻译模板颜色，占位符的值原样插入 */
     public String get(String key, String... placeholders) {
-        String line = TextUtil.color(getRaw(key));
+        String line = colorize(getRaw(key));
         for (int i = 0; i + 1 < placeholders.length; i += 2) {
             line = line.replace(placeholders[i], placeholders[i + 1]);
         }
@@ -48,6 +56,14 @@ public final class MessageManager {
     /** 带 prefix 的完整消息 */
     public void send(CommandSender to, String key, String... placeholders) {
         to.sendMessage(get("prefix") + get(key, placeholders));
+    }
+
+    /** 模板颜色翻译：{@code &&}→字面 {@code &}，{@code <<}→字面 {@code <}，均躲开解析 */
+    static String colorize(String template) {
+        String masked = template.replace("&&", LITERAL_AMPERSAND).replace("<<", LITERAL_ANGLE);
+        return TextUtil.color(masked)
+                .replace(LITERAL_AMPERSAND, "&")
+                .replace(LITERAL_ANGLE, "<");
     }
 
     /**

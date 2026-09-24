@@ -21,7 +21,7 @@
 | **跨服聊天** | 经代理转发到其他子服，收端按自己的 format 渲染、`${server}` 显示发送端子服；无代理/单服开着无副作用 |
 | **顶层私聊命令** | 直接注册 `/msg`（别名 `/w` `/whisper`）与 `/tell`，全部带 tab 补全；跨服在线名单由子服同步供玩家名补全 |
 | **跨服私聊** | 目标在其他子服也能收到；TELL 广播只在目标所在服落地，**回执机制**保证送达 —— 3 秒未收到回执则提示“不在线，消息未送达”，不会静默丢失 |
-| 禁言 | `/lc mute`，`30s / 5m / 1h30m / 0=永久`，过期自动清；uuid + 名字双查兜底 |
+| 禁言 | `/mute`（亦可 `/lc mute`），`30s / 5m / 1h30m / 0=永久`，过期自动清；uuid + 名字双查兜底 |
 | **MySQL 跨服共享禁言** | 写库并广播 MUTE/UNMUTE 到其他子服内存；发送服无在线玩家或目标服断线时由共享库的定时对账补漏 |
 | 聊天冷却 | 按权限节点分级（`liuchat.cooldown.<键>`），`liuchat.cooldown.bypass` 免除 |
 | 重复/相似发言检测 | 时间窗口 + Levenshtein 相似度 |
@@ -33,8 +33,8 @@
 ```
 /lc                              查看帮助
 /lc reload                       重载配置        权限: liuchat.reload
-/lc mute <玩家> <时长|0永久> [原因]  禁言           权限: liuchat.mute
-/lc unmute <玩家>                 解除禁言         权限: liuchat.unmute
+/mute <玩家> <时长|0永久> [原因]   禁言（同 /lc mute）    权限: liuchat.mute
+/unmute <玩家>                 解除禁言（同 /lc unmute） 权限: liuchat.unmute
 /msg <玩家> <消息>                私聊（别名 w/whisper，跨服）  权限: liuchat.tell
 /tell <玩家> <消息>               私聊（跨服）             权限: liuchat.tell
 /horn <消息>                      全服喇叭             权限: liuchat.horn
@@ -42,7 +42,7 @@
 /lc unignore <玩家>               取消屏蔽
 /lc ignorelist                    查看屏蔽列表
 /lc nick <昵称|off>               聊天昵称             权限: liuchat.nick（默认 OP）
-/lc chatcolor <颜色|off>           聊天颜色             权限: liuchat.chatcolor
+/lc chatcolor <&a|&#RRGGBB|off>   聊天颜色             权限: liuchat.chatcolor
 /lc ask <问题>                    使用默认 AI 助手    权限: liuchat.ask
 /lc ask <助手名> <问题>          使用指定助手       权限: liuchat.ask
 /lc ask list                     列出助手
@@ -80,7 +80,7 @@ CMI 同名指令由 `commands.prefer-liuchat: true` 将 `/msg`、`/tell`、`/w`�
 
 AI 助手独立于审核，可单独开启 `ai.assistant.enable`。在 `ai.assistant.profiles` 下配置多个助手及其 `skill` 目录，例如 `profiles.bot.skill: bot`、`profiles.guide.skill: guide`。`/lc ask <问题>` 使用 `ai.assistant.default` 指定的助手（默认 `bot`），`/lc ask guide <问题>` 选择其他助手；`/lc ask list` 列出助手。无需 `@`。每个 skill 位于 `plugins/LiuChat/skills/<目录名>/`，读取 `SKILL.md` 及下层 `.md`/`.txt`；`/lc reload` 刷新。skill 仅作为提示词知识，不会执行脚本或调用工具。
 
-聊天颜色现在只通过 `/lc dialog chatcolor` 打开，支持单色和渐变色。单色模式使用第一组红、绿、蓝滑块；渐变模式另外使用结束色的红、绿、蓝三组滑块。红 R、绿 G、蓝 B 分别代表组成颜色的三种原色通道，数值范围都是 0-255。保存后会写入聊天资料，并支持 `<gradient:#1afff0:#2ea4ff>` 格式。
+聊天颜色通过 `/lc dialog chatcolor` 打开，支持单色和渐变色。单色模式使用第一组红、绿、蓝滑块；渐变模式另外使用结束色的红、绿、蓝三组滑块。红 R、绿 G、蓝 B 分别代表组成颜色的三种原色通道，数值范围都是 0-255。保存后会写入聊天资料，并支持 `<gradient:#1afff0:#2ea4ff>` 格式。也可以用 `/lc chatcolor <&a|&#RRGGBB|off>` 直接设置，与 Dialog 同一存储格式；输入只允许颜色码（`&a`、`&#RRGGBB`、`&x` 形式、`<gradient:...>` 等），含正文或其他 MiniMessage 标签会被判为格式无效并拒绝，`off` 清除颜色。
 
 `/lc dialog ai` 是独立的 AI 对话 Dialog。回答正文宽度由 `config.yml` 中的 `ai.assistant.dialog-width` 控制，默认 520，范围 100-800。
 
