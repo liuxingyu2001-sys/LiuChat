@@ -2,6 +2,7 @@ package com.liu.liuchat.hook;
 
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.service.MuteService;
+import com.liu.liuchat.service.PlayerProfileService;
 import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -22,13 +23,14 @@ public final class PapiHook {
     private PapiHook() {
     }
 
-    public static void init(JavaPlugin plugin, ConfigManager config, MuteService muteService) {
+    public static void init(JavaPlugin plugin, ConfigManager config, MuteService muteService,
+                            PlayerProfileService profiles) {
         registered = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
         if (!registered) {
             return;
         }
         try {
-            new LiuChatExpansion(config, muteService, plugin).register();
+            new LiuChatExpansion(config, muteService, profiles, plugin).register();
         } catch (Throwable t) {
             plugin.getLogger().log(Level.WARNING, "PlaceholderAPI 挂载失败", t);
         }

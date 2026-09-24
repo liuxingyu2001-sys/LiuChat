@@ -22,7 +22,7 @@ import javax.crypto.spec.SecretKeySpec;
  *
  * payload: UTF 协议版本 | UTF 类型 | 类型字段...
  *   CHAT     群聊广播:   UTF 发送端子服 | UTF 玩家uuid | UTF 玩家名 | UTF 消息文本 | UTF 物品快照
- *   TELL     跨服私聊:   UTF msgId | UTF 发送端子服 | UTF 发送者 | UTF 目标 | UTF 消息文本
+ *   TELL     跨服私聊:   UTF msgId | UTF 发送端子服 | UTF 发送者 | UTF 目标 | UTF 消息文本 | UTF uuid | UTF world | UTF 占位符快照 | UTF 昵称
  *   TELL_ACK 私聊回执:   UTF msgId | UTF 应答子服
  * </pre>
  * 转发体<b>没有 "Forwarded" 前缀</b>——BungeeCord 的 DownstreamBridge 与 Velocity 的
@@ -37,7 +37,7 @@ public final class CrossServerCodec {
     /** 自定义子通道标签，与其它插件的跨服消息区分开 */
     public static final String TAG = "LiuChat";
     /** 协议版本；格式变化时递增，旧版本对端解析失败直接丢弃 */
-    public static final String PROTOCOL = "5";
+    public static final String PROTOCOL = "6";
     /** 转发给除发送端外的所有子服 */
     public static final String MODE_ALL = "ALL";
 
@@ -121,7 +121,8 @@ public final class CrossServerCodec {
 
     /** 跨服私聊包（mode=ALL；只有目标所在服会落地投递） */
     public static byte[] encodeTell(String msgId, String originServer,
-                                    String senderName, String targetName, String message)
+                                    String senderName, String targetName, String message,
+                                    String uuid, String world, String placeholders, String nick)
             throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream out = new DataOutputStream(bytes)) {
@@ -132,6 +133,10 @@ public final class CrossServerCodec {
             out.writeUTF(senderName);
             out.writeUTF(targetName);
             out.writeUTF(message);
+            out.writeUTF(uuid);
+            out.writeUTF(world);
+            out.writeUTF(placeholders);
+            out.writeUTF(nick);
         }
         return wrapForward(MODE_ALL, bytes.toByteArray());
     }
@@ -246,7 +251,8 @@ public final class CrossServerCodec {
                 case TYPE_CHAT -> new Inbound.ChatMessage(
                         in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
                 case TYPE_TELL -> new Inbound.TellMessage(
-                        in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
+                        in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(),
+                        in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
                 case TYPE_TELL_ACK -> new Inbound.TellAck(in.readUTF(), in.readUTF());
                 case TYPE_HORN -> new Inbound.Horn(in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
                 case TYPE_MUTE -> new Inbound.Mute(in.readUTF(), in.readUTF(), in.readLong(), in.readUTF(), in.readUTF());
@@ -273,7 +279,8 @@ public final class CrossServerCodec {
 
         /** 跨服私聊；目标服用 targetName 本地匹配在线玩家 */
         record TellMessage(String msgId, String originServer,
-                           String senderName, String targetName, String message)
+                           String senderName, String targetName, String message,
+                           String uuid, String world, String placeholders, String nick)
                 implements Inbound {
         }
 

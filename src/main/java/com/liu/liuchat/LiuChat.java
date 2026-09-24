@@ -93,6 +93,7 @@ public final class LiuChat extends JavaPlugin {
         IgnoreService ignores = new IgnoreService(database);
         PlayerProfileService profiles = new PlayerProfileService(database);
         chatService.setPlayerProfileService(profiles);
+        tellService.setPresentation(presentation, profiles);
         chatService.setIgnoreService(ignores);
         tellService.setIgnoreService(ignores);
         tellService.setConfig(configManager);
@@ -170,7 +171,7 @@ public final class LiuChat extends JavaPlugin {
         }
 
         // 7. PlaceholderAPI 挂钩（没装则自动跳过）
-        PapiHook.init(this, configManager, muteService);
+        PapiHook.init(this, configManager, muteService, profiles);
 
         getLogger().info("LiuChat 已启用（存储: " + configManager.storageType()
                 + (database.isReady() ? " 就绪" : " 不可用-仅内存")

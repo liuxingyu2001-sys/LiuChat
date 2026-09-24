@@ -46,7 +46,8 @@ class CrossServerCodecTest {
     @Test
     void tellRoundTrip() throws IOException {
         byte[] outbound = CrossServerCodec.encodeTell(
-                "msg-1", "lobby", "Alice", "Bob", "跨服私聊内容");
+                "msg-1", "lobby", "Alice", "Bob", "跨服私聊内容",
+                "uuid-alice", "world", "values: snapshot", "§aHero");
 
         var decoded = CrossServerCodec.decodeInbound(proxyHop(outbound, expectedMode("ALL")));
 
@@ -57,6 +58,10 @@ class CrossServerCodecTest {
         assertEquals("Alice", tell.senderName());
         assertEquals("Bob", tell.targetName());
         assertEquals("跨服私聊内容", tell.message());
+        assertEquals("uuid-alice", tell.uuid());
+        assertEquals("world", tell.world());
+        assertEquals("values: snapshot", tell.placeholders());
+        assertEquals("§aHero", tell.nick());
     }
 
     @Test
@@ -151,7 +156,7 @@ class CrossServerCodecTest {
         assertThrows(IOException.class, () -> CrossServerCodec.encodeChat(
                 "lobby", "uuid", "Alice", "x".repeat(33000), "", "", ""));
         assertThrows(IOException.class, () -> CrossServerCodec.encodeTell(
-                "id", "lobby", "Alice", "Bob", "x".repeat(33000)));
+                "id", "lobby", "Alice", "Bob", "x".repeat(33000), "u", "world", "", ""));
     }
 
     @Test

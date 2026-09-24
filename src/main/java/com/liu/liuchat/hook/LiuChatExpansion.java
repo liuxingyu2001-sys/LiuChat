@@ -3,6 +3,7 @@ package com.liu.liuchat.hook;
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.model.MuteData;
 import com.liu.liuchat.service.MuteService;
+import com.liu.liuchat.service.PlayerProfileService;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -15,6 +16,8 @@ import java.util.Optional;
  * <ul>
  *   <li>%liuchat_server% —— 子服标识</li>
  *   <li>%liuchat_world% —— 玩家所在世界</li>
+ *   <li>%liuchat_nick% —— 聊天昵称（未设置时为原名）</li>
+ *   <li>%liuchat_nick_raw% —— 已设置的聊天昵称（未设置时为空）</li>
  *   <li>%liuchat_muted% —— 是否被禁言 true/false</li>
  *   <li>%liuchat_muted_time% —— 禁言剩余时长（永久/空）</li>
  *   <li>%liuchat_muted_reason% —— 禁言原因（未禁言为空）</li>
@@ -24,11 +27,14 @@ public final class LiuChatExpansion extends PlaceholderExpansion {
 
     private final ConfigManager config;
     private final MuteService muteService;
+    private final PlayerProfileService profiles;
     private final String version;
 
-    public LiuChatExpansion(ConfigManager config, MuteService muteService, JavaPlugin plugin) {
+    public LiuChatExpansion(ConfigManager config, MuteService muteService,
+                            PlayerProfileService profiles, JavaPlugin plugin) {
         this.config = config;
         this.muteService = muteService;
+        this.profiles = profiles;
         this.version = plugin.getDescription().getVersion();
     }
 
@@ -62,9 +68,15 @@ public final class LiuChatExpansion extends PlaceholderExpansion {
         return switch (key) {
             case "server" -> config.server();
             case "world" -> player.getWorld().getName();
+            case "nick" -> nick(profiles.get(player).nick(), player.getName());
+            case "nick_raw" -> profiles.get(player).nick();
             case "muted", "muted_time", "muted_reason" -> mutedText(player, key);
             default -> null;
         };
+    }
+
+    static String nick(String stored, String playerName) {
+        return stored == null || stored.isBlank() ? playerName : stored;
     }
 
     private String mutedText(Player player, String key) {

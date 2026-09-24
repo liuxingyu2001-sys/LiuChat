@@ -6,6 +6,31 @@ item:
   content: '&7物品展示 &e[ ${item} &e]&7'
   length: 18
 
+# 私聊格式独立于公共聊天。${player}/${nick} 是发送者，${target} 是接收者。
+# 两端可分别配置节点、hover、click、clickSuggest、url；跨服也会解析发送者的 PAPI 快照。
+private:
+  enable: true
+  to:
+    format:
+      label:
+        text: '&7[私聊] &f你 &7-> '
+      player:
+        text: '&e${target}&8: '
+        clickSuggest: '/tell ${target} '
+      msg:
+        text: '&f${message}'
+  from:
+    format:
+      label:
+        text: '&7[私聊] '
+      player:
+        text: '&e${head} ${nick} &7-> &f你&8: '
+        hover:
+          - '&7点击回复 ${player}'
+        clickSuggest: '/tell ${player} '
+      msg:
+        text: '&f${message}'
+
 chat:
   default:
     enable: true

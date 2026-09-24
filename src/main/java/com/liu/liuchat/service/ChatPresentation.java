@@ -37,6 +37,7 @@ public final class ChatPresentation {
     private final ThreadLocal<Map<String, String>> remoteValues = ThreadLocal.withInitial(Map::of);
     private static final Pattern PAPI_TOKEN = Pattern.compile("%[^%\\r\\n]{1,100}%");
     private final ThreadLocal<String> displayNick = ThreadLocal.withInitial(() -> "");
+    private final ThreadLocal<String> privateTarget = ThreadLocal.withInitial(() -> "");
 
     private record Shortcut(Pattern pattern, Pattern filter, String text, List<String> hover,
                             String click, String suggest, String url) { }
@@ -96,9 +97,30 @@ public final class ChatPresentation {
         return token == null || token.isEmpty() ? "[i]" : token;
     }
 
+    public boolean privateEnabled() { return chat.getBoolean("private.enable", true); }
+
+    public BaseComponent[] renderPrivate(boolean outgoing, String server, String playerName, String uuid,
+                                         String world, String targetName, Player sender, String message,
+                                         String resolved, String nick) {
+        privateTarget.set(targetName);
+        try {
+            return renderInternal(server, playerName, uuid, world, sender, message, null, null,
+                    resolved, nick, "private." + (outgoing ? "to" : "from") + ".format");
+        } finally {
+            privateTarget.remove();
+        }
+    }
+
     public BaseComponent[] render(String server, String playerName, String uuid, String world,
                                   Player sender, String message, String itemId, Player viewer,
                                   String resolved, String nick) {
+        return renderInternal(server, playerName, uuid, world, sender, message, itemId, viewer,
+                resolved, nick, "chat.default.format");
+    }
+
+    private BaseComponent[] renderInternal(String server, String playerName, String uuid, String world,
+                                          Player sender, String message, String itemId, Player viewer,
+                                          String resolved, String nick, String formatPath) {
         Map<String, String> values = new LinkedHashMap<>();
         if (sender == null && resolved != null && !resolved.isEmpty() && resolved.length() <= 8000) {
             try {
@@ -117,7 +139,7 @@ public final class ChatPresentation {
         remoteValues.set(values);
         displayNick.set(nick);
         try {
-            return renderLine(server, playerName, uuid, world, sender, message, itemId, viewer);
+            return renderLine(server, playerName, uuid, world, sender, message, itemId, viewer, formatPath);
         } finally {
             remoteValues.remove();
             displayNick.remove();
@@ -125,7 +147,7 @@ public final class ChatPresentation {
     }
 
     private BaseComponent[] renderLine(String server, String playerName, String uuid, String world,
-                                  Player sender, String message, String itemId, Player viewer) {
+                                  Player sender, String message, String itemId, Player viewer, String formatPath) {
         boolean mentioned = viewer != null && chat.getBoolean("at.enable", false)
                 && Pattern.compile("(?i)@" + Pattern.quote(viewer.getName()) + "(?![A-Za-z0-9_])")
                         .matcher(message).find();
@@ -142,8 +164,8 @@ public final class ChatPresentation {
             }
         }
         TextComponent line = new TextComponent();
-        ConfigurationSection nodes = chat.getConfigurationSection("chat.default.format");
-        if (nodes == null || !chat.getBoolean("chat.default.enable", true)) {
+        ConfigurationSection nodes = chat.getConfigurationSection(formatPath);
+        if (nodes == null || (formatPath.equals("chat.default.format") && !chat.getBoolean("chat.default.enable", true))) {
             String fallback = template(config.format(), server, playerName, world, sender);
             int position = fallback.indexOf("${message}");
             if (position < 0) append(line, fallback, null, null);
@@ -269,6 +291,7 @@ public final class ChatPresentation {
 
     private String template(String text, String server, String player, String world, Player sender) {
         String result = text.replace("${server}", server).replace("${player}", player)
+                .replace("${target}", privateTarget.get())
                 .replace("${nick}", displayNick.get()).replace("${world}", world);
         if (sender != null) result = PapiHook.setPlaceholders(sender, result);
         else for (var entry : remoteValues.get().entrySet()) result = result.replace(entry.getKey(), entry.getValue());

@@ -12,7 +12,7 @@
 
 | 功能 | 说明 |
 |---|---|
-| 聊天格式化 | `chat.yml` 的 `chat.default.format` 有序节点支持 hover/click/clickSuggest/url；控制台使用 `console-format` |
+| 聊天格式化 | `chat.yml` 的 `chat.default.format` 有序节点支持 hover/click/clickSuggest/url；`private.to.format` 和 `private.from.format` 独立控制私聊；控制台使用 `console-format` |
 | 物品与头像 | `[i]` 主手物品快照，悬浮显示原生数据组件（item_name、Lore、附魔），点击查看只读 GUI；`${head}` 显示 UUID 头像。CE 物品名支持 zh_cn 资源包翻译键 |
 | 全服喇叭 | `/horn` 或 `/lc horn`，可配置聊天/Title/ActionBar/BossBar 与音效 |
 | 快捷触发 | `shortcut.yml` 正则替换，支持 hover、点击命令/建议/复制/URL |
@@ -26,7 +26,7 @@
 | 聊天冷却 | 按权限节点分级（`liuchat.cooldown.<键>`），`liuchat.cooldown.bypass` 免除 |
 | 重复/相似发言检测 | 时间窗口 + Levenshtein 相似度 |
 | 颜色权限 | `liuchat.color` 控制玩家消息里的 `&` 是否生效（本服/跨服同一套裁决） |
-| PAPI 变量 | `%liuchat_server%` `%liuchat_world%` `%liuchat_muted%` `%liuchat_muted_time%` `%liuchat_muted_reason%` |
+| PAPI 变量 | `%liuchat_nick%`（未设置则原名）、`%liuchat_nick_raw%`（未设置则空）、`%liuchat_server%` `%liuchat_world%` `%liuchat_muted%` `%liuchat_muted_time%` `%liuchat_muted_reason%` |
 
 ## 命令（全部支持 tab 补全）
 
@@ -56,6 +56,8 @@
 跨服私聊链路：本服在线直达 → 不在本服则 TELL 广播（代理 Forward ALL）→ 目标所在服投递
 并回 TELL_ACK（定向回发送端子服）→ 发送端凭回执确认送达；超时 3 秒视为离线并补提示。
 目标不在线时先本地回显、3 秒后补“消息未送达”——两段式反馈，不静默丢消息。
+
+私聊独立格式配置在 `chat.yml` 的 `private.to.format`（发送者回显）和 `private.from.format`（接收者显示），每个节点与公共聊天一样支持 `text`、`hover`、`click`、`clickSuggest`、`url` 和图片。`${player}`/`${nick}` 表示发送者，`${target}` 表示接收者，`${message}` 为正文；`private.enable: false` 恢复 `messages.yml` 的旧文本样式。跨服私聊发送者的昵称、UUID、世界与占位符快照随消息发送，接收服无需发送者在线。**本次跨服协议升级至 6，所有子服须一起更新**，否则旧版子服间的消息会被拒收。
 
 `/lc` 别名：`/lc`
 
