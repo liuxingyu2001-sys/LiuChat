@@ -24,6 +24,21 @@ class AiChatTriggersTest {
         assertFalse(AiChatTriggers.triggers("presteve poststeve", "Steve"));
     }
 
+    @Test void coloredRemoteMentionUsesVisibleText() {
+        String gradient = "§x§a§f§d§9§c§2b§x§a§e§d§9§c§2o§x§a§d§d§a§c§3t 你好";
+        assertTrue(AiChatTriggers.triggers(AiChatTriggers.visibleText(gradient), "bot"));
+        assertTrue(AiChatTriggers.triggers(AiChatTriggers.visibleText("§b@§lbot 在吗"), "bot"));
+        assertTrue(AiChatTriggers.triggers(AiChatTriggers.visibleText("§7bot§r 你好"), "bot"));
+        assertFalse(AiChatTriggers.triggers(AiChatTriggers.visibleText("§brobot"), "bot"));
+        assertTrue(AiChatTriggers.visibleText(gradient).contains("bot 你好"));
+        assertTrue(AiChatTriggers.visibleText(gradient).equals(AiChatTriggers.visibleText("§b" + gradient)));
+    }
+
+    @Test void visibleTextPreservesLiteralAmpersandsAndHandlesNull() {
+        assertTrue(AiChatTriggers.visibleText("§bA&b §x§F§F§0§0§0§0B").equals("A&b B"));
+        assertTrue(AiChatTriggers.visibleText(null) == null);
+    }
+
     @Test void rejectsBlankInput() {
         assertFalse(AiChatTriggers.triggers(null, "小派蒙"));
         assertFalse(AiChatTriggers.triggers("", "小派蒙"));

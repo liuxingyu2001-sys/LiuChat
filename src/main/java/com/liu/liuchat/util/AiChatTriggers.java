@@ -11,6 +11,20 @@ public final class AiChatTriggers {
 
     private AiChatTriggers() { }
 
+    /** 跨服聊天保留发送端的 § 颜色码；点名和 AI 上下文必须使用玩家可见的文本。 */
+    public static String visibleText(String message) {
+        if (message == null || message.indexOf('§') < 0) return message;
+        StringBuilder visible = new StringBuilder(message.length());
+        for (int i = 0; i < message.length(); i++) {
+            if (message.charAt(i) == '§' && i + 1 < message.length()) {
+                i++;
+            } else {
+                visible.append(message.charAt(i));
+            }
+        }
+        return visible.toString();
+    }
+
     /**
      * 消息是否点名了 AI：{@code @名字} 或消息里直接提到名字，忽略大小写。
      * ASCII 名字按词边界匹配（Steve 不会命中 Steve2 / MySteve），中文名按子串匹配。

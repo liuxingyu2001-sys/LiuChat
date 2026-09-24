@@ -61,21 +61,22 @@ public final class PublicChatAiService {
     }
 
     private void onMessage(String uuid, String name, String message, boolean remote) {
-        if (!config.aiChatEnabled() || message == null || message.isBlank() || !plugin.isEnabled()) return;
+        String visible = AiChatTriggers.visibleText(message);
+        if (!config.aiChatEnabled() || visible == null || visible.isBlank() || !plugin.isEnabled()) return;
         String aiName = config.aiChatName();
         if (aiName.isEmpty() || uuid.equals(aiUuid().toString()) || name.equalsIgnoreCase(aiName)) return;
         List<String> context = new ArrayList<>(recent);
-        remember(name, message);
+        remember(name, visible);
         if (remote && !config.aiChatRespondRemote()) {
             return; // 跨服消息默认只进上下文：多台服都开 AI 时避免同时抢答
         }
-        if (!AiChatTriggers.triggers(message, aiName)) {
+        if (!AiChatTriggers.triggers(visible, aiName)) {
             double chance = config.aiChatChance();
             if (chance <= 0 || ThreadLocalRandom.current().nextDouble() >= chance) return;
         }
         long now = System.currentTimeMillis();
         if (now - lastReplyAt < config.aiChatCooldownSeconds() * 1000L) return;
-        String question = AiChatTriggers.composeQuestion(context, name, message,
+        String question = AiChatTriggers.composeQuestion(context, name, visible,
                 aiName, config.aiAssistantMaxQuestion());
         // BUSY / UNAVAILABLE 等一律静默：AI 不该为失败刷屏。
         // 会话单独放在 "<助手>#public" 上：公屏群聊的上下文不和 /lc ask 的私有会话混在一起
@@ -175,7 +176,7 @@ public final class PublicChatAiService {
     private void remember(String speaker, String message) {
         int limit = config.aiChatContextMessages();
         if (limit <= 0) return;
-        recent.addLast(speaker + ": " + message.replaceAll("(?i)§.", ""));
+        recent.addLast(speaker + ": " + message);
         while (recent.size() > limit) recent.removeFirst();
     }
 
