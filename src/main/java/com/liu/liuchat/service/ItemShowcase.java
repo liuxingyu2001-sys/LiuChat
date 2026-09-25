@@ -18,6 +18,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.Iterator;
@@ -30,13 +31,33 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ItemShowcase implements Listener {
     private static final long LIFETIME = 10 * 60 * 1000L;
     // register() 在异步聊天线程执行，GUI 点击在主线程，必须并发安全
+    private final JavaPlugin plugin;
+    private volatile boolean closing;
     private final Map<String, Entry> entries = new ConcurrentHashMap<>();
     private final CraftEngineNames ceNames = new CraftEngineNames();
     private final VanillaItemNames vanillaNames = new VanillaItemNames();
     /** 灵魂空间预览配置（由 ChatPresentation 提供，reload 后自动生效）。 */
     private volatile SpaceSettings spaceSettings;
 
-    public ItemShowcase() { ceNames.reload(); }
+    public ItemShowcase(JavaPlugin plugin) {
+        this.plugin = plugin;
+        ceNames.reload();
+    }
+
+    /** Close only LiuChat preview inventories before the listener is unregistered on disable. */
+    public void closePreviews() {
+        closing = true;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            Inventory top = player.getOpenInventory().getTopInventory();
+            if (isPreview(top)) player.closeInventory();
+        }
+        entries.clear();
+    }
+
+    private static boolean isPreview(Inventory inventory) {
+        return inventory.getHolder() instanceof ShowcaseHolder
+                || inventory.getHolder() instanceof SpacePreviewHolder;
+    }
     public void reloadTranslations() { ceNames.reload(); }
     public void setSpaceSettings(SpaceSettings settings) { this.spaceSettings = settings; }
 
@@ -141,6 +162,7 @@ public final class ItemShowcase implements Listener {
     }
 
     public void open(Player viewer, String id) {
+        if (closing) return;
         Entry entry = entries.get(id);
         if (entry == null || entry.expires < System.currentTimeMillis()) {
             viewer.sendMessage("§c该物品展示已过期。");
@@ -210,13 +232,25 @@ public final class ItemShowcase implements Listener {
         entry.spaceLoading = true;
         viewer.sendMessage("§7正在读取灵魂空间…");
         SoulSpaceHook.fetch(entry.ownerUuid).whenComplete((result, err) -> {
-            entry.spaceLoading = false;
-            if (err != null || result == null || result.isEmpty()) {
-                if (viewer.isOnline()) viewer.sendMessage("§c灵魂空间数据读取失败，请稍后再试。");
-                return;
+            if (closing) return;
+            Runnable finish = () -> {
+                if (closing) return;
+                entry.spaceLoading = false;
+                if (err != null || result == null || result.isEmpty()) {
+                    if (viewer.isOnline()) viewer.sendMessage("§c灵魂空间数据读取失败，请稍后再试。");
+                    return;
+                }
+                entry.space = result.get();
+                if (viewer.isOnline()) openSpaceGui(viewer, entry, 0, defaultSort());
+            };
+            if (Bukkit.isPrimaryThread()) finish.run();
+            else if (plugin.isEnabled()) {
+                try {
+                    Bukkit.getScheduler().runTask(plugin, finish);
+                } catch (org.bukkit.plugin.IllegalPluginAccessException ignored) {
+                    // Plugin disable may have started after the enabled check.
+                }
             }
-            entry.space = result.get();
-            if (viewer.isOnline()) openSpaceGui(viewer, entry, 0, defaultSort());
         });
     }
 
@@ -228,6 +262,7 @@ public final class ItemShowcase implements Listener {
 
     /** 空间预览 GUI：54 格只读，前 5 行 45 格放物品，末行排序与翻页（拿不走任何物品）。 */
     private void openSpaceGui(Player viewer, Entry entry, int page, SpacePreview.Sort sort) {
+        if (closing) return;
         List<SpacePreview.Counted<ItemStack>> items = entry.space == null ? List.of() : entry.space;
         items = SpacePreview.sort(items, SpacePreview.Counted::count, sort);
         int size = items.size();
@@ -328,7 +363,7 @@ public final class ItemShowcase implements Listener {
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
         Inventory top = event.getView().getTopInventory();
-        if (top.getHolder() instanceof ShowcaseHolder || top.getHolder() instanceof SpacePreviewHolder) {
+        if (isPreview(top)) {
             event.setCancelled(true);
         }
     }

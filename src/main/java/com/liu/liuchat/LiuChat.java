@@ -60,6 +60,8 @@ public final class LiuChat extends JavaPlugin {
     private Database database;
     private MuteService muteService;
     private CrossServerService crossServer;
+    private ChatService chatService;
+    private ItemShowcase items;
     private ChatLogService chatLogs;
     private AiSessionStore aiSessions;
 
@@ -82,10 +84,10 @@ public final class LiuChat extends JavaPlugin {
         muteService = new MuteService(database);
         muteService.loadAll();
 
-        ItemShowcase items = new ItemShowcase();
+        items = new ItemShowcase(this);
         ChatPresentation presentation = new ChatPresentation(this, configManager, items);
         items.setSpaceSettings(presentation);
-        ChatService chatService = new ChatService(this, configManager, presentation, items);
+        chatService = new ChatService(this, configManager, presentation, items);
         chatLogs = new ChatLogService(this, configManager);
         chatService.setChatLogService(chatLogs);
 
@@ -229,8 +231,21 @@ public final class LiuChat extends JavaPlugin {
         return true;
     }
 
+    /** Broadcast an external plugin's rich announcement locally and to other servers. Call on the main thread. */
+    public void broadcastAnnouncement(Player carrier, net.md_5.bungee.api.chat.BaseComponent... components) {
+        if (!isEnabled() || carrier == null || components == null || components.length == 0) {
+            throw new IllegalArgumentException("LiuChat requires an online carrier and announcement components");
+        }
+        if (!org.bukkit.Bukkit.isPrimaryThread()) {
+            throw new IllegalStateException("Announcements must be sent on the server thread");
+        }
+        chatService.broadcastAnnouncement(components);
+        crossServer.publishAnnouncement(carrier, components);
+    }
+
     @Override
     public void onDisable() {
+        if (items != null) items.closePreviews();
         if (crossServer != null) {
             crossServer.close();
         }

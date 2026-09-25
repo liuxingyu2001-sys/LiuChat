@@ -26,6 +26,21 @@ class CrossServerCodecTest {
     // ---------------- 各类型往返 ----------------
 
     @Test
+    void announcementRoundTrip() throws IOException {
+        var component = new net.md_5.bungee.api.chat.TextComponent("强化成功");
+        component.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_ITEM,
+                new net.md_5.bungee.api.chat.hover.content.Item("minecraft:diamond_sword", 1, null)));
+        String json = net.md_5.bungee.chat.ComponentSerializer.toString(component);
+        var announcement = assertInstanceOf(CrossServerCodec.Inbound.Announcement.class,
+                CrossServerCodec.decodeInbound(proxyHop(CrossServerCodec.encodeAnnouncement("lobby", json), "ALL")));
+        assertEquals("lobby", announcement.origin());
+        var restored = net.md_5.bungee.chat.ComponentSerializer.parse(announcement.componentsJson());
+        assertEquals("强化成功", net.md_5.bungee.api.chat.BaseComponent.toPlainText(restored));
+        assertEquals(net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_ITEM, restored[0].getHoverEvent().getAction());
+    }
+
+    @Test
     void chatRoundTrip() throws IOException {
         byte[] outbound = CrossServerCodec.encodeChat(
                 "lobby", "uuid-1234", "Notch", "hello &a跨服消息", "snapshot", "values: %{papi.key}%", "Nickname");

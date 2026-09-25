@@ -79,6 +79,12 @@ public final class ChatService {
         return new Dispatch(message, itemData, placeholders, nick);
     }
 
+    /** Deliver a preformatted announcement without applying player chat templates or ignore rules. */
+    public void broadcastAnnouncement(BaseComponent... components) {
+        for (Player online : Bukkit.getOnlinePlayers()) online.spigot().sendMessage(components);
+        Bukkit.getConsoleSender().sendMessage(BaseComponent.toLegacyText(components));
+    }
+
     public void broadcastRemote(String originServer, String uuid, String playerName,
                                 String message, String itemData, String placeholders, String nick) {
         AiChatSnapshot.Appearance appearance = AiChatSnapshot.decode(placeholders, playerName, uuid);

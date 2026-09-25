@@ -76,6 +76,14 @@ public final class CrossServerService implements PluginMessageListener, Listener
         if (enabled) sendViaAny(() -> CrossServerCodec.encodeUnmute(uuid));
     }
 
+    public void publishAnnouncement(Player carrier, net.md_5.bungee.api.chat.BaseComponent[] components) {
+        if (!enabled) return;
+        try {
+            fire(carrier, CrossServerCodec.encodeAnnouncement(config.server(),
+                    net.md_5.bungee.chat.ComponentSerializer.toString(components)));
+        } catch (Exception e) { warnOnce(e); }
+    }
+
     public void publishHorn(Player player, String message) {
         if (!enabled) return;
         try {
@@ -228,6 +236,13 @@ public final class CrossServerService implements PluginMessageListener, Listener
                 if (tellService != null) {
                     tellService.onNetworkTell(tell);
                 }
+            }
+            case CrossServerCodec.Inbound.Announcement announcement -> {
+                if (announcement.origin().equals(config.server())) return;
+                try {
+                    chatService.broadcastAnnouncement(
+                            net.md_5.bungee.chat.ComponentSerializer.parse(announcement.componentsJson()));
+                } catch (RuntimeException e) { warnOnce(e); }
             }
             case CrossServerCodec.Inbound.Horn horn -> {
                 if (!horn.origin().equals(config.server()))

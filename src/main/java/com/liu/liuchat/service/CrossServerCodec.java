@@ -40,13 +40,14 @@ public final class CrossServerCodec {
     /** 自定义子通道标签，与其它插件的跨服消息区分开 */
     public static final String TAG = "LiuChat";
     /** 协议版本；格式变化时递增，旧版本对端解析失败直接丢弃 */
-    public static final String PROTOCOL = "7";
+    public static final String PROTOCOL = "8";
     /** 转发给除发送端外的所有子服 */
     public static final String MODE_ALL = "ALL";
 
     public static final String TYPE_CHAT = "CHAT";
     public static final String TYPE_TELL = "TELL";
     public static final String TYPE_TELL_ACK = "TELL_ACK";
+    public static final String TYPE_ANNOUNCEMENT = "ANNOUNCEMENT";
     public static final String TYPE_HORN = "HORN";
     public static final String TYPE_MUTE = "MUTE";
     public static final String TYPE_UNMUTE = "UNMUTE";
@@ -167,6 +168,17 @@ public final class CrossServerCodec {
             out.writeUTF(ackServer);
         }
         return wrapForward(replyToServer, bytes.toByteArray());
+    }
+
+    public static byte[] encodeAnnouncement(String origin, String componentsJson) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(bytes)) {
+            out.writeUTF(PROTOCOL);
+            out.writeUTF(TYPE_ANNOUNCEMENT);
+            out.writeUTF(origin);
+            out.writeUTF(componentsJson);
+        }
+        return wrapForward(MODE_ALL, bytes.toByteArray());
     }
 
     public static byte[] encodeHorn(String origin, String uuid, String name, String message) throws IOException {
@@ -301,6 +313,7 @@ public final class CrossServerCodec {
                         in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
                 case TYPE_TELL -> decodeTell(in);
                 case TYPE_TELL_ACK -> new Inbound.TellAck(in.readUTF(), in.readUTF());
+                case TYPE_ANNOUNCEMENT -> new Inbound.Announcement(in.readUTF(), in.readUTF());
                 case TYPE_HORN -> new Inbound.Horn(in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
                 case TYPE_MUTE -> new Inbound.Mute(in.readUTF(), in.readUTF(), in.readLong(), in.readUTF(), in.readUTF());
                 case TYPE_UNMUTE -> new Inbound.Unmute(in.readUTF());
@@ -340,7 +353,7 @@ public final class CrossServerCodec {
      */
     public sealed interface Inbound
             permits Inbound.ChatMessage, Inbound.TellMessage, Inbound.TellAck,
-                    Inbound.Horn, Inbound.Mute, Inbound.Unmute,
+                    Inbound.Announcement, Inbound.Horn, Inbound.Mute, Inbound.Unmute,
                     Inbound.Presence, Inbound.PresenceQuit, Inbound.PresenceRequest {
 
         /** 群聊广播 */
@@ -358,6 +371,7 @@ public final class CrossServerCodec {
 
         /** 私聊回执：发送端子服凭 msgId 标记送达；ackServer 仅日志用 */
         record TellAck(String msgId, String ackServer) implements Inbound { }
+        record Announcement(String origin, String componentsJson) implements Inbound { }
         record Horn(String origin, String uuid, String name, String message) implements Inbound { }
         record Mute(String uuid, String name, long expires, String reason, String operator) implements Inbound { }
         record Unmute(String uuid) implements Inbound { }

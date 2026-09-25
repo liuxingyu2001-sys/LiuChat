@@ -61,11 +61,13 @@
 
 插件消息是否带 `messages.yml` 的 `prefix` 前缀由同文件的 `prefix-enable` 控制（默认 `true`，`/liuc reload` 生效）；不需要前缀时设 `false` 即可，不用把 `prefix` 清空。
 
+其他插件可在服务器主线程调用 `((LiuChat) Bukkit.getPluginManager().getPlugin("LiuChat")).broadcastAnnouncement(在线玩家, BaseComponent...)` 广播预格式化公告；本服立即投递，开启跨服时经代理转发到其他子服，保留组件的颜色、点击与悬浮信息。调用方应将 LiuChat 声明为 `softdepend` 并在插件存在且启用时调用；缺失时自行回退到本服广播。enchantboost 的强化成功公告已接入此 API。跨服公告需要两端 LiuChat 均为协议 8，且发送服有在线玩家。
+
 跨服私聊链路：本服在线直达 → 不在本服则 TELL 广播（代理 Forward ALL）→ 目标所在服投递
 并回 TELL_ACK（定向回发送端子服）→ 发送端凭回执确认送达；超时 3 秒视为离线并补提示。
 目标不在线时先本地回显、3 秒后补“消息未送达”——两段式反馈，不静默丢消息。
 
-私聊独立格式配置在 `chat.yml` 的 `private.to.format`（发送者回显）和 `private.from.format`（接收者显示），每个节点与公共聊天一样支持 `text`、`hover`、`click`、`clickSuggest`、`url` 和图片。`${player}`/`${nick}` 表示发送者，`${target}` 表示接收者，`${message}` 为正文；`private.enable: false` 恢复 `messages.yml` 的旧文本样式。跨服私聊发送者的昵称、UUID、世界与占位符快照随消息发送，接收服无需发送者在线。跨服在线名单在加入、退出时同步，并每分钟刷新；失联子服的名单约 150 秒后过期，供 `/tell`、`/msg` 等命令补全。**本次跨服协议升级至 7，所有子服须一起更新**，否则旧版子服间的消息会被拒收。
+私聊独立格式配置在 `chat.yml` 的 `private.to.format`（发送者回显）和 `private.from.format`（接收者显示），每个节点与公共聊天一样支持 `text`、`hover`、`click`、`clickSuggest`、`url` 和图片。`${player}`/`${nick}` 表示发送者，`${target}` 表示接收者，`${message}` 为正文；`private.enable: false` 恢复 `messages.yml` 的旧文本样式。跨服私聊发送者的昵称、UUID、世界与占位符快照随消息发送，接收服无需发送者在线。跨服在线名单在加入、退出时同步，并每分钟刷新；失联子服的名单约 150 秒后过期，供 `/tell`、`/msg` 等命令补全。**本次跨服协议升级至 8，所有子服须一起更新**，否则旧版子服间的消息会被拒收。
 
 `/liuc` 别名：`/liuc`
 
