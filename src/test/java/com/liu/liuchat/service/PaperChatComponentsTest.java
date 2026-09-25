@@ -10,6 +10,31 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class PaperChatComponentsTest {
+    @Test void autoLinksKeepPunctuationAndOpenExpectedUrl() {
+        TextComponent line = new TextComponent();
+        ChatPresentation.appendAutoLinks(line, "访问 https://example.com/path?q=1, 或 www.example.org! 普通文本",
+                null, null);
+        var parts = PaperChatComponents.convert(line.getExtra().toArray(net.md_5.bungee.api.chat.BaseComponent[]::new), null);
+        assertEquals("访问 https://example.com/path?q=1, 或 www.example.org! 普通文本",
+                PlainTextComponentSerializer.plainText().serialize(parts));
+        var link = parts.children().get(1);
+        assertEquals(net.kyori.adventure.text.event.ClickEvent.openUrl("https://example.com/path?q=1"),
+                link.clickEvent());
+        var wwwLink = parts.children().get(3);
+        assertEquals(net.kyori.adventure.text.event.ClickEvent.openUrl("https://www.example.org"),
+                wwwLink.clickEvent());
+    }
+
+    @Test void preservesClickOnNonUrlTextButUsesOpenUrlOnLinks() {
+        TextComponent line = new TextComponent();
+        var inherited = new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/test");
+        ChatPresentation.appendAutoLinks(line, "前缀 https://example.net 后缀", null, inherited);
+        var parts = line.getExtra();
+        assertEquals(ClickEvent.Action.SUGGEST_COMMAND, parts.get(0).getClickEvent().getAction());
+        assertEquals(ClickEvent.Action.OPEN_URL, parts.get(1).getClickEvent().getAction());
+        assertEquals(ClickEvent.Action.SUGGEST_COMMAND, parts.get(2).getClickEvent().getAction());
+    }
+
     @Test void preservesClickAndHoverActions() {
         TextComponent node = new TextComponent(TextComponent.fromLegacyText("§aAlice"));
         node.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/tell Alice "));

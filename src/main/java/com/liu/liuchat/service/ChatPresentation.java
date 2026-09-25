@@ -43,6 +43,7 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
     private final ThreadLocal<Map<String, String>> remoteValues = ThreadLocal.withInitial(Map::of);
     private final ThreadLocal<Map<String, String>> emojiValues = ThreadLocal.withInitial(Map::of);
     private static final Pattern PAPI_TOKEN = Pattern.compile("%[^%\\r\\n]{1,100}%");
+    private static final Pattern CHAT_URL = Pattern.compile("(?i)(https?://[^\\s<>\\\"{}|\\\\^`]+|www\\.[^\\s<>\\\"{}|\\\\^`]+)");
     private final ThreadLocal<String> displayNick = ThreadLocal.withInitial(() -> "");
     private final ThreadLocal<String> privateTarget = ThreadLocal.withInitial(() -> "");
     /** 跨服在线玩家 ID（用于「输入玩家 ID 自动补 @」），由主类注入 */
@@ -377,7 +378,7 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
                 }
             }
             if (matched == null) break;
-            append(line, text.substring(offset, index), hint, action);
+            appendAutoLinks(line, text.substring(offset, index), hint, action);
             TextComponent emoji = new TextComponent("");
             emoji.setInsertion("liuchat-image:" + java.util.Base64.getEncoder().encodeToString(
                     emojis.get(matched).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
@@ -386,7 +387,24 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
             line.addExtra(emoji);
             offset = index + matched.length();
         }
-        append(line, text.substring(offset), hint, action);
+        appendAutoLinks(line, text.substring(offset), hint, action);
+    }
+
+    static void appendAutoLinks(TextComponent line, String text, HoverEvent hint, ClickEvent inheritedClick) {
+        Matcher matcher = CHAT_URL.matcher(text);
+        int offset = 0;
+        while (matcher.find()) {
+            int end = matcher.end();
+            while (end > matcher.start() && ".,!?;:)]}".indexOf(text.charAt(end - 1)) >= 0) end--;
+            if (end == matcher.start()) continue;
+            append(line, text.substring(offset, matcher.start()), hint, inheritedClick);
+            String visibleUrl = text.substring(matcher.start(), end);
+            String target = visibleUrl.regionMatches(true, 0, "www.", 0, 4) ? "https://" + visibleUrl : visibleUrl;
+            append(line, visibleUrl, hint, new ClickEvent(ClickEvent.Action.OPEN_URL, target));
+            offset = end;
+            matcher.region(end, text.length());
+        }
+        append(line, text.substring(offset), hint, inheritedClick);
     }
 
     private String expand(String text, String[] groups, String server, String player, String world, Player sender) {
