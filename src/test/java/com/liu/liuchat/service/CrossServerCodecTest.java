@@ -26,6 +26,19 @@ class CrossServerCodecTest {
     // ---------------- 各类型往返 ----------------
 
     @Test
+    void itemAnnouncementRoundTrip() throws IOException {
+        String snapshot = "item:\n  type: DIAMOND_SWORD\n  enchants:\n    SHARPNESS: 5\n";
+        var announcement = assertInstanceOf(CrossServerCodec.Inbound.ItemAnnouncement.class,
+                CrossServerCodec.decodeInbound(proxyHop(CrossServerCodec.encodeItemAnnouncement(
+                        "lobby", "uuid-1234", "Alice", "§a强化成功 %item%!", snapshot), "ALL")));
+        assertEquals("lobby", announcement.origin());
+        assertEquals("uuid-1234", announcement.uuid());
+        assertEquals("Alice", announcement.name());
+        assertEquals("§a强化成功 %item%!", announcement.template());
+        assertEquals(snapshot, announcement.snapshot());
+    }
+
+    @Test
     void announcementRoundTrip() throws IOException {
         var component = new net.md_5.bungee.api.chat.TextComponent("强化成功");
         component.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(

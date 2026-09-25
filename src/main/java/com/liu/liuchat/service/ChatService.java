@@ -85,6 +85,27 @@ public final class ChatService {
         Bukkit.getConsoleSender().sendMessage(BaseComponent.toLegacyText(components));
     }
 
+    /** Render the item snapshot on this server so its hover contains native item components. */
+    public void broadcastItemAnnouncement(String server, String owner, String uuid, String template, String snapshot) {
+        String id = items.register(owner, uuid, snapshot);
+        if (id == null) return;
+        org.bukkit.inventory.ItemStack stack = items.item(id);
+        if (stack == null) return;
+        String name = items.name(id, 64);
+        String[] parts = template.split("%item%", -1);
+        Component line = Component.empty();
+        for (int i = 0; i < parts.length; i++) {
+            line = line.append(LegacyComponentSerializer.legacySection().deserialize(TextUtil.color(parts[i])));
+            if (i < parts.length - 1) {
+                line = line.append(LegacyComponentSerializer.legacySection().deserialize("§e[ " + name + " §e]")
+                        .hoverEvent(stack.asHoverEvent(event -> event))
+                        .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/liuc item " + id)));
+            }
+        }
+        for (Player online : Bukkit.getOnlinePlayers()) online.sendMessage(line);
+        Bukkit.getConsoleSender().sendMessage(TextUtil.color(template.replace("%item%", name)));
+    }
+
     public void broadcastRemote(String originServer, String uuid, String playerName,
                                 String message, String itemData, String placeholders, String nick) {
         AiChatSnapshot.Appearance appearance = AiChatSnapshot.decode(placeholders, playerName, uuid);

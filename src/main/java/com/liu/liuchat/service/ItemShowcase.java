@@ -87,10 +87,11 @@ public final class ItemShowcase implements Listener {
     }
 
     public String snapshot(Player player) {
-        ItemStack hand = player.getInventory().getItemInMainHand();
-        if (hand.getType() == Material.AIR) {
-            return "";
-        }
+        return snapshot(player.getInventory().getItemInMainHand());
+    }
+
+    public String snapshot(ItemStack hand) {
+        if (hand == null || hand.getType().isAir()) return "";
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.set("item", hand.clone());
         String data = yaml.saveToString();

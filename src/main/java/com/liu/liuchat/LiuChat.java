@@ -243,6 +243,20 @@ public final class LiuChat extends JavaPlugin {
         crossServer.publishAnnouncement(carrier, components);
     }
 
+    /** Broadcast a template with %item% replaced by a snapshot of the supplied item. Main thread only. */
+    public void broadcastItemAnnouncement(Player sender, String template, org.bukkit.inventory.ItemStack item) {
+        if (!isEnabled() || sender == null || !sender.isOnline() || template == null || item == null || item.getType().isAir()) {
+            throw new IllegalArgumentException("An online sender, template and item are required");
+        }
+        if (!org.bukkit.Bukkit.isPrimaryThread()) {
+            throw new IllegalStateException("Announcements must be sent on the server thread");
+        }
+        String snapshot = items.snapshot(item);
+        if (snapshot.isEmpty()) throw new IllegalArgumentException("Announcement item exceeds snapshot size limit");
+        chatService.broadcastItemAnnouncement(configManager.server(), sender.getName(), sender.getUniqueId().toString(), template, snapshot);
+        crossServer.publishItemAnnouncement(sender, template, snapshot);
+    }
+
     @Override
     public void onDisable() {
         if (items != null) items.closePreviews();
