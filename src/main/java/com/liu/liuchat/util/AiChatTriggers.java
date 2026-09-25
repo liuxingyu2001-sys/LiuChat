@@ -2,6 +2,7 @@ package com.liu.liuchat.util;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
@@ -34,6 +35,32 @@ public final class AiChatTriggers {
         Pattern pattern = Pattern.compile("(?<![A-Za-z0-9_@])@?" + Pattern.quote(aiName.trim())
                 + "(?![A-Za-z0-9_])", Pattern.CASE_INSENSITIVE);
         return pattern.matcher(message).find();
+    }
+
+    /** 配置的关键词按字面匹配（忽略英文大小写），不把关键词当正则执行。 */
+    public static boolean matchesKeyword(String message, List<String> keywords) {
+        if (message == null || keywords == null) return false;
+        String text = message.toLowerCase(Locale.ROOT);
+        for (String keyword : keywords) {
+            if (keyword != null && !keyword.isBlank()
+                    && text.contains(keyword.trim().toLowerCase(Locale.ROOT))) return true;
+        }
+        return false;
+    }
+
+    public static String composeProactiveQuestion(List<String> recent, String aiName, String prompt, int maxLength) {
+        String head = "你是服务器公屏聊天里的玩家 " + aiName + "。最近的公屏消息：\n";
+        String tail = "\n请以 " + aiName + " 的身份主动发一条简短的公屏消息，不要颜色代码、不要换行。"
+                + (prompt == null ? "" : prompt);
+        List<String> lines = new ArrayList<>(recent == null ? List.of() : recent);
+        while (true) {
+            StringBuilder out = new StringBuilder(head);
+            for (String line : lines) out.append(line).append('\n');
+            out.append(tail);
+            if (maxLength <= 0 || out.length() <= maxLength) return out.toString();
+            if (!lines.isEmpty()) lines.remove(0);
+            else return out.substring(0, maxLength);
+        }
     }
 
     /**

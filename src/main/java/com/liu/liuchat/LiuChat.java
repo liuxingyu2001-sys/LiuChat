@@ -132,6 +132,7 @@ public final class LiuChat extends JavaPlugin {
         PublicChatAiService publicChatAi = new PublicChatAiService(this, configManager, assistantService,
                 chatService, crossServer);
         chatService.setPublicChatAi(publicChatAi);
+        publicChatAi.start();
         router.register(new AskCommand(configManager, messageManager, assistantService));
         ColorDialog colorDialog = new ColorDialog(this, profiles, messageManager);
         AssistantDialog assistantDialog = new AssistantDialog(this, configManager, messageManager, assistantService);

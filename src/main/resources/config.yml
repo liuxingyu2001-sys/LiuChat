@@ -84,13 +84,18 @@ ai:
       #   skill: guide
       #   name: '游玩指南'
     default-skill: '' # 老配置兼容；未设置默认助手 skill 时使用
-  # 公屏 AI 聊天：AI 像普通玩家一样参与公共聊天。需要 ai.enable 与 ai.assistant.enable。
+  # 公屏 AI 聊天：AI 像普通玩家一样参与公共聊天。需要 ai.assistant.enable。
   # 公屏点名（@AI 或消息里提到它的名字）就回复，回答以它的玩家名走正常聊天渲染（本服 + 跨服）。
   chat:
     enable: false
     name: '小派蒙' # 公屏里 AI 的玩家名（固定虚拟 UUID，跨服一致；/lc ignore 也能屏蔽它）
     assistant: '' # 用 ai.assistant.profiles 里的哪个助手（机器读的 ID）；留空用 ai.assistant.default
-    chance: 0.0 # 没点名也插话的概率 0~1（0 = 只在被点名时回复；想让它日常搭话可设 0.05~0.2）
+    chance: 0.0 # 没点名也插话的概率 0~1（0 = 只在被点名或关键词命中时回复）
+    keywords: [] # 额外触发词，忽略英文大小写、按字面包含匹配，如 [求助, 服务器活动]；空列表关闭
+    proactive:
+      enable: false # 定时主动发公屏消息；仅本服有在线玩家时运行，多服部署只在一台服开启
+      interval-minutes: 30 # 主动发言间隔（分钟），不因玩家聊天而重置
+      prompt: '根据最近的公屏话题自然说一句话；如果没有话题，就简短打个招呼。不要重复之前说过的话。'
     cooldown-seconds: 10 # 全局回复冷却，防刷屏
     respond-remote: false # 是否响应其他子服的公屏消息；多台服都开 AI 时保持 false 避免同时抢答
     max-answer: 200 # 公屏一行回复长度上限（像玩家说话，别太长）

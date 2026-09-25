@@ -4,6 +4,7 @@ import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.util.AiChatTriggers;
 import com.liu.liuchat.util.Mentions;
 import com.liu.liuchat.util.TextUtil;
+import org.bukkit.Bukkit;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -40,6 +41,28 @@ public final class PublicChatAiService {
     /** 最近公屏消息（含 AI 自己的发言），作为聊天氛围上下文 */
     private final Deque<String> recent = new ArrayDeque<>();
     private long lastReplyAt;
+    private long lastProactiveAt;
+
+    /** 每分钟检查一次；配置在 /lc reload 后无需重建定时任务。 */
+    public void start() {
+        lastProactiveAt = System.currentTimeMillis();
+        Bukkit.getScheduler().runTaskTimer(plugin, this::proactiveTick, 1200L, 1200L);
+    }
+
+    private void proactiveTick() {
+        long now = System.currentTimeMillis();
+        if (!config.aiChatEnabled() || !config.aiChatProactiveEnabled() || config.aiChatName().isBlank()
+                || Bukkit.getOnlinePlayers().isEmpty()) {
+            lastProactiveAt = now;
+            return;
+        }
+        if (now - lastProactiveAt < config.aiChatProactiveIntervalMinutes() * 60_000L
+                || now - lastReplyAt < config.aiChatCooldownSeconds() * 1000L) return;
+        lastProactiveAt = now; // BUSY/失败也不每分钟重试
+        String question = AiChatTriggers.composeProactiveQuestion(new ArrayList<>(recent), config.aiChatName(),
+                config.aiChatProactivePrompt(), config.aiAssistantMaxQuestion());
+        askPublic(question);
+    }
 
     public PublicChatAiService(JavaPlugin plugin, ConfigManager config, AiAssistantService assistant,
                                ChatService chatService, CrossServerService crossServer) {
@@ -70,7 +93,8 @@ public final class PublicChatAiService {
         if (remote && !config.aiChatRespondRemote()) {
             return; // 跨服消息默认只进上下文：多台服都开 AI 时避免同时抢答
         }
-        if (!AiChatTriggers.triggers(visible, aiName)) {
+        if (!AiChatTriggers.triggers(visible, aiName)
+                && !AiChatTriggers.matchesKeyword(visible, config.aiChatKeywords())) {
             double chance = config.aiChatChance();
             if (chance <= 0 || ThreadLocalRandom.current().nextDouble() >= chance) return;
         }
@@ -78,6 +102,10 @@ public final class PublicChatAiService {
         if (now - lastReplyAt < config.aiChatCooldownSeconds() * 1000L) return;
         String question = AiChatTriggers.composeQuestion(context, name, visible,
                 aiName, config.aiAssistantMaxQuestion());
+        askPublic(question);
+    }
+
+    private void askPublic(String question) {
         // BUSY / UNAVAILABLE 等一律静默：AI 不该为失败刷屏。
         // 会话单独放在 "<助手>#public" 上：公屏群聊的上下文不和 /lc ask 的私有会话混在一起
         assistant.askKeyed(PENDING_KEY, config.aiChatAssistant(), config.aiChatAssistant() + "#public",

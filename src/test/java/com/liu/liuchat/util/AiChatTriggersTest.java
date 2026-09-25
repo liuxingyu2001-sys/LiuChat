@@ -39,6 +39,26 @@ class AiChatTriggersTest {
         assertTrue(AiChatTriggers.visibleText(null) == null);
     }
 
+    @Test void keywordsMatchLiteralVisibleText() {
+        assertTrue(AiChatTriggers.matchesKeyword(AiChatTriggers.visibleText("§x§f§f§0§0§0§0求§a助一下"),
+                List.of("求助")));
+        assertTrue(AiChatTriggers.matchesKeyword("SERVER 活动", List.of("server")));
+        assertTrue(AiChatTriggers.matchesKeyword("a.b", List.of("a.b")));
+        assertFalse(AiChatTriggers.matchesKeyword("acb", List.of("a.b")));
+        assertFalse(AiChatTriggers.matchesKeyword("闲聊", List.of("", " ")));
+        assertFalse(AiChatTriggers.matchesKeyword("闲聊", null));
+    }
+
+    @Test void proactiveQuestionRetainsRecentTopicWithinBudget() {
+        String question = AiChatTriggers.composeProactiveQuestion(
+                List.of("Alice: 很早的消息".repeat(20), "Bob: 今天挖到钻石了"), "小派蒙", "聊聊钻石", 120);
+        assertTrue(question.length() <= 120);
+        assertTrue(question.contains("Bob: 今天挖到钻石了"));
+        assertFalse(question.contains("很早的消息"));
+        assertTrue(question.contains("聊聊钻石"));
+        assertTrue(AiChatTriggers.composeProactiveQuestion(List.of(), "小派蒙", "打招呼", 60).length() <= 60);
+    }
+
     @Test void rejectsBlankInput() {
         assertFalse(AiChatTriggers.triggers(null, "小派蒙"));
         assertFalse(AiChatTriggers.triggers("", "小派蒙"));

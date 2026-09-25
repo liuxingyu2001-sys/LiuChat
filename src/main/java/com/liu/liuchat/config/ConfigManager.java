@@ -134,6 +134,17 @@ public final class ConfigManager {
     public double aiChatChance() {
         return Math.max(0, Math.min(1, config.getDouble("ai.chat.chance", 0)));
     }
+    public java.util.List<String> aiChatKeywords() {
+        return config.getStringList("ai.chat.keywords").stream()
+                .filter(keyword -> !keyword.isBlank() && keyword.length() <= 48).limit(50).toList();
+    }
+    public boolean aiChatProactiveEnabled() { return config.getBoolean("ai.chat.proactive.enable", false); }
+    public int aiChatProactiveIntervalMinutes() {
+        return Math.max(1, Math.min(1440, config.getInt("ai.chat.proactive.interval-minutes", 30)));
+    }
+    public String aiChatProactivePrompt() {
+        return config.getString("ai.chat.proactive.prompt", "根据最近的公屏话题自然说一句话；如果没有话题，就简短打个招呼。不要重复之前说过的话。");
+    }
     public int aiChatCooldownSeconds() { return Math.max(0, config.getInt("ai.chat.cooldown-seconds", 10)); }
     public boolean aiChatRespondRemote() { return config.getBoolean("ai.chat.respond-remote", false); }
     public int aiChatMaxAnswer() { return Math.max(20, Math.min(400, config.getInt("ai.chat.max-answer", 200))); }
