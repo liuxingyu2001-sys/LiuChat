@@ -1,15 +1,57 @@
 package com.liu.liuchat.service;
 
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import com.liu.liuchat.hook.CraftEngineEmojiHook;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class PaperChatComponentsTest {
+    @Test void craftEngineGlyphCanUseResolvedContent() {
+        Map<String, String> resolved = new LinkedHashMap<>();
+        CraftEngineEmojiHook.addMatches(resolved, "你好\uE059", ":happysun:", "\uE059", "ce-json:payload");
+        assertEquals("ce-json:payload", resolved.get("\uE059"));
+    }
+
+    @Test void craftEngineGlyphRetainsHoverDespiteMessageHint() {
+        String glyph = "\uE059";
+        String json = "{\"text\":\"" + glyph + "\",\"hoverEvent\":{\"action\":\"show_text\",\"contents\":{\"text\":\"CE 悬停\"}}}";
+        Map<String, String> resolved = new LinkedHashMap<>();
+        CraftEngineEmojiHook.addMatches(resolved, "前" + glyph + "后", ":happysun:", glyph, "ce-json:" + json);
+        TextComponent line = new TextComponent();
+        ChatPresentation.appendEmojis(line, "前" + glyph + "后", resolved,
+                new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText("点击回复")), null);
+        var result = PaperChatComponents.convert(line.getExtra().toArray(net.md_5.bungee.api.chat.BaseComponent[]::new), null);
+        var emoji = result.children().get(1);
+        assertEquals("CE 悬停", PlainTextComponentSerializer.plainText().serialize(
+                (net.kyori.adventure.text.Component) emoji.hoverEvent().value()));
+    }
+
+    @Test void malformedShortcutUrlDoesNotBreakChatDelivery() throws Exception {
+        var method = ChatPresentation.class.getDeclaredMethod("action", String.class, String.class, String.class);
+        method.setAccessible(true);
+        assertEquals(null, method.invoke(null, "", "", "https://www.mc99.tp["));
+        assertEquals("https://www.mc99.top", ((ClickEvent) method.invoke(null, "", "", "https://www.mc99.top"))
+                .getValue());
+    }
+
+    @Test void gradientUrlRemainsClickable() {
+        String colored = ProfileChatColor.apply("<gradient:#1AFFF0:#2EA4FF>",
+                "看https://www.mc99.top 接着聊", "[i]");
+        TextComponent line = new TextComponent();
+        ChatPresentation.appendAutoLinks(line, colored, null, null);
+        var links = line.getExtra().stream().filter(part -> part.getClickEvent() != null).toList();
+        assertEquals(1, links.size());
+        assertEquals("https://www.mc99.top", links.get(0).getClickEvent().getValue());
+    }
+
     @Test void autoLinksKeepPunctuationAndOpenExpectedUrl() {
         TextComponent line = new TextComponent();
         ChatPresentation.appendAutoLinks(line, "访问 https://example.com/path?q=1, 或 www.example.org! 普通文本",

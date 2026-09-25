@@ -23,15 +23,17 @@ public final class CraftEngineEmojiHook {
             Map<String, String> results = new LinkedHashMap<>();
             for (var emoji : font.emojis().values()) {
                 for (String keyword : emoji.keywords()) {
-                    if (keyword.isEmpty() || !message.contains(keyword) || results.containsKey(keyword)) continue;
+                    if (keyword.isEmpty()) continue;
                     var parsed = font.replaceComponentEmoji(
                             net.momirealms.craftengine.libraries.adventure.text.Component.text(keyword),
                             player, EmojiUseCase.CHAT);
-                    if (parsed.changed()) {
-                        String json = net.momirealms.craftengine.core.util.AdventureHelper.componentToJson(parsed.newText());
-                        String encoded = "ce-json:" + json;
-                        if (encoded.length() <= 6000) results.put(keyword, encoded);
-                    }
+                    if (!parsed.changed()) continue;
+                    String glyph = net.momirealms.craftengine.core.util.AdventureHelper.plainTextContent(parsed.newText());
+                    if (!message.contains(keyword) && (glyph.isEmpty() || !message.contains(glyph))) continue;
+                    String json = net.momirealms.craftengine.core.util.AdventureHelper.componentToJson(parsed.newText());
+                    String encoded = "ce-json:" + json;
+                    if (encoded.length() > 6000) continue;
+                    addMatches(results, message, keyword, glyph, encoded);
                     if (results.size() >= 16) return results;
                 }
             }
@@ -40,5 +42,11 @@ public final class CraftEngineEmojiHook {
             Bukkit.getLogger().warning("LiuChat: CraftEngine 表情解析失败: " + ex);
             return Map.of();
         }
+    }
+
+    public static void addMatches(Map<String, String> results, String message, String keyword, String glyph, String encoded) {
+        if (message.contains(keyword) && results.size() < 16) results.putIfAbsent(keyword, encoded);
+        if (!glyph.isEmpty() && !glyph.equals(keyword) && message.contains(glyph) && results.size() < 16)
+            results.putIfAbsent(glyph, encoded);
     }
 }

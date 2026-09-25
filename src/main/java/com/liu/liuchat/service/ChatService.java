@@ -52,16 +52,18 @@ public final class ChatService {
     public void sendOwnChat(Player player, String message) {
         var profile = profiles == null ? null : profiles.get(player);
         String nick = profile == null || profile.nick().isBlank() ? player.getName() : profile.nick();
+        String placeholders = presentation.snapshotPlaceholders(player, message);
         if (profile != null && !profile.color().isBlank())
             message = ProfileChatColor.apply(profile.color(), message, presentation.itemToken());
         BaseComponent[] line = presentation.render(config.server(), player.getName(),
                 player.getUniqueId().toString(), player.getWorld().getName(), player, message,
-                null, player, presentation.snapshotPlaceholders(player, message), nick);
+                null, player, placeholders, nick);
         player.sendMessage(PaperChatComponents.convert(line, items));
     }
     public Dispatch broadcast(Player player, String message) {
         var profile = profiles == null ? null : profiles.get(player);
         String nick = profile == null || profile.nick().isBlank() ? player.getName() : profile.nick();
+        String placeholders = presentation.snapshotPlaceholders(player, message);
         if (profile != null && !profile.color().isBlank()) {
             message = ProfileChatColor.apply(profile.color(), message, presentation.itemToken());
         }
@@ -71,7 +73,6 @@ public final class ChatService {
             player.sendMessage("§c手上没有可展示的物品，或物品数据超出跨服消息限制。");
             message = message.replace(presentation.itemToken(), "§7[物品不可展示]§r");
         }
-        String placeholders = presentation.snapshotPlaceholders(player, message);
         NameplatesChatHook.publish(player, message);
         deliver(config.server(), player.getUniqueId().toString(), player.getName(),
                 player.getWorld().getName(), player, message, itemData, placeholders, nick);

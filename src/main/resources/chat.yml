@@ -33,7 +33,7 @@ at:
   atColor: '&b'
 
 # 私聊格式独立于公共聊天。${player}/${nick} 是发送者，${target} 是接收者。
-# 两端可分别配置节点、hover、click、clickSuggest、url；跨服也会解析发送者的 PAPI 快照。
+# 私聊同样支持 [i] 物品展示（包括跨服），点击后打开只读物品预览；需 item.enable 开启。
 private:
   enable: true
   to:

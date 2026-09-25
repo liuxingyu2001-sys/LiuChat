@@ -169,13 +169,13 @@ public final class CrossServerService implements PluginMessageListener, Listener
 
     /** 跨服私聊：广播给其他子服，只有目标所在服会投递并回执 */
     public boolean publishTell(Player via, String msgId, String senderName, String targetName, String message,
-                               String placeholders, String nick) {
+                               String placeholders, String nick, String itemData) {
         if (!enabled) {
             return false;
         }
         try {
             fire(via, CrossServerCodec.encodeTell(msgId, config.server(), senderName, targetName, message,
-                    via.getUniqueId().toString(), via.getWorld().getName(), placeholders, nick));
+                    via.getUniqueId().toString(), via.getWorld().getName(), placeholders, nick, itemData));
             return true;
         } catch (Exception e) {
             warnOnce(e);

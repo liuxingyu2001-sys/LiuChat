@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 final class ProfileChatColor {
     private static final Pattern GRADIENT = Pattern.compile(
             "(?i)^<gradient:#([0-9a-f]{6}):#([0-9a-f]{6})>(.*)$", Pattern.DOTALL);
+    private static final Pattern SPECIAL = Pattern.compile(
+            "(?i)https?://[^\\s<>\\\"{}|\\\\^`]+|www\\.[^\\s<>\\\"{}|\\\\^`]+|(?<![A-Za-z0-9_@])@[A-Za-z0-9_]{1,32}(?![A-Za-z0-9_@])|:[A-Za-z0-9_+-]+:");
 
     private ProfileChatColor() { }
 
@@ -25,8 +27,9 @@ final class ProfileChatColor {
         StringBuilder colored = new StringBuilder(message.length() * 16);
         int count = 0;
         for (int i = 0; i < message.length();) {
-            if (!itemToken.isEmpty() && message.startsWith(itemToken, i)) {
-                i += itemToken.length();
+            int protectedEnd = protectedEnd(message, i, itemToken);
+            if (protectedEnd > i) {
+                i = protectedEnd;
                 continue;
             }
             if (message.charAt(i) == '§' && i + 1 < message.length()) {
@@ -38,9 +41,10 @@ final class ProfileChatColor {
         }
         int position = 0;
         for (int i = 0; i < message.length();) {
-            if (!itemToken.isEmpty() && message.startsWith(itemToken, i)) {
-                colored.append(itemToken);
-                i += itemToken.length();
+            int protectedEnd = protectedEnd(message, i, itemToken);
+            if (protectedEnd > i) {
+                colored.append("§r").append(message, i, protectedEnd);
+                i = protectedEnd;
             } else if (message.charAt(i) == '§' && i + 1 < message.length()) {
                 // Preserve style codes but let the profile gradient supply the actual color.
                 char code = Character.toLowerCase(message.charAt(i + 1));
@@ -62,6 +66,13 @@ final class ProfileChatColor {
             }
         }
         return colored.toString();
+    }
+
+    private static int protectedEnd(String message, int offset, String itemToken) {
+        if (!itemToken.isEmpty() && message.startsWith(itemToken, offset)) return offset + itemToken.length();
+        Matcher match = SPECIAL.matcher(message);
+        match.region(offset, message.length());
+        return match.lookingAt() ? match.end() : offset;
     }
 
     private static String hexCode(int color) {

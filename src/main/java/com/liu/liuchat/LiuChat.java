@@ -104,7 +104,7 @@ public final class LiuChat extends JavaPlugin {
         IgnoreService ignores = new IgnoreService(database);
         PlayerProfileService profiles = new PlayerProfileService(database);
         chatService.setPlayerProfileService(profiles);
-        tellService.setPresentation(presentation, profiles);
+        tellService.setPresentation(presentation, profiles, items);
         chatService.setIgnoreService(ignores);
         tellService.setIgnoreService(ignores);
         tellService.setConfig(configManager);

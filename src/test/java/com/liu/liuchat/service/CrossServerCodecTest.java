@@ -62,6 +62,18 @@ class CrossServerCodecTest {
         assertEquals("world", tell.world());
         assertEquals("values: snapshot", tell.placeholders());
         assertEquals("§aHero", tell.nick());
+        assertEquals("", tell.itemData());
+    }
+
+    @Test
+    void tellItemSnapshotRoundTrip() throws IOException {
+        String snapshot = "item:\n  type: DIAMOND_SWORD\n";
+        byte[] outbound = CrossServerCodec.encodeTell(
+                "msg-2", "lobby", "Alice", "Bob", "看 [i]", "uuid-alice", "world", "", "Alice", snapshot);
+        var tell = assertInstanceOf(CrossServerCodec.Inbound.TellMessage.class,
+                CrossServerCodec.decodeInbound(proxyHop(outbound, "ALL")));
+        assertEquals("看 [i]", tell.message());
+        assertEquals(snapshot, tell.itemData());
     }
 
     @Test

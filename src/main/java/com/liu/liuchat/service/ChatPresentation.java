@@ -43,7 +43,7 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
     private final ThreadLocal<Map<String, String>> remoteValues = ThreadLocal.withInitial(Map::of);
     private final ThreadLocal<Map<String, String>> emojiValues = ThreadLocal.withInitial(Map::of);
     private static final Pattern PAPI_TOKEN = Pattern.compile("%[^%\\r\\n]{1,100}%");
-    private static final Pattern CHAT_URL = Pattern.compile("(?i)(https?://[^\\s<>\\\"{}|\\\\^`]+|www\\.[^\\s<>\\\"{}|\\\\^`]+)");
+    private static final Pattern CHAT_URL = Pattern.compile("(?i)(https?://[^\\s§<>\\\"{}|\\\\^`]+|www\\.[^\\s§<>\\\"{}|\\\\^`]+)");
     private final ThreadLocal<String> displayNick = ThreadLocal.withInitial(() -> "");
     private final ThreadLocal<String> privateTarget = ThreadLocal.withInitial(() -> "");
     /** 跨服在线玩家 ID（用于「输入玩家 ID 自动补 @」），由主类注入 */
@@ -156,6 +156,9 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
     }
 
     public boolean itemEnabled() { return chat.getBoolean("item.enable", true); }
+    public String itemUnavailable(String message) {
+        return message.replace(itemToken(), "§7[物品不可展示]§r");
+    }
     public String itemToken() {
         String token = chat.getString("item.format", "[i]");
         return token == null || token.isEmpty() ? "[i]" : token;
@@ -176,10 +179,10 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
 
     public BaseComponent[] renderPrivate(boolean outgoing, String server, String playerName, String uuid,
                                          String world, String targetName, Player sender, String message,
-                                         String resolved, String nick) {
+                                         String itemId, String resolved, String nick) {
         privateTarget.set(targetName);
         try {
-            return renderInternal(server, playerName, uuid, world, sender, message, null, null,
+            return renderInternal(server, playerName, uuid, world, sender, message, itemId, null,
                     resolved, nick, "private." + (outgoing ? "to" : "from") + ".format");
         } finally {
             privateTarget.remove();
@@ -329,13 +332,24 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
 
     private void shortcuts(TextComponent line, String message, String server, String player, String world,
                            Player sender, HoverEvent hint, ClickEvent action) {
+        StringBuilder visible = new StringBuilder(message.length());
+        int[] positions = new int[message.length() + 1];
+        for (int i = 0; i < message.length();) {
+            if (message.charAt(i) == '§' && i + 1 < message.length()) {
+                i += 2;
+                continue;
+            }
+            positions[visible.length()] = i;
+            visible.append(message.charAt(i++));
+        }
         int offset = 0;
+        int rawOffset = 0;
         int count = 0;
         while (count < 20) {
             Shortcut found = null;
             Matcher match = null;
             for (Shortcut shortcut : shortcuts) {
-                Matcher candidate = shortcut.pattern.matcher(message);
+                Matcher candidate = shortcut.pattern.matcher(visible);
                 if (candidate.find(offset) && candidate.start() != candidate.end()
                         && (match == null || candidate.start() < match.start())) {
                     found = shortcut;
@@ -343,7 +357,9 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
                 }
             }
             if (found == null) break;
-            appendEmojis(line, message.substring(offset, match.start()), emojiValues.get(), hint, action);
+            int rawStart = positions[match.start()];
+            int rawEnd = positions[match.end() - 1] + 1;
+            appendEmojis(line, message.substring(rawOffset, rawStart), emojiValues.get(), hint, action);
             String[] groups = new String[10];
             groups[0] = match.group();
             Matcher filtered = found.filter == null ? null : found.filter.matcher(match.group());
@@ -357,10 +373,11 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
                     expand(found.url, groups, server, player, world, sender));
             append(line, TextUtil.color(text), hoverText.isEmpty() ? hint : hover(hoverText),
                     replacement == null ? action : replacement);
+            rawOffset = rawEnd;
             offset = match.end();
             count++;
         }
-        appendEmojis(line, message.substring(offset), emojiValues.get(), hint, action);
+        appendEmojis(line, message.substring(rawOffset), emojiValues.get(), hint, action);
     }
 
     static void appendEmojis(TextComponent line, String text, Map<String, String> emojis,
@@ -430,8 +447,14 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
         if (!click.isEmpty()) return new ClickEvent(click.startsWith("/")
                 ? ClickEvent.Action.RUN_COMMAND : ClickEvent.Action.COPY_TO_CLIPBOARD, click);
         if (!suggest.isEmpty()) return new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, suggest);
-        if (url.startsWith("https://") || url.startsWith("http://"))
-            return new ClickEvent(ClickEvent.Action.OPEN_URL, url);
+        if (url.startsWith("https://") || url.startsWith("http://")) {
+            try {
+                java.net.URI parsed = new java.net.URI(url);
+                if (parsed.getHost() != null && parsed.getRawUserInfo() == null) {
+                    return new ClickEvent(ClickEvent.Action.OPEN_URL, url);
+                }
+            } catch (java.net.URISyntaxException ignored) { }
+        }
         return null;
     }
 
