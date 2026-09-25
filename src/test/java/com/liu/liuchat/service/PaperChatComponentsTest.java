@@ -58,6 +58,19 @@ class PaperChatComponentsTest {
         assertEquals(net.kyori.adventure.key.Key.key("custom_nameplates:default"), result.children().get(0).font());
     }
 
+    @Test void craftEngineJsonKeepsImageFontAndHover() {
+        String json = "{\"text\":\"\ue059\",\"font\":\"minecraft:default\",\"hoverEvent\":{\"action\":\"show_text\",\"contents\":{\"text\":\"表情 :happysun:\"}}}";
+        TextComponent line = new TextComponent();
+        ChatPresentation.appendEmojis(line, "hi :happysun:!", java.util.Map.of(":happysun:", "ce-json:" + json),
+                null, null);
+        var result = PaperChatComponents.convert(line.getExtra().toArray(net.md_5.bungee.api.chat.BaseComponent[]::new), null);
+        assertEquals("hi \ue059!", PlainTextComponentSerializer.plainText().serialize(result));
+        var glyph = result.children().get(1);
+        assertEquals(net.kyori.adventure.key.Key.key("minecraft:default"), glyph.font());
+        assertEquals("表情 :happysun:", PlainTextComponentSerializer.plainText().serialize(
+                (net.kyori.adventure.text.Component) glyph.hoverEvent().value()));
+    }
+
     @Test void craftEngineEmojiKeepsItsOwnHoverInsideChatNode() {
         TextComponent line = new TextComponent();
         ChatPresentation.appendEmojis(line, "hi :8ball:!", java.util.Map.of(":8ball:",

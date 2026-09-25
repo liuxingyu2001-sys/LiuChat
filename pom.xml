@@ -4,7 +4,7 @@
 
   <groupId>com.liuxingyu</groupId>
   <artifactId>LiuChat</artifactId>
-  <version>0.4.9</version>
+  <version>0.5.0</version>
   <packaging>jar</packaging>
 
   <name>LiuChat</name>
@@ -88,6 +88,12 @@
     <dependency>
       <groupId>net.kyori</groupId>
       <artifactId>adventure-text-serializer-legacy</artifactId>
+      <version>${adventure.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.kyori</groupId>
+      <artifactId>adventure-text-serializer-gson</artifactId>
       <version>${adventure.version}</version>
       <scope>provided</scope>
     </dependency>

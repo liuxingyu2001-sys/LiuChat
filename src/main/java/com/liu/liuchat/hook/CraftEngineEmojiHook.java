@@ -24,8 +24,14 @@ public final class CraftEngineEmojiHook {
             for (var emoji : font.emojis().values()) {
                 for (String keyword : emoji.keywords()) {
                     if (keyword.isEmpty() || !message.contains(keyword) || results.containsKey(keyword)) continue;
-                    var parsed = font.replaceMiniMessageEmoji(keyword, player, EmojiUseCase.CHAT);
-                    if (parsed.replaced() && parsed.text().length() <= 2048) results.put(keyword, parsed.text());
+                    var parsed = font.replaceComponentEmoji(
+                            net.momirealms.craftengine.libraries.adventure.text.Component.text(keyword),
+                            player, EmojiUseCase.CHAT);
+                    if (parsed.changed()) {
+                        String json = net.momirealms.craftengine.core.util.AdventureHelper.componentToJson(parsed.newText());
+                        String encoded = "ce-json:" + json;
+                        if (encoded.length() <= 6000) results.put(keyword, encoded);
+                    }
                     if (results.size() >= 16) return results;
                 }
             }
