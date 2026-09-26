@@ -108,12 +108,14 @@ public final class ChatListener implements Listener {
             return;
         }
 
-        if (config.aiEnabled() && ChatReviewPolicy.blocked(text, config.aiReviewKeywords(),
-                config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())
+        if (config.aiEnabled() && ChatReviewPolicy.blocked(text, config.aiReviewMatchKeywords(),
+                config.aiReviewAllKeywords(), config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())
                 && !player.hasPermission("liuchat.moderation.bypass")) {
             String shown = com.liu.liuchat.util.ColorParser.playerText(text,
                     player.hasPermission("liuchat.color"));
             chatService.sendOwnChat(player, shown);
+            if (player.hasPermission("liuchat.moderation.blocked-notice"))
+                messages.send(player, "ai.blocked-sender-notice");
             notifyModerators(player, text);
             return;
         }

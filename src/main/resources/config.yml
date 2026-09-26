@@ -44,7 +44,21 @@ ai:
     interval-minutes: 60 # 定时审查最近一小时；/lc reload 生效
     timeout-seconds: 90
     prompt: '审核 Minecraft 聊天记录，识别违规发言并返回结构化 JSON。'
-    keywords: [广告, 代充, 加群, 私服, cnm] # 所有屏蔽词直接拦截，不请求 AI；支持 * 和 ?
+    # match 任意一词命中即拦截；all 每组词全部命中即拦截，任意一组成立即可
+    # 支持 * (0-8 字符)、? (1 字符)；普通字符间允许插入 0-2 字符
+    keywords:
+      match: [
+        代充, 加群, 私服, 出号, RMB交易,
+        cnm, 傻逼, sb, fuck,
+        你妈, 你爹, 操你妈, 草泥马, 草你妈,
+        泥马隔壁, 杂种, 傻屌, 傻鸟, 狗逼, 狗叫,
+        弱智, 智障, 脑残, 废物, 垃圾,
+        小丑, 人机, 滚, 闭嘴, 破防, 急了,
+        玻璃心, 小学生, 菜鸟, 有本事,
+        跑路实锤, 退游, 倒闭
+      ]
+
+      all: []
     contacts: true # 数字联系方式直接屏蔽
     block-ips: true # 有效 IPv4 与 IPv4:端口直接屏蔽，不请求 AI
     block-domains: true # 域名、域名:端口、URL 中的域名直接屏蔽

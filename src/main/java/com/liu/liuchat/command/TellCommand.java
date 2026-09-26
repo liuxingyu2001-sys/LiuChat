@@ -59,12 +59,14 @@ public final class TellCommand implements ChatCommand {
             return;
         }
         String text = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
-        if (config.aiEnabled() && ChatReviewPolicy.blocked(text, config.aiReviewKeywords(),
-                config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())
+        if (config.aiEnabled() && ChatReviewPolicy.blocked(text, config.aiReviewMatchKeywords(),
+                config.aiReviewAllKeywords(), config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())
                 && !from.hasPermission("liuchat.moderation.bypass")) {
             String shown = com.liu.liuchat.util.ColorParser.playerText(text,
                     from.hasPermission("liuchat.color"));
             messages.send(from, "tell.blocked-self", "${player}", targetName, "${message}", shown);
+            if (from.hasPermission("liuchat.moderation.blocked-notice"))
+                messages.send(from, "ai.blocked-sender-notice");
             String notice = messages.get("tell.blocked-notify", "${player}", from.getName(),
                     "${target}", targetName, "${message}", text);
             for (Player online : Bukkit.getOnlinePlayers())

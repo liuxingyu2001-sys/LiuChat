@@ -62,6 +62,9 @@ permissions:
   liuchat.moderation.notify:
     description: 接收违规聊天和私聊通知
     default: op
+  liuchat.moderation.blocked-notice:
+    description: 自己的聊天或私聊被本地规则拦截时接收提示
+    default: true
   liuchat.ask:
     description: 使用 AI 聊天助手
     default: false

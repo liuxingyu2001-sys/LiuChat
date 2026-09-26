@@ -40,6 +40,13 @@ class MessageManagerTest {
             assertTrue(defaults.getString("help.cmd").contains("${command}"),
                     String.valueOf(defaults.getString("help.cmd")));
             assertFalse(defaults.contains("help.line"));
+            assertTrue(defaults.getString("ai.blocked-sender-notice").contains("已被服务器拦截"));
+        }
+        try (var input = getClass().getResourceAsStream("/plugin.yml")) {
+            var plugin = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(java.util.Objects.requireNonNull(input),
+                            java.nio.charset.StandardCharsets.UTF_8));
+            assertTrue(plugin.getBoolean("permissions.liuchat.moderation.blocked-notice.default"));
         }
     }
 }

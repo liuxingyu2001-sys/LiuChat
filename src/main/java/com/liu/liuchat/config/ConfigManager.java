@@ -64,7 +64,16 @@ public final class ConfigManager {
     public String aiAssistantPrompt() {
         return config.getString("ai.assistant.prompt", "你是 Minecraft 服务器聊天助手。简洁回答玩家的问题。不要声称已执行游戏内操作。");
     }
-    public java.util.List<String> aiReviewKeywords() { return config.getStringList("ai.review.keywords"); }
+    public java.util.List<String> aiReviewMatchKeywords() { return config.getStringList("ai.review.keywords.match"); }
+    public java.util.List<java.util.List<String>> aiReviewAllKeywords() {
+        java.util.List<java.util.List<String>> groups = new java.util.ArrayList<>();
+        for (Object entry : config.getList("ai.review.keywords.all", java.util.List.of())) {
+            if (entry instanceof java.util.List<?> group) {
+                groups.add(group.stream().filter(String.class::isInstance).map(String.class::cast).toList());
+            }
+        }
+        return groups;
+    }
     public boolean aiReviewContacts() { return config.getBoolean("ai.review.contacts", true); }
     public boolean aiReviewBlockIps() { return config.getBoolean("ai.review.block-ips", true); }
     public boolean aiReviewBlockDomains() { return config.getBoolean("ai.review.block-domains", true); }
