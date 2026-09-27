@@ -67,6 +67,13 @@ class PublicChatAiServiceTest {
                 && ChatColor.YELLOW.equals(part.getColorRaw())));
     }
 
+    @Test void keywordReplyMentionsOnlyValidSender() {
+        assertEquals("@Steve 你好", PublicChatAiService.mentionReply("你好", "Steve"));
+        assertEquals("@Steve 你好", PublicChatAiService.mentionReply("@Steve 你好", "Steve"));
+        assertEquals("你好", PublicChatAiService.mentionReply("你好", null));
+        assertEquals("你好", PublicChatAiService.mentionReply("你好", "not a player"));
+    }
+
     @Test void nullNameOrMessageTolerated() {
         String line = PublicChatAiService.formatLine(null, null, null);
         assertFalse(line.contains("${"));

@@ -53,6 +53,16 @@ class AiSettingsTest {
         }
     }
 
+    @Test void bundledKeywordTriggerDefaultsExist() throws Exception {
+        try (var input = getClass().getResourceAsStream("/config.yml")) {
+            var defaults = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(java.util.Objects.requireNonNull(input),
+                            java.nio.charset.StandardCharsets.UTF_8));
+            assertTrue(defaults.getBoolean("ai.chat.keyword-trigger.enable"));
+            assertTrue(defaults.getBoolean("ai.chat.keyword-trigger.mention-player"));
+        }
+    }
+
     @Test void bundledAnswerMessageSplitsPrefixAndBody() throws Exception {
         try (var input = getClass().getResourceAsStream("/messages.yml")) {
             var defaults = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(

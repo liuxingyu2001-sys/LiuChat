@@ -23,6 +23,23 @@ class ItemShowcaseTest {
         assertFalse(ItemShowcase.isShulkerBox(null));
     }
 
+    @Test void detectsVanillaBundles() {
+        assertTrue(ItemShowcase.isBundle(Material.BUNDLE));
+        assertTrue(ItemShowcase.isBundle(Material.WHITE_BUNDLE));
+        assertTrue(ItemShowcase.isBundle(Material.RED_BUNDLE));
+        assertFalse(ItemShowcase.isBundle(Material.SHULKER_BOX));
+        assertFalse(ItemShowcase.isBundle(Material.DIAMOND));
+        assertFalse(ItemShowcase.isBundle(null));
+    }
+
+    @Test void bundlePreviewPageBoundaries() {
+        assertTrue(com.liu.liuchat.util.SpacePreview.pageCount(0) == 1);
+        assertTrue(com.liu.liuchat.util.SpacePreview.pageCount(45) == 1);
+        assertTrue(com.liu.liuchat.util.SpacePreview.pageCount(46) == 2);
+        assertTrue(com.liu.liuchat.util.SpacePreview.from(1, 46) == 45);
+        assertTrue(com.liu.liuchat.util.SpacePreview.to(1, 46) == 46);
+    }
+
     @Test void soulSpaceRingCheckRejectsBlankInput() {
         assertFalse(ItemShowcase.isSoulSpaceRing(null, "soulspace:ring"));
         assertFalse(ItemShowcase.isSoulSpaceRing(null, null));

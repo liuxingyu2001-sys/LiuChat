@@ -147,6 +147,12 @@ public final class ConfigManager {
         return config.getStringList("ai.chat.keywords").stream()
                 .filter(keyword -> !keyword.isBlank() && keyword.length() <= 48).limit(50).toList();
     }
+    public boolean aiChatKeywordTriggerEnabled() {
+        return config.getBoolean("ai.chat.keyword-trigger.enable", true);
+    }
+    public boolean aiChatKeywordMentionPlayer() {
+        return config.getBoolean("ai.chat.keyword-trigger.mention-player", true);
+    }
     public boolean aiChatProactiveEnabled() { return config.getBoolean("ai.chat.proactive.enable", false); }
     public int aiChatProactiveIntervalMinutes() {
         return Math.max(1, Math.min(1440, config.getInt("ai.chat.proactive.interval-minutes", 30)));

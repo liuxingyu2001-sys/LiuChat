@@ -114,10 +114,18 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
             Collection<String> extra = knownNames.get();
             if (extra != null) names.addAll(extra);
             Mentions.Marked marked = Mentions.mark(message, names, chat.getBoolean("at.keepAt", true),
-                    TextUtil.color(chat.getString("at.atColor", "&b")));
+                    mentionColor(chat.getString("at.atColor", "&b")));
             mentionCache.put(message, marked);
             return marked;
         }
+    }
+
+    /** ColorParser discards a bare formatting code; give it text to color, then remove that text. */
+    static String mentionColor(String configured) {
+        if (configured == null || configured.isBlank()) return "";
+        String sentinel = "\uE000";
+        String colored = TextUtil.color(configured + sentinel);
+        return colored.endsWith(sentinel) ? colored.substring(0, colored.length() - sentinel.length()) : "";
     }
 
     /** 给被 @ 的玩家播放提示音（at.sound，默认铁砧）。 */

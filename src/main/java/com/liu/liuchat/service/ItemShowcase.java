@@ -18,6 +18,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.inventory.meta.BundleMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.persistence.PersistentDataType;
 
@@ -56,6 +57,7 @@ public final class ItemShowcase implements Listener {
 
     private static boolean isPreview(Inventory inventory) {
         return inventory.getHolder() instanceof ShowcaseHolder
+                || inventory.getHolder() instanceof BundlePreviewHolder
                 || inventory.getHolder() instanceof SpacePreviewHolder;
     }
     public void reloadTranslations() { ceNames.reload(); }
@@ -162,6 +164,11 @@ public final class ItemShowcase implements Listener {
         return type == Material.SHULKER_BOX || type != null && type.name().endsWith("_SHULKER_BOX");
     }
 
+    /** 原版收纳袋（含染色款）。 */
+    public static boolean isBundle(Material type) {
+        return type == Material.BUNDLE || type != null && type.name().endsWith("_BUNDLE");
+    }
+
     public void open(Player viewer, String id) {
         if (closing) return;
         Entry entry = entries.get(id);
@@ -180,6 +187,10 @@ public final class ItemShowcase implements Listener {
             openShulker(viewer, entry.owner, entry.item);
             return;
         }
+        if (isBundle(entry.item.getType())) {
+            openBundle(viewer, entry, 0);
+            return;
+        }
         ShowcaseHolder holder = new ShowcaseHolder();
         Inventory inventory = Bukkit.createInventory(holder, 27, entry.owner + " 展示的物品");
         holder.inventory = inventory;
@@ -195,6 +206,35 @@ public final class ItemShowcase implements Listener {
         ItemStack[] contents = shulkerContents(item);
         for (int slot = 0; slot < 27 && slot < contents.length; slot++) {
             inventory.setItem(slot, contents[slot] == null ? null : contents[slot].clone());
+        }
+        viewer.openInventory(inventory);
+    }
+
+    /** 收纳袋内容来自展示时的物品快照；末行仅在需要翻页时放导航按钮。 */
+    private void openBundle(Player viewer, Entry entry, int page) {
+        ItemMeta meta = entry.item.getItemMeta();
+        List<ItemStack> contents = meta instanceof BundleMeta bundle ? bundle.getItems() : List.of();
+        int pageCount = SpacePreview.pageCount(contents.size());
+        int index = SpacePreview.clampPage(page, pageCount);
+        BundlePreviewHolder holder = new BundlePreviewHolder(entry, index, pageCount);
+        Inventory inventory = Bukkit.createInventory(holder, contents.size() > 27 ? 54 : 27,
+                entry.owner + " 展示的收纳袋");
+        holder.inventory = inventory;
+        int from = SpacePreview.from(index, contents.size());
+        int to = SpacePreview.to(index, contents.size());
+        for (int i = from; i < to; i++) {
+            inventory.setItem(i - from, contents.get(i).clone());
+        }
+        if (pageCount > 1) {
+            if (index > 0) inventory.setItem(SpacePreview.NAV_PREV, navArrow("§e上一页"));
+            ItemStack info = new ItemStack(Material.PAPER);
+            ItemMeta infoMeta = info.getItemMeta();
+            if (infoMeta != null) {
+                infoMeta.setDisplayName("§f第 §e" + (index + 1) + " §f/ §e" + pageCount + " §f页");
+                info.setItemMeta(infoMeta);
+            }
+            inventory.setItem(SpacePreview.NAV_INFO, info);
+            if (index < pageCount - 1) inventory.setItem(SpacePreview.NAV_NEXT, navArrow("§e下一页"));
         }
         viewer.openInventory(inventory);
     }
@@ -322,6 +362,21 @@ public final class ItemShowcase implements Listener {
         @Override public Inventory getInventory() { return inventory; }
     }
 
+    private static final class BundlePreviewHolder implements InventoryHolder {
+        final Entry entry;
+        final int page;
+        final int pageCount;
+        private Inventory inventory;
+
+        BundlePreviewHolder(Entry entry, int page, int pageCount) {
+            this.entry = entry;
+            this.page = page;
+            this.pageCount = pageCount;
+        }
+
+        @Override public Inventory getInventory() { return inventory; }
+    }
+
     private static final class SpacePreviewHolder implements InventoryHolder {
         final Entry entry;
         final int page;
@@ -344,6 +399,16 @@ public final class ItemShowcase implements Listener {
         Inventory top = event.getView().getTopInventory();
         if (top.getHolder() instanceof ShowcaseHolder) {
             event.setCancelled(true);
+            return;
+        }
+        if (top.getHolder() instanceof BundlePreviewHolder holder) {
+            event.setCancelled(true);
+            if (event.getClickedInventory() != top || !(event.getWhoClicked() instanceof Player viewer)) return;
+            if (event.getRawSlot() == SpacePreview.NAV_PREV && holder.page > 0) {
+                openBundle(viewer, holder.entry, holder.page - 1);
+            } else if (event.getRawSlot() == SpacePreview.NAV_NEXT && holder.page < holder.pageCount - 1) {
+                openBundle(viewer, holder.entry, holder.page + 1);
+            }
             return;
         }
         if (top.getHolder() instanceof SpacePreviewHolder holder) {

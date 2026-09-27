@@ -106,6 +106,9 @@ ai:
     assistant: '' # 用 ai.assistant.profiles 里的哪个助手（机器读的 ID）；留空用 ai.assistant.default
     chance: 0.0 # 没点名也插话的概率 0~1（0 = 只在被点名或关键词命中时回复）
     keywords: [] # 额外触发词，忽略英文大小写、按字面包含匹配，如 [求助, 服务器活动]；空列表关闭
+    keyword-trigger:
+      enable: true # 只控制关键词触发；关闭后仍可通过点名 AI、随机插话和主动发言触发
+      mention-player: true # 关键词触发的回复先 @ 发言玩家；关闭后仅发送回答
     proactive:
       enable: false # 定时主动发公屏消息；仅本服有在线玩家时运行，多服部署只在一台服开启
       interval-minutes: 30 # 主动发言间隔（分钟），不因玩家聊天而重置

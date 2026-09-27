@@ -93,8 +93,9 @@ public final class PublicChatAiService {
         if (remote && !config.aiChatRespondRemote()) {
             return; // 跨服消息默认只进上下文：多台服都开 AI 时避免同时抢答
         }
-        if (!AiChatTriggers.triggers(visible, aiName)
-                && !AiChatTriggers.matchesKeyword(visible, config.aiChatKeywords())) {
+        boolean keyword = config.aiChatKeywordTriggerEnabled()
+                && AiChatTriggers.matchesKeyword(visible, config.aiChatKeywords());
+        if (!AiChatTriggers.triggers(visible, aiName) && !keyword) {
             double chance = config.aiChatChance();
             if (chance <= 0 || ThreadLocalRandom.current().nextDouble() >= chance) return;
         }
@@ -102,25 +103,34 @@ public final class PublicChatAiService {
         if (now - lastReplyAt < config.aiChatCooldownSeconds() * 1000L) return;
         String question = AiChatTriggers.composeQuestion(context, name, visible,
                 aiName, config.aiAssistantMaxQuestion());
-        askPublic(question);
+        askPublic(question, keyword && config.aiChatKeywordMentionPlayer() ? name : null);
     }
 
     private void askPublic(String question) {
+        askPublic(question, null);
+    }
+
+    private void askPublic(String question, String recipient) {
         // BUSY / UNAVAILABLE 等一律静默：AI 不该为失败刷屏。
         // 会话单独放在 "<助手>#public" 上：公屏群聊的上下文不和 /lc ask 的私有会话混在一起
         assistant.askKeyed(PENDING_KEY, config.aiChatAssistant(), config.aiChatAssistant() + "#public",
-                question, this::onAnswer);
+                question, result -> onAnswer(result, recipient));
     }
 
-    private void onAnswer(AiAssistantService.Result result) {
+    private void onAnswer(AiAssistantService.Result result, String recipient) {
         if (result.status() != AiAssistantService.Status.OK) return;
-        sendReply(result.answer());
+        sendReply(result.answer(), recipient);
     }
 
     /** AI 回复进公屏：与玩家发言同一条管线（本地渲染 + 跨服广播）。 */
     public void sendReply(String raw) {
+        sendReply(raw, null);
+    }
+
+    private void sendReply(String raw, String recipient) {
         String reply = clean(raw);
         if (reply.isEmpty() || !plugin.isEnabled()) return;
+        reply = mentionReply(reply, recipient);
         String aiName = config.aiChatName();
         String uuid = aiUuid().toString();
         remember(aiName, reply);
@@ -132,6 +142,12 @@ public final class PublicChatAiService {
                 formatLine(format, aiName, reply), reply);
         crossServer.publishChatAs(config.server(), uuid, aiName, reply, "",
                 AiChatSnapshot.encode(format, headUuid), aiName);
+    }
+
+    /** 只在关键词回复时加提及；不插入色码，确保跨服显示与聊天日志一致。 */
+    static String mentionReply(String reply, String recipient) {
+        if (recipient == null || !recipient.matches("[A-Za-z0-9_]{1,16}")) return reply;
+        return reply.startsWith("@" + recipient + " ") ? reply : "@" + recipient + " " + reply;
     }
 
     /** ${head} 头像解析用的 UUID：配置 head-uuid（真实皮肤）优先，否则用 AI 虚拟 UUID。 */

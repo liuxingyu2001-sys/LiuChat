@@ -8,12 +8,28 @@ import net.md_5.bungee.api.chat.TextComponent;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class PaperChatComponentsTest {
+    @Test void mentionColorSurvivesChatComponentRendering() {
+        assertEquals("§b", ChatPresentation.mentionColor("&b"));
+        assertEquals("§x§f§f§0§0§a§a", ChatPresentation.mentionColor("&#FF00AA"));
+        assertEquals("", ChatPresentation.mentionColor(""));
+        String marked = com.liu.liuchat.util.Mentions.mark("hi @Steve!", List.of("Steve"), true,
+                ChatPresentation.mentionColor("&b")).text();
+        TextComponent line = new TextComponent();
+        ChatPresentation.appendAutoLinks(line, marked, null, null);
+        var component = PaperChatComponents.convert(
+                line.getExtra().toArray(net.md_5.bungee.api.chat.BaseComponent[]::new), null);
+        assertEquals("hi @Steve!", PlainTextComponentSerializer.plainText().serialize(component));
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.AQUA,
+                component.children().get(0).children().get(1).color());
+    }
+
     @Test void craftEngineGlyphCanUseResolvedContent() {
         Map<String, String> resolved = new LinkedHashMap<>();
         CraftEngineEmojiHook.addMatches(resolved, "你好\uE059", ":happysun:", "\uE059", "ce-json:payload");
