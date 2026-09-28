@@ -2,7 +2,7 @@
 
 [![Maven CI](https://github.com/liuxingyu2001/LiuChat/actions/workflows/maven.yml/badge.svg)](https://github.com/liuxingyu2001/LiuChat/actions/workflows/maven.yml)
 
-Paper / Leaf 1.21.11 聊天插件（Java 21，零第三方框架依赖）。
+Paper / Leaf 1.21+ 聊天插件（Java 21，零第三方框架依赖）。当前使用 Paper 1.21.11 API 编译；1.21 早期小版本尚未验证，部分功能可能需要较新版本。
 
 - **平台**：完整物品悬浮及 Dialogs 使用 Paper API
 - **存储**：SQLite（单服）/ MySQL（跨服共享），驱动经 plugin.yml `libraries` 由 Paper 自动下载
