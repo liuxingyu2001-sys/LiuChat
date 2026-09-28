@@ -20,6 +20,11 @@
   </properties>
 
   <repositories>
+    <!-- 本地 file 仓库：SoulSpace-api 不发布到任何公共仓库，jar 随仓库一起提交在 libs/repo（CI 才能解析） -->
+    <repository>
+      <id>liuchat-local</id>
+      <url>file://${project.basedir}/libs/repo</url>
+    </repository>
     <repository>
       <id>papermc</id>
       <url>https://repo.papermc.io/repository/maven-public/</url>

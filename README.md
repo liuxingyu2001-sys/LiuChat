@@ -120,7 +120,7 @@ storage:
 
 ```bash
 mvn clean package
-# 产物: target/Liu-LiuChat-0.3.0.jar  （含单元测试）
+# 产物: target/Liu-LiuChat-<项目版本>.jar（含单元测试）
 ```
 
 ## 开源协议
