@@ -3,7 +3,7 @@
 ## Project
 - LiuChat is a Paper/Leaf 1.21.11 chat plugin built with Java 21 and Maven. Entry point: `src/main/java/com/liu/liuchat/LiuChat.java`.
 - `src/main/java/com/liu/liuchat/` is organized by responsibility: `command` (command routing and handlers), `listener` (chat/events), `service` (chat, AI, cross-server messaging, moderation), `storage` (SQLite/MySQL), `config`, `hook` (optional plugins), and `util`.
-- Defaults and plugin metadata live in `src/main/resources/`; unit tests mirror the Java package layout under `src/test/java/`. Consult `README.md` for configuration and behavior details, but check source when documentation and code disagree.
+- Defaults and plugin metadata live in `src/main/resources/`; unit tests mirror the Java package layout under `src/test/java/`. Consult `README.md` and the detailed guides under `docs/` for configuration and behavior details, but check source when documentation and code disagree.
 
 ## Build And Verification
 - Run `mvn test` for unit tests; run `mvn clean package` for the full build, or `mvn -B clean verify` to match CI. The versioned jar is written to `target/Liu-LiuChat-<version>.jar`.
