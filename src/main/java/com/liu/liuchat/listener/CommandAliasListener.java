@@ -13,7 +13,8 @@ import java.util.Map;
 public final class CommandAliasListener implements Listener {
     private static final Map<String, String> ROUTES = Map.of(
             "msg", "msg", "tell", "tell", "w", "msg", "whisper", "msg",
-            "horn", "horn", "lb", "horn");
+            "reply", "reply", "r", "reply", "horn", "horn", "lb", "horn",
+            "ignore", "ignore", "ignorelist", "ignorelist");
     private final ConfigManager config;
 
     public CommandAliasListener(ConfigManager config) { this.config = config; }

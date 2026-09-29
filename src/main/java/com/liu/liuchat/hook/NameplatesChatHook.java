@@ -15,7 +15,7 @@ public final class NameplatesChatHook {
             if (plugin == null) return;
             var player = plugin.getPlayer(sender.getUniqueId());
             if (player != null && plugin.getChatManager() != null)
-                plugin.getChatManager().onChat(player, message, "Global");
+                plugin.getChatManager().onChat(player, CraftEngineEmojiHook.resolveBubble(sender, message), "Global");
         } catch (LinkageError | RuntimeException ex) {
             Bukkit.getLogger().warning("LiuChat: CustomNameplates 气泡推送失败: " + ex);
         }

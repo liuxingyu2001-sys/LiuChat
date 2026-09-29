@@ -405,6 +405,7 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
             if (matched == null) break;
             appendAutoLinks(line, text.substring(offset, index), hint, action);
             TextComponent emoji = new TextComponent("");
+            emoji.setColor(net.md_5.bungee.api.ChatColor.WHITE);
             emoji.setInsertion("liuchat-image:" + java.util.Base64.getEncoder().encodeToString(
                     emojis.get(matched).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             // CE content supplies its own hover; the message node must not mask it.

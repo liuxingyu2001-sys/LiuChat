@@ -52,13 +52,14 @@ public final class TellCommand implements ChatCommand {
             messages.send(sender, "tell.usage");
             return;
         }
-        Player from = (Player) sender;
-        String targetName = args[0];
+        sendTo((Player) sender, args[0], String.join(" ", Arrays.copyOfRange(args, 1, args.length)));
+    }
+
+    public void sendTo(Player from, String targetName, String text) {
         if (from.getName().equalsIgnoreCase(targetName)) {
             messages.send(from, "tell.self");
             return;
         }
-        String text = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
         if (config.aiEnabled() && ChatReviewPolicy.blocked(text, config.aiReviewMatchKeywords(),
                 config.aiReviewAllKeywords(), config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())
                 && !from.hasPermission("liuchat.moderation.bypass")) {

@@ -45,6 +45,16 @@ commands:
   tell:
     description: 私聊其他玩家
     usage: /tell <玩家> <消息>
+  reply:
+    description: 回复最近的私聊对象
+    aliases: [r]
+    usage: /reply <消息>
+  ignore:
+    description: 屏蔽玩家的聊天与私聊
+    usage: /ignore <玩家>
+  ignorelist:
+    description: 查看已屏蔽玩家
+    usage: /ignorelist
   chatcolor:
     description: 设置聊天颜色
     usage: /chatcolor <颜色或MiniMessage>
@@ -96,7 +106,7 @@ permissions:
     description: 重载配置
     default: op
   liuchat.tell:
-    description: 私聊
+    description: 私聊和回复私聊
     default: true
   liuchat.color:
     description: 聊天中使用 & 颜色代码

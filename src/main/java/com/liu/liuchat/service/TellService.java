@@ -43,6 +43,7 @@ public final class TellService {
     }
     public void setChatLogService(ChatLogService logs) { this.logs = logs; }
     public void setConfig(com.liu.liuchat.config.ConfigManager config) { this.config = config; }
+    private final RecentTellContacts recentContacts = new RecentTellContacts();
     /** key = msgId；只存发送者标识与目标名，回执到达即移除 */
     private final Map<String, Pending> pending = new ConcurrentHashMap<>();
 
@@ -73,6 +74,7 @@ public final class TellService {
                 from.getWorld().getName(), target.getName(), from, message, itemId, resolved, nickname(from));
         privateMessage(target, false, config.server(), from.getName(), from.getUniqueId().toString(),
                 from.getWorld().getName(), target.getName(), from, message, itemId, resolved, nickname(from));
+        recentContacts.delivered(from.getUniqueId(), from.getName(), target.getUniqueId(), target.getName());
         if (logs != null) {
             logs.local("TELL", from.getName(), target.getName(), message);
             if (config != null) logs.recordPrivate(from.getUniqueId().toString(), from.getName(), target.getName(), message);
@@ -136,6 +138,7 @@ public final class TellService {
                 ? presentation.itemUnavailable(tell.message()) : tell.message();
         privateMessage(target, false, tell.originServer(), tell.senderName(), tell.uuid(), tell.world(),
                 target.getName(), null, message, itemId, tell.placeholders(), tell.nick());
+        recentContacts.received(target.getUniqueId(), tell.senderName());
         if (logs != null) logs.record("TELL", tell.originServer(), tell.senderName(), target.getName(), tell.message());
         crossServer.publishTellAck(target, tell.msgId(), tell.originServer());
     }
@@ -176,8 +179,16 @@ public final class TellService {
         recipient.sendMessage(PaperChatComponents.convert(parts, items));
     }
 
-    /** 收到回执：移除待确认记录，超时任务自然跳过 */
+    /** 最近一次成功收发私聊的对象，没有时返回 null。 */
+    public String recentContact(UUID playerId) {
+        return recentContacts.get(playerId);
+    }
+
+    /** 收到回执：仅成功送达的跨服消息更新发送者的最近联系人。 */
     public void onAck(String msgId) {
-        pending.remove(msgId);
+        Pending delivered = pending.remove(msgId);
+        if (delivered != null) {
+            recentContacts.confirmed(UUID.fromString(delivered.senderUuid()), delivered.targetName());
+        }
     }
 }

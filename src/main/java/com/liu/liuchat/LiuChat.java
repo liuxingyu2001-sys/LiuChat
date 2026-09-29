@@ -13,6 +13,7 @@ import com.liu.liuchat.command.IgnoreCommand;
 import com.liu.liuchat.command.MuteCommand;
 import com.liu.liuchat.command.ProfileCommand;
 import com.liu.liuchat.command.ReloadCommand;
+import com.liu.liuchat.command.ReplyCommand;
 import com.liu.liuchat.command.TellCommand;
 import com.liu.liuchat.command.UnmuteCommand;
 import com.liu.liuchat.config.ConfigManager;
@@ -156,16 +157,20 @@ public final class LiuChat extends JavaPlugin {
         router.register(unmute);
         ChatCommand horn = new HornCommand(messageManager, chatService, crossServer, muteService, database);
         router.register(horn);
-        router.register(new IgnoreCommand("ignore", messageManager, ignores));
+        ChatCommand ignore = new IgnoreCommand("ignore", messageManager, ignores);
+        router.register(ignore);
         router.register(new IgnoreCommand("unignore", messageManager, ignores));
-        router.register(new IgnoreCommand("ignorelist", messageManager, ignores));
+        ChatCommand ignoreList = new IgnoreCommand("ignorelist", messageManager, ignores);
+        router.register(ignoreList);
         ChatCommand nick = new ProfileCommand("nick", profiles, messageManager);
         ChatCommand chatColor = new ProfileCommand("chatcolor", profiles, messageManager);
         router.register(nick);
         router.register(chatColor);
         router.register(dialog);
-        ChatCommand tell = new TellCommand(messageManager, tellService, configManager, crossServer);
+        TellCommand tell = new TellCommand(messageManager, tellService, configManager, crossServer);
         router.register(tell);
+        ChatCommand reply = new ReplyCommand(messageManager, tellService, tell);
+        router.register(reply);
 
         PluginCommand mainCommand = requireCommand("liuchat");
         if (mainCommand == null) {
@@ -175,6 +180,9 @@ public final class LiuChat extends JavaPlugin {
         mainCommand.setTabCompleter(router);
         if (!bindDirect("msg", tell, router)) return;
         if (!bindDirect("tell", tell, router)) return;
+        if (!bindDirect("reply", reply, router)) return;
+        if (!bindDirect("ignore", ignore, router)) return;
+        if (!bindDirect("ignorelist", ignoreList, router)) return;
         if (!bindDirect("horn", horn, router)) return;
         if (!bindDirect("nick", nick, router)) return;
         if (!bindDirect("chatcolor", chatColor, router)) return;
