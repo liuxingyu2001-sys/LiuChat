@@ -1,0 +1,24 @@
+# 共用此文件的子服各自投递一次，不经代理转发，避免重复消息。
+enable: false
+timezone: 'Asia/Shanghai'
+reminders:
+  tips:
+    enable: true
+    interval-seconds: 600
+    # 空列表 = 所有子服；填写各子服本地 config.yml 的 server 标识。
+    servers: []
+    days: [] # 空列表 = 每天；1=周一，2=周二，3=周三，4=周四，5=周五，6=周六，7=周日
+    permission: '' # 留空 = 所有玩家
+    console: true # 是否在控制台也输出提醒；false 只发给玩家，不影响定时或跨服行为
+    messages:
+      - '&6[提醒] &f请文明聊天，祝你游戏愉快！'
+  evening:
+    enable: false
+    # 与 interval-seconds 二选一。每天按指定时区执行，支持 HH:mm 或 HH:mm:ss。
+    times: ['20:00', '22:30:00']
+    servers: []
+    days: []
+    permission: '' # 留空 = 所有玩家
+    console: true # 是否在控制台也输出提醒；false 只发给玩家，不影响定时或跨服行为
+    messages:
+      - '&6[提醒] &f记得适当休息！'

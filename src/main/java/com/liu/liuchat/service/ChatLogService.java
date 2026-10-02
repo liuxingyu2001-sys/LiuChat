@@ -49,7 +49,7 @@ public final class ChatLogService implements AutoCloseable {
                 .replace("${type}", clean(type)).replace("${server}", clean(server))
                 .replace("${player}", clean(player)).replace("${target}", clean(target))
                 .replace("${message}", clean(message));
-        Path path = plugin.getDataFolder().toPath().resolve("logs")
+        Path path = recordRoot(plugin.getDataFolder().toPath(), config.sharedChatLogPath(), config.server()).resolve("logs")
                 .resolve(time.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE) + ".log");
         writer.execute(() -> {
             try {
@@ -60,6 +60,13 @@ public final class ChatLogService implements AutoCloseable {
                 plugin.getLogger().log(Level.WARNING, "聊天记录写入失败", e);
             }
         });
+    }
+
+    static Path recordRoot(Path local, String shared, String server) {
+        if (shared == null || shared.isBlank()) return local;
+        String id = java.util.HexFormat.of().formatHex(server.getBytes(StandardCharsets.UTF_8));
+        // Encoding is collision-free and cannot escape the shared root, including for non-ASCII IDs.
+        return Path.of(shared).toAbsolutePath().normalize().resolve("servers").resolve("server-" + id);
     }
 
     /** 去掉换行与颜色码，日志只保留可读纯文本（不含玩家字面输入的 & 符号）。 */
@@ -77,7 +84,7 @@ public final class ChatLogService implements AutoCloseable {
         json.addProperty("time", time.toString());
         String clean = message.replace('\r', ' ').replace('\n', ' ');
         json.addProperty("message", clean.substring(0, Math.min(300, clean.length())));
-        Path path = plugin.getDataFolder().toPath().resolve("audit-history")
+        Path path = recordRoot(plugin.getDataFolder().toPath(), config.sharedChatLogPath(), config.server()).resolve("audit-history")
                 .resolve(LocalDate.ofInstant(time, ZoneId.systemDefault()) + ".jsonl");
         writer.execute(() -> {
             try {
@@ -96,9 +103,11 @@ public final class ChatLogService implements AutoCloseable {
     }
     public java.util.concurrent.CompletableFuture<HourlyChatHistory.Snapshot> recentMinutes(int minutes, Instant now) {
         var result = new java.util.concurrent.CompletableFuture<HourlyChatHistory.Snapshot>();
+        Path directory = recordRoot(plugin.getDataFolder().toPath(), config.sharedChatLogPath(), config.server())
+                .resolve("audit-history");
         writer.execute(() -> {
             try {
-                result.complete(readHistory(plugin.getDataFolder().toPath().resolve("audit-history"), minutes, now));
+                result.complete(readHistory(directory, minutes, now));
             } catch (Exception e) { result.completeExceptionally(e); }
         });
         return result;

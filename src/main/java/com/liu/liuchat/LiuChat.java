@@ -69,13 +69,31 @@ public final class LiuChat extends JavaPlugin {
     private com.liu.liuchat.config.SharedConfig sharedConfig;
     private ReloadCommand reloadCommand;
 
+    private com.liu.liuchat.service.ReminderService reminders;
+    private java.nio.file.Path skillsRoot;
+
+    public java.nio.file.Path getSkillsRoot() {
+        return skillsRoot == null ? getConfigRoot().toPath().resolve("skills") : skillsRoot;
+    }
+
     public java.io.File getConfigRoot() {
         return configRoot == null ? getDataFolder() : configRoot;
     }
 
     public void reloadChatConfiguration() {
         sharedConfig.validate();
+        var reminderConfig = new org.bukkit.configuration.file.YamlConfiguration();
+        try {
+            java.io.File file = new java.io.File(configRoot, "reminders.yml");
+            if (file.exists()) {
+                reminderConfig.load(file);
+                com.liu.liuchat.service.ReminderPlan.parse(reminderConfig);
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Invalid reminders.yml", e);
+        }
         reloadCommand.reload();
+        reminders.reload();
         sharedConfig.watch(configManager.autoReloadConfig(), this::reloadChatConfiguration);
     }
 
@@ -92,6 +110,9 @@ public final class LiuChat extends JavaPlugin {
         configRoot = com.liu.liuchat.config.SharedConfig.resolveRoot(getDataFolder().toPath(),
                 bootstrap.getString("settings.shared-config-path", ""),
                 java.nio.file.Path.of("/mc/shared/liuchat-config"), getLogger()).toFile();
+        String skillsPath = bootstrap.getString("settings.shared-skills-path", "");
+        skillsRoot = skillsPath == null || skillsPath.isBlank() ? configRoot.toPath().resolve("skills")
+                : java.nio.file.Path.of(skillsPath).toAbsolutePath().normalize();
         sharedConfig = new com.liu.liuchat.config.SharedConfig(this, configRoot.toPath());
         getLogger().info("配置目录: " + configRoot.getAbsolutePath());
         configManager = new ConfigManager(this);
@@ -138,7 +159,7 @@ public final class LiuChat extends JavaPlugin {
         HourlyChatAudit audit = new HourlyChatAudit(this, configManager, messageManager, chatLogs, aiClient);
         audit.start();
         router.register(new AuditCommand(configManager, messageManager, audit));
-        AiSkillService skills = new AiSkillService(configRoot.toPath().resolve("skills"));
+        AiSkillService skills = new AiSkillService(getSkillsRoot());
         try {
             skills.reload();
         } catch (java.io.IOException e) {
@@ -229,6 +250,8 @@ public final class LiuChat extends JavaPlugin {
 
         // 7. PlaceholderAPI 挂钩（没装则自动跳过）
         PapiHook.init(this, configManager, muteService, profiles);
+        reminders = new com.liu.liuchat.service.ReminderService(this, configManager);
+        reminders.start();
         sharedConfig.watch(configManager.autoReloadConfig(), this::reloadChatConfiguration);
 
         getLogger().info("LiuChat 已启用（存储: " + configManager.storageType()
@@ -288,6 +311,7 @@ public final class LiuChat extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (reminders != null) reminders.close();
         if (sharedConfig != null) sharedConfig.close();
         if (items != null) items.closePreviews();
         if (crossServer != null) {

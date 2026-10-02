@@ -6,6 +6,8 @@
 settings:
   # 从本地 config.yml 读取；变更需重启。留空自动检测 /mc/shared/liuchat-config，目录不存在则使用本地。
   shared-config-path: ''
+  # 单独共享 AI skills；留空使用实际配置目录下的 skills/。从本地读取，变更需重启。
+  shared-skills-path: ''
   # 每 10 秒检测配置变化；默认关闭，可通过 /lc reload 更新开关。
   auto-reload-config: false
 
@@ -135,6 +137,8 @@ ai:
 # 每日聊天记录：plugins/LiuChat/logs/YYYY-MM-DD.log
 chat-log:
   enable: true
+  # 可选共享记录目录；留空保留本地。按子服标识隔离 logs/ 和 audit-history/，不共享数据库或会话。
+  shared-path: ''
   format: '[${time}] [${type}] [${server}] ${player} -> ${target}: ${message}'
 
   # 全服喇叭：/liuc horn <内容>，需要 liuchat.horn 权限和喇叭余额。

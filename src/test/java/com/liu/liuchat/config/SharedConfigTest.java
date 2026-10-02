@@ -58,6 +58,18 @@ class SharedConfigTest {
         assertEquals(before, SharedConfig.snapshot(temp));
     }
 
+    @Test void watchesIndependentSkillsDirectory() throws Exception {
+        Path root = temp.resolve("config");
+        Path skills = temp.resolve("external-skills");
+        Files.createDirectories(root);
+        var before = SharedConfig.snapshot(root, skills);
+        Files.createDirectories(skills.resolve("bot"));
+        Files.writeString(skills.resolve("bot/SKILL.md"), "Instructions");
+        assertNotEquals(before, SharedConfig.snapshot(root, skills));
+        Files.writeString(root.resolve("reminders.yml"), "enable: false");
+        assertTrue(SharedConfig.snapshot(root, skills).containsKey("reminders.yml"));
+    }
+
     @Test void automaticReloadDefaultsToDisabled() throws Exception {
         try (var input = getClass().getResourceAsStream("/config.yml")) {
             var config = new YamlConfiguration();

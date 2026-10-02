@@ -175,6 +175,8 @@ public final class ConfigManager {
     /** ${head} 头像用的皮肤 UUID；留空 = AI 虚拟 UUID（默认皮肤） */
     public String aiChatHeadUuid() { return config.getString("ai.chat.head-uuid", "").trim(); }
 
+    public String sharedChatLogPath() { return config.getString("chat-log.shared-path", "").trim(); }
+
     public boolean logEnabled() { return config.getBoolean("chat-log.enable", true); }
 
     public String logFormat() {

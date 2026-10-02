@@ -23,7 +23,7 @@ public final class SharedConfig implements AutoCloseable {
     private final Logger logger;
     private volatile Map<String, FileStamp> baseline = Map.of();
     static final List<String> CONFIG_FILES = List.of("config.yml", "messages.yml", "chat.yml",
-            "shortcut.yml", "dialogs.yml", "npc-assistants.yml");
+            "shortcut.yml", "dialogs.yml", "npc-assistants.yml", "reminders.yml");
     private volatile BukkitTask task;
     private volatile boolean closed;
     private final AtomicBoolean reloading = new AtomicBoolean();
@@ -89,8 +89,8 @@ public final class SharedConfig implements AutoCloseable {
             if (closed) return;
             Map<String, FileStamp> current;
             try {
-                current = snapshot(root);
-            } catch (IOException e) {
+                current = snapshot();
+            } catch (IllegalStateException e) {
                 logger.warning("扫描配置目录失败: " + e.getMessage());
                 return;
             }
@@ -116,24 +116,31 @@ public final class SharedConfig implements AutoCloseable {
 
     private Map<String, FileStamp> snapshot() {
         try {
-            return snapshot(root);
+            return snapshot(root, plugin instanceof com.liu.liuchat.LiuChat chat
+                    ? chat.getSkillsRoot() : root.resolve("skills"));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot scan configuration: " + root, e);
         }
     }
 
     static Map<String, FileStamp> snapshot(Path root) throws IOException {
+        return snapshot(root, root.resolve("skills"));
+    }
+
+    static Map<String, FileStamp> snapshot(Path root, Path skills) throws IOException {
         Map<String, FileStamp> result = new HashMap<>();
         for (String name : CONFIG_FILES) {
             Path file = root.resolve(name);
             if (Files.isRegularFile(file)) record(result, root, file);
         }
-        Path skills = root.resolve("skills");
         if (Files.isDirectory(skills)) {
             try (Stream<Path> paths = Files.walk(skills, 6)) {
                 for (Path path : paths.filter(Files::isRegularFile).toList()) {
                     String name = path.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
-                    if (name.endsWith(".md") || name.endsWith(".txt")) record(result, root, path);
+                    if (name.endsWith(".md") || name.endsWith(".txt")) {
+                        result.put("skills/" + skills.relativize(path),
+                                new FileStamp(Files.getLastModifiedTime(path).toMillis(), Files.size(path)));
+                    }
                 }
             }
         }
