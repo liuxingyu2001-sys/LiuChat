@@ -42,6 +42,7 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
     private List<Shortcut> shortcuts = List.of();
     private final ThreadLocal<Map<String, String>> remoteValues = ThreadLocal.withInitial(Map::of);
     private final ThreadLocal<Map<String, String>> emojiValues = ThreadLocal.withInitial(Map::of);
+    private final ThreadLocal<YamlConfiguration> remoteFormat = new ThreadLocal<>();
     private static final Pattern PAPI_TOKEN = Pattern.compile("%[^%\\r\\n]{1,100}%");
     private static final Pattern CHAT_URL = Pattern.compile("(?i)(https?://[^\\s§<>\\\"{}|\\\\^`]+|www\\.[^\\s§<>\\\"{}|\\\\^`]+)");
     private final ThreadLocal<String> displayNick = ThreadLocal.withInitial(() -> "");
@@ -159,6 +160,9 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
                     entry.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8));
             yaml.set("emojis." + key, entry.getValue());
         }
+        yaml.set("source-format.enabled", chat.getBoolean("chat.default.enable", true));
+        yaml.set("source-format.legacy", config.format());
+        yaml.set("source-format.nodes", chat.get("chat.default.format"));
         String serialized = yaml.saveToString();
         return serialized.length() <= 8000 ? serialized : "";
     }
@@ -235,18 +239,32 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
         }
         remoteValues.set(values);
         emojiValues.set(emojis);
+        ConfigurationSection sourceFormat = null;
+        if (sender == null && resolved != null && !resolved.isEmpty() && resolved.length() <= 8000) {
+            try {
+                YamlConfiguration yaml = new YamlConfiguration();
+                yaml.loadFromString(resolved);
+                if (yaml.isConfigurationSection("source-format")) {
+                    remoteFormat.set(yaml);
+                    sourceFormat = yaml.getConfigurationSection("source-format");
+                }
+            } catch (Exception ignored) { }
+        }
         displayNick.set(nick);
         try {
-            return renderLine(server, playerName, uuid, world, sender, message, itemId, viewer, formatPath);
+            return renderLine(server, playerName, uuid, world, sender, message, itemId, viewer, formatPath,
+                    sourceFormat);
         } finally {
             remoteValues.remove();
             emojiValues.remove();
+            remoteFormat.remove();
             displayNick.remove();
         }
     }
 
     private BaseComponent[] renderLine(String server, String playerName, String uuid, String world,
-                                  Player sender, String message, String itemId, Player viewer, String formatPath) {
+                                  Player sender, String message, String itemId, Player viewer, String formatPath,
+                                  ConfigurationSection sourceFormat) {
         Mentions.Marked marked = markMentions(message);
         message = marked.text();
         // 提示音只发给被 @ 的玩家，自己 @ 自己不响
@@ -255,9 +273,17 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
             playMentionSound(viewer);
         }
         TextComponent line = new TextComponent();
-        ConfigurationSection nodes = chat.getConfigurationSection(formatPath);
-        if (nodes == null || (formatPath.equals("chat.default.format") && !chat.getBoolean("chat.default.enable", true))) {
-            String fallback = template(config.format(), server, playerName, world, sender);
+        YamlConfiguration source = remoteFormat.get();
+        ConfigurationSection nodes = sourceFormat != null && source != null
+                ? source.getConfigurationSection("source-format.nodes")
+                : chat.getConfigurationSection(formatPath);
+        boolean formatEnabled = sourceFormat != null
+                ? sourceFormat.getBoolean("enabled", true)
+                : chat.getBoolean("chat.default.enable", true);
+        if (nodes == null || (formatPath.equals("chat.default.format") && !formatEnabled)) {
+            String fallbackTemplate = sourceFormat != null && source != null
+                    ? source.getString("source-format.legacy", config.format()) : config.format();
+            String fallback = template(fallbackTemplate, server, playerName, world, sender);
             int position = fallback.indexOf("${message}");
             if (position < 0) append(line, fallback, null, null);
             else {
