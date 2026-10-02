@@ -65,6 +65,19 @@ public final class LiuChat extends JavaPlugin {
     private ItemShowcase items;
     private ChatLogService chatLogs;
     private AiSessionStore aiSessions;
+    private java.io.File configRoot;
+    private com.liu.liuchat.config.SharedConfig sharedConfig;
+    private ReloadCommand reloadCommand;
+
+    public java.io.File getConfigRoot() {
+        return configRoot == null ? getDataFolder() : configRoot;
+    }
+
+    public void reloadChatConfiguration() {
+        sharedConfig.validate();
+        reloadCommand.reload();
+        sharedConfig.watch(configManager.autoReloadConfig(), this::reloadChatConfiguration);
+    }
 
     public static LiuChat instance() {
         return instance;
@@ -75,6 +88,12 @@ public final class LiuChat extends JavaPlugin {
         instance = this;
 
         // 1. 配置与语言文件
+        var bootstrap = com.liu.liuchat.config.ConfigDefaults.load(this, getDataFolder(), "config.yml");
+        configRoot = com.liu.liuchat.config.SharedConfig.resolveRoot(getDataFolder().toPath(),
+                bootstrap.getString("settings.shared-config-path", ""),
+                java.nio.file.Path.of("/mc/shared/liuchat-config"), getLogger()).toFile();
+        sharedConfig = new com.liu.liuchat.config.SharedConfig(this, configRoot.toPath());
+        getLogger().info("配置目录: " + configRoot.getAbsolutePath());
         configManager = new ConfigManager(this);
         configManager.load();
         messageManager = new MessageManager(this);
@@ -119,7 +138,7 @@ public final class LiuChat extends JavaPlugin {
         HourlyChatAudit audit = new HourlyChatAudit(this, configManager, messageManager, chatLogs, aiClient);
         audit.start();
         router.register(new AuditCommand(configManager, messageManager, audit));
-        AiSkillService skills = new AiSkillService(getDataFolder().toPath().resolve("skills"));
+        AiSkillService skills = new AiSkillService(configRoot.toPath().resolve("skills"));
         try {
             skills.reload();
         } catch (java.io.IOException e) {
@@ -141,8 +160,9 @@ public final class LiuChat extends JavaPlugin {
         AssistantDialog assistantDialog = new AssistantDialog(this, configManager, messageManager, assistantService);
         DialogCommand dialog = new DialogCommand(this, messageManager, configManager, colorDialog, assistantDialog);
         NpcAssistantBridge npcBridge = new NpcAssistantBridge(this, assistantDialog);
-        router.register(new ReloadCommand(configManager, messageManager, presentation, dialog, skills, npcBridge,
-                aiSessions));
+        reloadCommand = new ReloadCommand(configManager, messageManager, presentation, dialog, skills, npcBridge,
+                aiSessions);
+        router.register(reloadCommand);
         router.register(new ChatCommand() {
             @Override public String name() { return "item"; }
             @Override public boolean playerOnly() { return true; }
@@ -209,6 +229,7 @@ public final class LiuChat extends JavaPlugin {
 
         // 7. PlaceholderAPI 挂钩（没装则自动跳过）
         PapiHook.init(this, configManager, muteService, profiles);
+        sharedConfig.watch(configManager.autoReloadConfig(), this::reloadChatConfiguration);
 
         getLogger().info("LiuChat 已启用（存储: " + configManager.storageType()
                 + (database.isReady() ? " 就绪" : " 不可用-仅内存")
@@ -267,6 +288,7 @@ public final class LiuChat extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (sharedConfig != null) sharedConfig.close();
         if (items != null) items.closePreviews();
         if (crossServer != null) {
             crossServer.close();

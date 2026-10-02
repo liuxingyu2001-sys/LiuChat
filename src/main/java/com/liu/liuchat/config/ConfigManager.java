@@ -11,23 +11,27 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class ConfigManager {
 
     private final JavaPlugin plugin;
-    private FileConfiguration config;
+    private volatile FileConfiguration config;
 
     public ConfigManager(JavaPlugin plugin) {
         this.plugin = plugin;
     }
 
     public void load() {
-        ConfigDefaults.load(plugin, "config.yml");
-        plugin.reloadConfig();
-        config = plugin.getConfig();
+        FileConfiguration loaded = ConfigDefaults.load(plugin, "config.yml");
+        if (plugin instanceof com.liu.liuchat.LiuChat chat
+                && !chat.getConfigRoot().equals(plugin.getDataFolder())) {
+            loaded.set("server", ConfigDefaults.load(plugin, plugin.getDataFolder(), "config.yml")
+                    .getString("server", "server"));
+        }
+        config = loaded;
     }
 
     public void reload() {
-        ConfigDefaults.load(plugin, "config.yml");
-        plugin.reloadConfig();
-        config = plugin.getConfig();
+        load();
     }
+
+    public boolean autoReloadConfig() { return config.getBoolean("settings.auto-reload-config", false); }
 
     public String server() {
         return config.getString("server", "server");

@@ -137,9 +137,7 @@ public final class PublicChatAiService {
         lastReplyAt = System.currentTimeMillis();
         String format = config.aiChatFormat();
         UUID headUuid = aiHeadUuid();
-        chatService.broadcastPlain(uuid, aiName,
-                formatComponents(format, aiName, reply, headUuid),
-                formatLine(format, aiName, reply), reply);
+        chatService.broadcastAi(uuid, aiName, format, reply, headUuid);
         crossServer.publishChatAs(config.server(), uuid, aiName, reply, "",
                 AiChatSnapshot.encode(format, headUuid), aiName);
     }
@@ -188,6 +186,11 @@ public final class PublicChatAiService {
      * （与普通聊天 ${head} 相同的 liuchat-head 机制）。回复里的 {@code ${head}} 原样显示。
      */
     public static BaseComponent[] formatComponents(String format, String aiName, String message, UUID headUuid) {
+        return formatComponents(format, aiName, message, headUuid, java.util.function.UnaryOperator.identity());
+    }
+
+    static BaseComponent[] formatComponents(String format, String aiName, String message, UUID headUuid,
+                                            java.util.function.UnaryOperator<String> markMentions) {
         String template = format == null || format.isBlank() ? DEFAULT_FORMAT : format;
         String colored = TextUtil.color(template.replace("${player}", aiName == null ? "" : aiName));
         String body = message == null ? "" : message;
@@ -196,15 +199,29 @@ public final class PublicChatAiService {
         int index;
         while ((index = colored.indexOf("${head}", pos)) >= 0) {
             String prefix = pos == 0 ? "" : Mentions.state(colored.substring(0, pos));
-            addLegacy(out, prefix + colored.substring(pos, index).replace("${message}", body));
+            addLegacy(out, insertMessage(prefix + colored.substring(pos, index), body, markMentions));
             TextComponent head = new TextComponent("");
             if (headUuid != null) head.setInsertion("liuchat-head:" + headUuid);
             out.add(head);
             pos = index + "${head}".length();
         }
         String prefix = pos == 0 ? "" : Mentions.state(colored.substring(0, pos));
-        addLegacy(out, prefix + colored.substring(pos).replace("${message}", body));
+        addLegacy(out, insertMessage(prefix + colored.substring(pos), body, markMentions));
         return out.toArray(new BaseComponent[0]);
+    }
+
+    private static String insertMessage(String template, String body,
+                                        java.util.function.UnaryOperator<String> markMentions) {
+        StringBuilder out = new StringBuilder();
+        int pos = 0;
+        int index;
+        while ((index = template.indexOf("${message}", pos)) >= 0) {
+            out.append(template, pos, index);
+            // Include the template's current style so mention highlighting restores it afterwards.
+            out.append(markMentions.apply(Mentions.state(out.toString()) + body));
+            pos = index + "${message}".length();
+        }
+        return out.append(template.substring(pos)).toString();
     }
 
     private static void addLegacy(java.util.List<BaseComponent> out, String text) {

@@ -74,6 +74,17 @@ class PublicChatAiServiceTest {
         assertEquals("你好", PublicChatAiService.mentionReply("你好", "not a player"));
     }
 
+    @Test void mentionsUseConfiguredColorAndRestoreBodyColor() {
+        BaseComponent[] parts = PublicChatAiService.formatComponents("&e${player}: &a${message}",
+                "Bot", "@Steve hello &c literal", null,
+                text -> com.liu.liuchat.util.Mentions.mark(text, java.util.List.of(), true, "§d").text());
+        assertTrue(Arrays.stream(parts).anyMatch(part -> part.toPlainText().contains("@Steve")
+                && ChatColor.LIGHT_PURPLE.equals(part.getColor())));
+        assertTrue(Arrays.stream(parts).anyMatch(part -> part.toPlainText().contains("hello &c literal")
+                && ChatColor.GREEN.equals(part.getColor())));
+        assertEquals("Bot: @Steve hello &c literal", BaseComponent.toPlainText(parts));
+    }
+
     @Test void nullNameOrMessageTolerated() {
         String line = PublicChatAiService.formatLine(null, null, null);
         assertFalse(line.contains("${"));

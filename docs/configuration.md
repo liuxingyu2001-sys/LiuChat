@@ -6,6 +6,22 @@ CustomNameplates API 支持：在 `chat.yml` 独立的玩家节点设置 `text: 
 
 CMI 同名指令由 `commands.prefer-liuchat: true` 将 `/msg`、`/tell`、`/w`、`/whisper`、`/horn` 转到 `liuchat:` 命名空间；不自动修改服务器 `commands.yml`。`/pm` 不由 LiuChat 注册或重定向。
 
+## 共享配置
+
+在每台服务器本地的 `plugins/LiuChat/config.yml` 设置：
+
+```yaml
+settings:
+  shared-config-path: '/mc/shared/liuchat-config'
+  auto-reload-config: false
+```
+
+目录选择优先级为显式路径、已存在的 `/mc/shared/liuchat-config`、插件本地目录。显式路径不存在时尝试创建，失败会记录警告并回退本地；未指定路径时不会主动创建默认共享目录。路径修改需要重启。共享目录为空时仅复制缺失的内置默认文件，不会迁移或覆盖本地自定义配置，请将需要保留的配置预先放入共享目录。
+
+共享文件包括 `config.yml`、`messages.yml`、`chat.yml`、`shortcut.yml`、`dialogs.yml`、`npc-assistants.yml` 和 `skills/`。`settings.shared-config-path` 始终从本地读取，`server` 子服标识也保留本地值；其余业务配置从共享目录读取。数据库、聊天日志、审核报告和 AI 会话持久化文件仍留在本地，配置共享不等于玩家数据共享。
+
+**自动重载默认关闭。** 关闭时修改配置后需在各子服执行 `/lc reload`。启用时，将实际配置目录中的 `settings.auto-reload-config` 改为 `true` 并执行 `/lc reload`，之后每 10 秒异步检查上述文件的路径、修改时间和大小，变化后在主线程执行与手动命令相同的重载流程。手动重载会重新记录基线，停用插件时取消监听。开启后也能监听 `skills/` 的新增、修改和删除；YAML 语法错误会在刷新组件前拒绝重载。存储连接和数据库同步间隔仍需重启生效，已有 AI 定时任务每次执行读取当前配置，无需重复创建。
+
 ## 聊天颜色
 
 聊天颜色通过 `/liuc dialog chatcolor` 打开，支持单色和渐变色。单色模式使用第一组红、绿、蓝滑块；渐变模式另外使用结束色的红、绿、蓝三组滑块。红 R、绿 G、蓝 B 分别代表组成颜色的三种原色通道，数值范围都是 0-255。保存后会写入聊天资料，并支持 `<gradient:#1afff0:#2ea4ff>` 格式。也可以用 `/liuc chatcolor <&a|&#RRGGBB|off>` 直接设置，与 Dialog 同一存储格式；输入只允许颜色码（`&a`、`&#RRGGBB`、`&x` 形式、`<gradient:...>` 等），含正文或其他 MiniMessage 标签会被判为格式无效并拒绝，`off` 清除颜色。

@@ -113,11 +113,7 @@ public final class ChatService {
             appearance = new AiChatSnapshot.Appearance(config.aiChatFormat(), publicAi.aiHeadUuid());
         }
         if (appearance != null) {
-            broadcastPlain(uuid, playerName,
-                    PublicChatAiService.formatComponents(appearance.format(), playerName, message,
-                            appearance.headUuid()),
-                    PublicChatAiService.formatLine(appearance.format(), playerName, message),
-                    message);
+            broadcastAi(uuid, playerName, appearance.format(), message, appearance.headUuid());
         } else {
             deliver(originServer, uuid, playerName, "-", null, message, itemData, placeholders, nick);
         }
@@ -128,6 +124,14 @@ public final class ChatService {
      * 固定格式广播（公屏 AI 等）：发送成品聊天组件，不解析聊天格式节点/变量；
      * 仍走忽略列表与聊天日志。consoleLine 为纯文本（无头像）。
      */
+    public void broadcastAi(String uuid, String playerName, String format, String message,
+                            java.util.UUID headUuid) {
+        broadcastPlain(uuid, playerName,
+                PublicChatAiService.formatComponents(format, playerName, message, headUuid,
+                        text -> presentation.markMentions(text).text()),
+                PublicChatAiService.formatLine(format, playerName, message), message);
+    }
+
     public void broadcastPlain(String uuid, String playerName, BaseComponent[] line,
                                String consoleLine, String rawMessage) {
         for (Player online : Bukkit.getOnlinePlayers()) {

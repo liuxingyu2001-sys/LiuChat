@@ -15,14 +15,29 @@ public final class ConfigDefaults {
     private ConfigDefaults() { }
 
     public static YamlConfiguration load(JavaPlugin plugin, String name) {
-        File file = new File(plugin.getDataFolder(), name);
-        if (!file.exists()) plugin.saveResource(name, false);
+        File root = plugin instanceof com.liu.liuchat.LiuChat chat ? chat.getConfigRoot() : plugin.getDataFolder();
+        return load(plugin, root, name);
+    }
+
+    public static YamlConfiguration load(JavaPlugin plugin, File root, String name) {
+        File file = new File(root, name);
+        if (!file.exists()) {
+            try (InputStream input = plugin.getResource(name)) {
+                if (input == null) throw new java.io.IOException("Missing resource: " + name);
+                java.nio.file.Files.createDirectories(root.toPath());
+                java.nio.file.Files.copy(input, file.toPath());
+            } catch (java.nio.file.FileAlreadyExistsException ignored) {
+                // Another server may have initialized the shared file first.
+            } catch (java.io.IOException e) {
+                throw new IllegalStateException("Cannot initialize " + file, e);
+            }
+        }
         YamlConfiguration local = new YamlConfiguration();
         local.options().parseComments(true);
         try { local.load(file); }
         catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "读取 " + name + " 失败，保留原文件", e);
-            return local;
+            throw new IllegalStateException("Cannot load " + file, e);
         }
         try (InputStream input = plugin.getResource(name)) {
             if (input == null) return local;

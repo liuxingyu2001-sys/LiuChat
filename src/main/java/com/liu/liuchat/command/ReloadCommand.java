@@ -46,6 +46,17 @@ public final class ReloadCommand implements ChatCommand {
 
     @Override
     public void execute(CommandSender sender, String[] args) {
+        try {
+            com.liu.liuchat.LiuChat.instance().reloadChatConfiguration();
+            messages.send(sender, "reload.success");
+        } catch (RuntimeException e) {
+            com.liu.liuchat.LiuChat.instance().getLogger()
+                    .log(java.util.logging.Level.WARNING, "配置重载失败", e);
+            messages.send(sender, "command.error");
+        }
+    }
+
+    public void reload() {
         config.reload();
         messages.reload();
         presentation.reload();
@@ -58,6 +69,5 @@ public final class ReloadCommand implements ChatCommand {
         } catch (java.io.IOException e) {
             com.liu.liuchat.LiuChat.instance().getLogger().warning("AI skills 加载失败: " + e.getMessage());
         }
-        messages.send(sender, "reload.success");
     }
 }
