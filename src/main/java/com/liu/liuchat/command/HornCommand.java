@@ -43,11 +43,30 @@ public final class HornCommand implements ChatCommand {
             return;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("balance")) {
-            messages.send(player, "horn.balance", "${count}", String.valueOf(database.hornBalance(player.getUniqueId().toString())));
+            int balance = database.hornBalance(player.getUniqueId().toString());
+            if (balance < 0) messages.send(player, "horn.storage");
+            else messages.send(player, "horn.balance", "${count}", String.valueOf(balance));
             return;
         }
         if (args.length == 0 || String.join(" ", args).isBlank()) {
             messages.send(player, "horn.usage");
+            return;
+        }
+        String text = String.join(" ", args);
+        String message = com.liu.liuchat.util.ColorParser.playerText(text,
+                player.hasPermission("liuchat.color"));
+        if (cross.isEnabled()) {
+            try {
+                cross.validateHorn(player, message);
+            } catch (java.io.IOException e) {
+                messages.send(player, "horn.too-long");
+                return;
+            }
+        }
+        MuteData mute = mutes.check(player.getUniqueId().toString(), player.getName()).orElse(null);
+        if (mute != null) {
+            messages.send(player, "chat.muted", "${time}", messages.muteTimeText(mute),
+                    "${reason}", mute.reason() == null ? "" : mute.reason());
             return;
         }
         if (!database.spendHorn(player.getUniqueId().toString())) {
@@ -55,16 +74,6 @@ public final class HornCommand implements ChatCommand {
                     ? "horn.storage" : "horn.empty");
             return;
         }
-        MuteData mute = mutes.check(player.getUniqueId().toString(), player.getName()).orElse(null);
-        if (mute != null) {
-            database.addHorns(player.getUniqueId().toString(), 1);
-            messages.send(player, "chat.muted", "${time}", messages.muteTimeText(mute),
-                    "${reason}", mute.reason() == null ? "" : mute.reason());
-            return;
-        }
-        String text = String.join(" ", args);
-        String message = com.liu.liuchat.util.ColorParser.playerText(text,
-                player.hasPermission("liuchat.color"));
         chat.horn(player, message);
         cross.publishHorn(player, message);
     }

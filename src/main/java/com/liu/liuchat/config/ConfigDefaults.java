@@ -54,6 +54,18 @@ public final class ConfigDefaults {
 
     static boolean merge(YamlConfiguration local, YamlConfiguration defaults) {
         boolean changed = false;
+        String legacyHornFormat = local.getString("horn.format");
+        if (legacyHornFormat != null) {
+            for (String key : new String[]{"horn.message-format", "horn.title-message-format",
+                    "horn.actionbar-message-format"}) {
+                if (!local.contains(key, true) && defaults.contains(key, true)) {
+                    local.set(key, legacyHornFormat);
+                    local.setComments(key, defaults.getComments(key));
+                    local.setInlineComments(key, defaults.getInlineComments(key));
+                    changed = true;
+                }
+            }
+        }
         for (String path : defaults.getKeys(true)) {
             Object value = defaults.get(path);
             if (value instanceof ConfigurationSection || local.contains(path, true)) continue;

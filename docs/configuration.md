@@ -21,11 +21,11 @@ settings:
 
 共享文件包括 `config.yml`、`messages.yml`、`chat.yml`、`shortcut.yml`、`dialogs.yml`、`npc-assistants.yml`、`reminders.yml` 和 `skills/`。`settings.shared-config-path` 与 `settings.shared-skills-path` 从本地配置读取，修改需重启；`server` 也始终保留本地值，各子服必须使用不同标识。单独指定的 skills 目录同样参与自动监听。
 
-`reminders.yml`，用于定时消息提醒。提醒可使用 `interval-seconds` 或 `times`（二选一），`times` 为指定时刻，`timezone` 控制时区，`days` 使用数字 `1` 到 `7` 分别表示周一到周日，空列表表示每天。共享配置下各子服按同一计划各自本地投递一次，不通过代理转发，因此不会重复；`servers` 可限制子服。
+共享配置目录中的 `reminders.yml` 用于定时消息提醒。提醒可使用 `interval-seconds` 或 `times`（二选一），`times` 为指定时刻，`timezone` 控制时区，`days` 使用数字 `1` 到 `7` 分别表示周一到周日，空列表表示每天。共享配置下各子服按同一计划各自本地投递一次，不通过代理转发，因此不会重复；`servers` 可限制子服。
 
 数据库、AI 会话持久化文件仍留在本地。聊天记录可通过 `chat-log.shared-path` 指向共享目录，插件会按子服标识隔离到 `servers/server-<编码>/`，避免多台服务器并发追加同一个文件；AI 审核默认读取各子服自己的历史，避免重复审核。共享目录需对插件可写，历史本地文件不会自动迁移。共享日志按接收子服保存，跨服聊天可能在不同子服文件中各有一份，汇总时应注意重复记录。
 
-**自动重载默认关闭。** 关闭时修改配置后需在各子服执行 `/lc reload`。启用时，将实际配置目录中的 `settings.auto-reload-config` 改为 `true` 并执行 `/lc reload`，之后每 10 秒异步检查上述文件的路径、修改时间和大小，变化后在主线程执行与手动命令相同的重载流程。手动重载会重新记录基线，停用插件时取消监听。开启后也能监听 `skills/` 的新增、修改和删除；YAML 语法错误会在刷新组件前拒绝重载。存储连接和数据库同步间隔仍需重启生效，已有 AI 定时任务每次执行读取当前配置，无需重复创建。
+**自动重载默认关闭。** 关闭时修改配置后需在各子服执行 `/liuc reload`。启用时，将实际配置目录中的 `settings.auto-reload-config` 改为 `true` 并执行 `/liuc reload`，之后每 10 秒异步检查上述文件的路径、修改时间和大小，变化后在主线程执行与手动命令相同的重载流程。手动重载会重新记录基线，停用插件时取消监听。开启后也能监听 `skills/` 的新增、修改和删除；YAML 语法错误会在刷新组件前拒绝重载。存储连接和数据库同步间隔仍需重启生效，已有 AI 定时任务每次执行读取当前配置，无需重复创建。
 
 ## 定时提醒
 
@@ -46,7 +46,7 @@ reminders:
       - '&6[提醒] &f记得适当休息！'
 ```
 
-间隔模式将 `times` 替换为 `interval-seconds: 600`，按 Unix 时间基准每 600 秒触发，所有子服使用同一时间槽，而非从各自启动时刻计时。每个计划的 `messages` 列表按顺序全部发送，支持颜色、渐变、`${server}` 和按接收玩家解析的 PlaceholderAPI。`days` 只接受整数 `1` 到 `7`。配置修改执行 `/lc reload`，不重置已有计划的发送进度；首次启动不补发历史提醒，延迟执行最多发送最近一次，不积压刷屏。指定时刻支持 `HH:mm` 或 `HH:mm:ss`；夏令时不存在的时刻跳过，重复的时刻仅发送一次。服务端卡顿可能导致延迟，群组服应同步系统时间并使用相同配置。无需代理或在线玩家承载跨服消息，每台安装本插件的服务器都能独立投递。
+间隔模式将 `times` 替换为 `interval-seconds: 600`，按 Unix 时间基准每 600 秒触发，所有子服使用同一时间槽，而非从各自启动时刻计时。每个计划的 `messages` 列表按顺序全部发送，支持颜色、渐变、`${server}` 和按接收玩家解析的 PlaceholderAPI。`days` 只接受整数 `1` 到 `7`。配置修改执行 `/liuc reload`，不重置已有计划的发送进度；首次启动不补发历史提醒，延迟执行最多发送最近一次，不积压刷屏。指定时刻支持 `HH:mm` 或 `HH:mm:ss`；夏令时不存在的时刻跳过，重复的时刻仅发送一次。服务端卡顿可能导致延迟，群组服应同步系统时间并使用相同配置。无需代理或在线玩家承载跨服消息，每台安装本插件的服务器都能独立投递。
 
 共享记录配置示例（实际 `config.yml`）：
 
@@ -55,7 +55,9 @@ chat-log:
   shared-path: '/mc/shared/liuchat-records'
 ```
 
-文件位于 `servers/server-<子服标识UTF-8十六进制>/logs/` 和 `audit-history/`。修改路径后 `/lc reload` 生效，仅影响后续记录；私聊审核历史可能含敏感信息，请限制共享目录访问权限。审核报告仍保存在各子服本地。
+文件位于 `servers/server-<子服标识UTF-8十六进制>/logs/` 和 `audit-history/`。修改路径后 `/liuc reload` 生效，仅影响后续记录；私聊审核历史可能含敏感信息，请限制共享目录访问权限。审核报告仍保存在各子服本地。
+
+命令格式：`/horn <消息>`，别名 `/lb`；喇叭余额使用 `/lb balance`，管理员发放为 `/horn give <玩家> <数量>`。`horn.message-format`、`horn.title-message-format` 和 `horn.actionbar-message-format` 分别控制聊天、Title 内容、ActionBar 文本，BossBar 使用 Title 内容；控制台跟随聊天格式。三个模板均支持 `${server}`、`${player}`、`${message}`。旧 `horn.format` 只作为缺少专用格式时的兼容回退。禁言及跨服超长消息检查在扣费前执行。
 
 ## 聊天颜色
 

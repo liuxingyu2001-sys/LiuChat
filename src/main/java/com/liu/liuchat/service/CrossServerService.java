@@ -92,6 +92,10 @@ public final class CrossServerService implements PluginMessageListener, Listener
         } catch (Exception e) { warnOnce(e); }
     }
 
+    public void validateHorn(Player player, String message) throws java.io.IOException {
+        CrossServerCodec.encodeHorn(config.server(), player.getUniqueId().toString(), player.getName(), message);
+    }
+
     public void publishHorn(Player player, String message) {
         if (!enabled) return;
         try {

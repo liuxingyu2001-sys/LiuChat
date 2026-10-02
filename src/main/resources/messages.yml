@@ -31,6 +31,7 @@ profile.usage: "&c用法: /nick <昵称|off> 或 /chatcolor <&&a|&&#RRGGBB|off> 
 profile.invalid: "&c颜色格式无效: &e${input} &7只支持颜色码，例: &&a、&&#FF0000、<<gradient:#FF0000:#00FF00>>，或 off 清除。"
 profile.saved: "&a聊天资料已更新。"
 horn.usage: "&c用法: /horn <消息>，或 /horn balance &7(别名 /lb)"
+horn.too-long: "&c喊话内容过长，无法发送到其他服务器，请缩短后重试。"
 horn.balance: "&7你还有 &e${count} &7个喇叭。"
 horn.empty: "&c你没有可用的喇叭，请联系管理员领取。"
 horn.storage: "&c喇叭数据暂不可用，请联系管理员。"

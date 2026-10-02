@@ -195,7 +195,13 @@ public final class ConfigManager {
     public int hornDurationTicks() { return Math.max(20, config.getInt("horn.duration-ticks", 100)); }
 
     public String hornFormat() {
-        return config.getString("horn.format", "&6[全服喇叭] &e${player}&7: &f${message}");
+        return config.getString("horn.message-format", "&6[全服喇叭] &e${player}&7: &f${message}");
+    }
+    public String hornTitleMessageFormat() {
+        return config.getString("horn.title-message-format", "&6[全服喇叭] &e${player}&7: &f${message}");
+    }
+    public String hornActionbarMessageFormat() {
+        return config.getString("horn.actionbar-message-format", "&6[全服喇叭] &e${player}&7: &f${message}");
     }
 
     public boolean crossServerEnabled() {

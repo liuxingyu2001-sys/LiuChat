@@ -85,6 +85,15 @@ class PublicChatAiServiceTest {
         assertEquals("Bot: @Steve hello &c literal", BaseComponent.toPlainText(parts));
     }
 
+    @Test void hornChannelsUseIndependentTemplates() {
+        assertEquals("§a[CHAT] lobby Alice: hello", ChatService.formatHorn(
+                "&a[CHAT] ${server} ${player}: ${message}", "lobby", "Alice", "hello"));
+        assertEquals("§bTITLE Alice hello", ChatService.formatHorn(
+                "&bTITLE ${player} ${message}", "lobby", "Alice", "hello"));
+        assertEquals("§cACTION lobby hello", ChatService.formatHorn(
+                "&cACTION ${server} ${message}", "lobby", "Alice", "hello"));
+    }
+
     @Test void nullNameOrMessageTolerated() {
         String line = PublicChatAiService.formatLine(null, null, null);
         assertFalse(line.contains("${"));

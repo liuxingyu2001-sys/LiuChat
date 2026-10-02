@@ -143,6 +143,11 @@ chat-log:
 
   # 全服喇叭：/liuc horn <内容>，需要 liuchat.horn 权限和喇叭余额。
 horn:
+  # 三种显示分别设置格式；BossBar 使用 title-message-format，控制台跟随 message-format。
+  message-format: "&6[全服喇叭] &e${player}&7: &f${message}"
+  title-message-format: "&6[全服喇叭] &e${player}&7: &f${message}"
+  actionbar-message-format: "&6[全服喇叭] &e${player}&7: &f${message}"
+  # 旧版格式保留作兼容回退；新配置优先使用上面三个专用格式。
   format: "&6[全服喇叭] &e${player}&7: &f${message}"
   modes: [chat, title, actionbar, bossbar]
   title: '&6全服喇叭'

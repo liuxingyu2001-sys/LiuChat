@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -122,6 +123,12 @@ class CrossServerCodecTest {
         assertThrows(IOException.class, () -> CrossServerCodec.encodePresence("lobby", java.util.List.of()));
         assertThrows(IOException.class, () -> CrossServerCodec.encodePresence("lobby",
                 java.util.Collections.nCopies(CrossServerCodec.MAX_PRESENCE_NAMES + 1, "a")));
+    }
+
+    @Test
+    void hornRejectsPayloadOverPluginMessageLimit() throws IOException {
+        assertThrows(IOException.class, () -> CrossServerCodec.encodeHorn("lobby", "uuid", "Alice", "x".repeat(40000)));
+        assertDoesNotThrow(() -> CrossServerCodec.encodeHorn("lobby", "uuid", "Alice", "hello"));
     }
 
     @Test

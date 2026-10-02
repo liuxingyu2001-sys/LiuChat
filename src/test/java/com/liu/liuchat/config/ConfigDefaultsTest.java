@@ -22,6 +22,20 @@ class ConfigDefaultsTest {
         assertFalse(ConfigDefaults.merge(local, defaults));
     }
 
+    @Test void migratesLegacyHornTemplateIntoOnlyMissingChannelTemplates() {
+        YamlConfiguration local = new YamlConfiguration();
+        local.set("horn.format", "&dLegacy ${player}: ${message}");
+        local.set("horn.title-message-format", "&bCustom title");
+        YamlConfiguration defaults = new YamlConfiguration();
+        defaults.set("horn.message-format", "chat default");
+        defaults.set("horn.title-message-format", "title default");
+        defaults.set("horn.actionbar-message-format", "action default");
+        assertTrue(ConfigDefaults.merge(local, defaults));
+        assertEquals("&dLegacy ${player}: ${message}", local.getString("horn.message-format"));
+        assertEquals("&bCustom title", local.getString("horn.title-message-format"));
+        assertEquals("&dLegacy ${player}: ${message}", local.getString("horn.actionbar-message-format"));
+    }
+
     @Test void privateChatDefaultsHaveSeparateReplyActions() throws Exception {
         try (var input = getClass().getResourceAsStream("/chat.yml")) {
             var defaults = YamlConfiguration.loadConfiguration(

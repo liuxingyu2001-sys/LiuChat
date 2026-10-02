@@ -311,6 +311,7 @@ public final class LiuChat extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (chatService != null) chatService.closeHornDisplay();
         if (reminders != null) reminders.close();
         if (sharedConfig != null) sharedConfig.close();
         if (items != null) items.closePreviews();

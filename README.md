@@ -27,6 +27,7 @@ Paper / Leaf 1.21+ 聊天插件（Java 21，零第三方框架依赖）。当前
 | [插件 API](docs/api.md) | `broadcastAnnouncement` / `broadcastItemAnnouncement` |
 | [架构](docs/architecture.md) | 包结构与关键设计 |
 | [路线图](docs/roadmap.md) | 开发计划 |
+| [端到端验收](docs/e2e-acceptance.md) | 实际代理、双后端、客户端验收矩阵与发布门禁 |
 
 ## 构建
 

@@ -25,6 +25,8 @@ public final class ChatService {
     private PlayerProfileService profiles;
     private ChatLogService logs;
     private PublicChatAiService publicAi;
+    private BossBar hornBossBar;
+    private org.bukkit.scheduler.BukkitTask hornBossBarTask;
 
     public void setPlayerProfileService(PlayerProfileService profiles) { this.profiles = profiles; }
 
@@ -161,31 +163,63 @@ public final class ChatService {
     }
 
     public void hornRemote(String server, String uuid, String name, String message) {
-        String line = TextUtil.color(config.hornFormat().replace("${server}", server).replace("${player}", name))
-                .replace("${message}", message);
-        Component body = LegacyComponentSerializer.legacySection().deserialize(line);
+        Component body = LegacyComponentSerializer.legacySection().deserialize(
+                formatHorn(config.hornFormat(), server, name, message));
+        Component titleMessage = LegacyComponentSerializer.legacySection().deserialize(
+                formatHorn(config.hornTitleMessageFormat(), server, name, message));
+        Component actionbarMessage = LegacyComponentSerializer.legacySection().deserialize(
+                formatHorn(config.hornActionbarMessageFormat(), server, name, message));
         Component title = LegacyComponentSerializer.legacySection().deserialize(TextUtil.color(config.hornTitle()));
+        Title.Times titleTimes = Title.Times.times(Duration.ofMillis(300),
+                Duration.ofMillis(config.hornDurationTicks() * 50L), Duration.ofMillis(500));
         java.util.List<String> modes = config.hornModes();
+        BossBar bar = null;
+        if (modes.contains("bossbar")) {
+            if (hornBossBar != null) {
+                for (Player viewer : Bukkit.getOnlinePlayers()) viewer.hideBossBar(hornBossBar);
+            }
+            if (hornBossBarTask != null) hornBossBarTask.cancel();
+            hornBossBar = BossBar.bossBar(body, 1f, BossBar.Color.YELLOW, BossBar.Overlay.PROGRESS);
+            bar = hornBossBar;
+        }
+        Sound sound = null;
+        if (!config.hornSound().isBlank()) {
+            try { sound = Sound.valueOf(config.hornSound()); }
+            catch (IllegalArgumentException ignored) { }
+        }
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (ignores != null && ignores.ignores(player, uuid, name)) continue;
             if (modes.contains("chat")) player.sendMessage(body);
-            if (modes.contains("title")) player.showTitle(Title.title(title, body,
-                    Title.Times.times(Duration.ofMillis(300), Duration.ofMillis(config.hornDurationTicks() * 50L),
-                            Duration.ofMillis(500))));
-            if (modes.contains("actionbar")) player.sendActionBar(body);
-            if (modes.contains("bossbar")) {
-                BossBar bar = BossBar.bossBar(body, 1f, BossBar.Color.YELLOW, BossBar.Overlay.PROGRESS);
-                player.showBossBar(bar);
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> player.hideBossBar(bar),
-                        config.hornDurationTicks());
-            }
-            if (!config.hornSound().isBlank()) {
-                try { player.playSound(player.getLocation(), Sound.valueOf(config.hornSound()), 1f, 1f); }
-                catch (IllegalArgumentException ignored) { }
-            }
+        if (modes.contains("title")) player.showTitle(Title.title(title, titleMessage, titleTimes));
+            if (modes.contains("actionbar")) player.sendActionBar(actionbarMessage);
+            if (bar != null) player.showBossBar(bar);
+            if (sound != null) player.playSound(player.getLocation(), sound, 1f, 1f);
         }
+        if (bar != null) {
+            BossBar scheduledBar = bar;
+            hornBossBarTask = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                for (Player viewer : Bukkit.getOnlinePlayers()) viewer.hideBossBar(scheduledBar);
+                if (hornBossBar == scheduledBar) hornBossBar = null;
+                hornBossBarTask = null;
+            }, config.hornDurationTicks());
+        }
+        String line = TextUtil.color(formatHorn(config.hornFormat(), server, name, message));
         Bukkit.getConsoleSender().sendMessage(line);
         if (logs != null) logs.record("HORN", server, name, "*", message);
+    }
+
+    static String formatHorn(String template, String server, String player, String message) {
+        return TextUtil.color(template.replace("${server}", server).replace("${player}", player))
+                .replace("${message}", message);
+    }
+
+    public void closeHornDisplay() {
+        if (hornBossBarTask != null) hornBossBarTask.cancel();
+        hornBossBarTask = null;
+        if (hornBossBar != null) {
+            for (Player player : Bukkit.getOnlinePlayers()) player.hideBossBar(hornBossBar);
+            hornBossBar = null;
+        }
     }
 
     private String build(String template, String server, String playerName, String world,
