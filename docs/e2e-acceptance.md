@@ -71,13 +71,14 @@ storage:
 ```text
 config.yml          # 业务配置；server 等本地字段由各后端覆盖
 messages.yml
-chat.yml
 shortcut.yml
 dialogs.yml
 npc-assistants.yml
 reminders.yml
 skills/
 ```
+
+各后端的 `chat.yml` 保存在本地 `plugins/LiuChat/chat.yml`，用于子服独立聊天格式，不参与共享。共享目录里的同名文件不会生效。
 
 开始前使用独立测试实例和全新测试目录，保存旧测试证据，确认后端只加载一个 LiuChat 主 jar。不要直接清空生产实例、生产密钥、玩家聊天或数据库。
 
@@ -122,7 +123,7 @@ scripts/e2e/check-environment.sh \
 | P10 | 提醒准确时间 | `times: ['当前时间后 2 分钟']` | 指定时区触发一次，延迟不积压补发 |
 | P11 | 提醒筛选 | `days: [1]`、`servers: ['lobby']`、permission | 只有匹配日期、子服和权限的玩家收到 |
 | P12 | 提醒重载 | 修改 messages 后两服执行 `/lc reload` | 新内容生效，旧计划不会短时间重复发送 |
-| P13 | 共享配置 | 修改 chat/messages/reminders/skills | 手动重载后两个后端都得到同样业务配置 |
+| P13 | 共享配置与本地格式 | 修改共享 messages/reminders/skills，并只修改 A 本地 chat.yml | 两服共享业务配置生效；chat.yml 只影响所属子服，不覆盖另一服 |
 | P14 | 自动重载 | 开启开关，修改一个 YAML 和一个 skill | 约 10 秒后两服各重载一次；错误 YAML 保留旧状态 |
 | P15 | 共享记录 | A/B 各发聊天和私聊 | `servers/server-<hex>/` 下按子服隔离，文件不互相覆盖 |
 | P16 | 重启恢复 | 依次重启 A、B、代理 | 配置、skills、提醒计划、日志和跨服通信恢复；首次启动不补发旧提醒 |

@@ -22,7 +22,7 @@ public final class SharedConfig implements AutoCloseable {
     private final Path root;
     private final Logger logger;
     private volatile Map<String, FileStamp> baseline = Map.of();
-    static final List<String> CONFIG_FILES = List.of("config.yml", "messages.yml", "chat.yml",
+    static final List<String> CONFIG_FILES = List.of("config.yml", "messages.yml",
             "shortcut.yml", "dialogs.yml", "npc-assistants.yml", "reminders.yml");
     private volatile BukkitTask task;
     private volatile boolean closed;
@@ -66,6 +66,12 @@ public final class SharedConfig implements AutoCloseable {
             } catch (IOException | InvalidConfigurationException e) {
                 throw new IllegalStateException("Invalid configuration: " + file, e);
             }
+        }
+        Path localChat = plugin.getDataFolder().toPath().resolve("chat.yml");
+        try {
+            if (Files.exists(localChat)) new YamlConfiguration().load(localChat.toFile());
+        } catch (IOException | InvalidConfigurationException e) {
+            throw new IllegalStateException("Invalid local configuration: " + localChat, e);
         }
         Path local = plugin.getDataFolder().toPath().toAbsolutePath().normalize().resolve("config.yml");
         if (!local.equals(root.resolve("config.yml"))) {
@@ -116,8 +122,15 @@ public final class SharedConfig implements AutoCloseable {
 
     private Map<String, FileStamp> snapshot() {
         try {
-            return snapshot(root, plugin instanceof com.liu.liuchat.LiuChat chat
-                    ? chat.getSkillsRoot() : root.resolve("skills"));
+            Map<String, FileStamp> result = new HashMap<>(snapshot(root,
+                    plugin instanceof com.liu.liuchat.LiuChat chat
+                            ? chat.getSkillsRoot() : root.resolve("skills")));
+            Path localChat = plugin.getDataFolder().toPath().resolve("chat.yml");
+            if (Files.isRegularFile(localChat)) {
+                result.put("local/chat.yml", new FileStamp(Files.getLastModifiedTime(localChat).toMillis(),
+                        Files.size(localChat)));
+            }
+            return Map.copyOf(result);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot scan configuration: " + root, e);
         }

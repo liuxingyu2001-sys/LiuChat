@@ -15,7 +15,8 @@ public final class ConfigDefaults {
     private ConfigDefaults() { }
 
     public static YamlConfiguration load(JavaPlugin plugin, String name) {
-        File root = plugin instanceof com.liu.liuchat.LiuChat chat ? chat.getConfigRoot() : plugin.getDataFolder();
+        File root = plugin instanceof com.liu.liuchat.LiuChat chat && !"chat.yml".equals(name)
+                ? chat.getConfigRoot() : plugin.getDataFolder();
         return load(plugin, root, name);
     }
 

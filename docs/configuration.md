@@ -19,7 +19,7 @@ settings:
 
 目录选择优先级为显式路径、已存在的 `/mc/shared/liuchat-config`、插件本地目录。显式路径不存在时尝试创建，失败会记录警告并回退本地；未指定路径时不会主动创建默认共享目录。路径修改需要重启。共享目录为空时仅复制缺失的内置默认文件，不会迁移或覆盖本地自定义配置，请将需要保留的配置预先放入共享目录。
 
-共享文件包括 `config.yml`、`messages.yml`、`chat.yml`、`shortcut.yml`、`dialogs.yml`、`npc-assistants.yml`、`reminders.yml` 和 `skills/`。`settings.shared-config-path` 与 `settings.shared-skills-path` 从本地配置读取，修改需重启；`server` 也始终保留本地值，各子服必须使用不同标识。单独指定的 skills 目录同样参与自动监听。
+共享文件包括 `config.yml`、`messages.yml`、`shortcut.yml`、`dialogs.yml`、`npc-assistants.yml`、`reminders.yml` 和 `skills/`。`chat.yml` 始终从各子服本地 `plugins/LiuChat/chat.yml` 读取，不共享；共享目录的同名文件不会读取、覆盖本地文件或触发重载。开启自动重载时仍监听本地 `chat.yml`。`settings.shared-config-path` 与 `settings.shared-skills-path` 从本地配置读取，修改需重启；`server` 也始终保留本地值，各子服必须使用不同标识。单独指定的 skills 目录同样参与自动监听。
 
 共享配置目录中的 `reminders.yml` 用于定时消息提醒。提醒可使用 `interval-seconds` 或 `times`（二选一），`times` 为指定时刻，`timezone` 控制时区，`days` 使用数字 `1` 到 `7` 分别表示周一到周日，空列表表示每天。共享配置下各子服按同一计划各自本地投递一次，不通过代理转发，因此不会重复；`servers` 可限制子服。
 

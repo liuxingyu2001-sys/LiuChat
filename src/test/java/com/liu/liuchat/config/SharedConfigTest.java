@@ -32,7 +32,7 @@ class SharedConfigTest {
 
     @Test void detectsChangesToOlderFilesAndDeletions() throws Exception {
         Path first = temp.resolve("config.yml");
-        Path second = temp.resolve("chat.yml");
+        Path second = temp.resolve("messages.yml");
         Files.writeString(first, "value: 1");
         Files.writeString(second, "value: 1");
         Files.setLastModifiedTime(first, FileTime.fromMillis(1000));
@@ -47,6 +47,8 @@ class SharedConfigTest {
 
     @Test void watchesSkillAdditionsAndIgnoresRuntimeData() throws Exception {
         var before = SharedConfig.snapshot(temp);
+        Files.writeString(temp.resolve("chat.yml"), "local-only: true");
+        assertEquals(before, SharedConfig.snapshot(temp));
         Files.writeString(temp.resolve("ai-sessions.json"), "{}");
         Files.writeString(temp.resolve("unrelated.yml"), "value: 1");
         assertEquals(before, SharedConfig.snapshot(temp));
