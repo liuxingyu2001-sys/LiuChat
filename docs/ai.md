@@ -1,12 +1,12 @@
 # AI 功能配置
 
-AI 配置在每台子服本地的 `plugins/LiuChat/ai.yml`，**不随共享配置同步**（不同子服可用各自的 url、key、model 与助手）。本文中的 `ai.xxx` 键对应 `ai.yml` 里的 `xxx`；`/liuc reload` 后生效。升级首次启动会把旧 `config.yml` 的 `ai` 段自动迁移到 `ai.yml`（标记 `migrated: true`），之后请只改 `ai.yml`。
+AI 配置在每台子服本地的 `plugins/LiuChat/ai.yml`，**不随共享配置同步**（不同子服可用各自的 url、key、model 与助手）。**聊天屏蔽词属于全服统一的审核策略，在共享的 `config.yml` 的 `chat-filter` 段，不在 `ai.yml`。** 本文中的 `ai.xxx` 键对应 `ai.yml` 里的 `xxx`；`/liuc reload` 后生效。升级首次启动会把旧 `config.yml` 的 `ai` 段自动迁移到 `ai.yml`（标记 `migrated: true`），其中屏蔽词部分改迁到共享 `chat-filter`，之后请只改对应文件。
 
 ## 聊天审核
 
-`ai.enable` 是即时本地屏蔽和历史采集的总开关：屏蔽词（含 `*`、`?` 有限通配）、数字联系方式、IPv4 和域名在发送时直接拦截，未命中则立即广播。`ai.review.enable: true` 才启动定时 AI 审查，默认每 60 分钟分析最近 1 小时本服已发送的公开聊天；`ai.review.manual-enable: true` 允许管理员用 `/liuc audit <1-24>` 审查指定小时数。两项开关互不影响。记录单独存于 `audit-history/YYYY-MM-DD.jsonl`，不依赖可自定义格式的普通聊天日志；报告写入 `audit-reports/` 并通知 `liuchat.audit.notify` 管理员。每次最多提交最近 250 条、每条最多 300 字，报告记录超量丢弃数；模型只生成待人工复核的报告，不自动禁言。跨服需在各子服分别执行审核。审核 URL/模型沿用 `ai.url` / `ai.model`，`ai.review.prompt` 与 `ai.review.timeout-seconds` 单独配置。`/liuc reload` 可切换定时/手动开关。
+聊天屏蔽词在共享 `config.yml` 的 `chat-filter` 段，与 AI 无关：`chat-filter.enable` 是本地屏蔽总开关（不请求 AI），屏蔽词（含 `*`、`?` 有限通配）、数字联系方式、IPv4 和域名在发送时直接拦截，未命中则立即广播；所有子服读取同一份策略。`ai.enable` 只控制历史采集和 AI 相关功能（审核、助手、公屏 AI）。`ai.review.enable: true` 才启动定时 AI 审查，默认每 60 分钟分析最近 1 小时本服已发送的公开聊天；`ai.review.manual-enable: true` 允许管理员用 `/liuc audit <1-24>` 审查指定小时数。两项开关互不影响。记录单独存于 `audit-history/YYYY-MM-DD.jsonl`，不依赖可自定义格式的普通聊天日志；报告写入 `audit-reports/` 并通知 `liuchat.audit.notify` 管理员。每次最多提交最近 250 条、每条最多 300 字，报告记录超量丢弃数；模型只生成待人工复核的报告，不自动禁言。跨服需在各子服分别执行审核。审核 URL/模型沿用 `ai.url` / `ai.model`，`ai.review.prompt` 与 `ai.review.timeout-seconds` 单独配置。`/liuc reload` 可切换定时/手动开关。
 
-`ai.review.keywords` 支持有限通配：普通词自动容忍每两个字符之间插入最多 2 个任意字符（`cnm` 可拦 `c.n.m`、`c你n好m`），`*` 匹配最多 8 字，`?` 匹配 1 字；所有命中均直接屏蔽，不再调用 AI。短词可能误拦，请针对服务器用语调整；已有配置的关键词列表不会被自动覆盖，需要手动加入 `cnm` 等新关键词。
+`chat-filter.keywords` 支持有限通配：普通词自动容忍每两个字符之间插入最多 2 个任意字符（`cnm` 可拦 `c.n.m`、`c你n好m`），`*` 匹配最多 8 字，`?` 匹配 1 字；所有命中均直接屏蔽，不再调用 AI。短词可能误拦，请针对服务器用语调整。因为是共享文件，一处修改需执行 `/liuc reload`（或开启自动重载）后各子服统一生效。
 
 ## AI 助手
 

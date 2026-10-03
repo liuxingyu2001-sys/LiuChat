@@ -60,8 +60,8 @@ public final class TellCommand implements ChatCommand {
             messages.send(from, "tell.self");
             return;
         }
-        if (config.aiEnabled() && ChatReviewPolicy.blocked(text, config.aiReviewMatchKeywords(),
-                config.aiReviewAllKeywords(), config.aiReviewContacts(), config.aiReviewBlockIps(), config.aiReviewBlockDomains())
+        if (config.chatFilterEnabled() && ChatReviewPolicy.blocked(text, config.chatFilterMatchKeywords(),
+                config.chatFilterAllKeywords(), config.chatFilterContacts(), config.chatFilterBlockIps(), config.chatFilterBlockDomains())
                 && !from.hasPermission("liuchat.moderation.bypass")) {
             String shown = com.liu.liuchat.util.ColorParser.playerText(text,
                     from.hasPermission("liuchat.color"));

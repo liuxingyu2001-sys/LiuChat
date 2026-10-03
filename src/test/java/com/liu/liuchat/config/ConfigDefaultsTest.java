@@ -3,6 +3,8 @@ package com.liu.liuchat.config;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -30,10 +32,41 @@ class ConfigDefaultsTest {
         defaults.set("horn.message-format", "chat default");
         defaults.set("horn.title-message-format", "title default");
         defaults.set("horn.actionbar-message-format", "action default");
-        assertTrue(ConfigDefaults.merge(local, defaults));
+        assertTrue(ConfigDefaults.merge(local, defaults, "config.yml"));
         assertEquals("&dLegacy ${player}: ${message}", local.getString("horn.message-format"));
         assertEquals("&bCustom title", local.getString("horn.title-message-format"));
         assertEquals("&dLegacy ${player}: ${message}", local.getString("horn.actionbar-message-format"));
+    }
+
+    @Test void migratesLegacyAiFilterIntoSharedChatFilterOnce() {
+        YamlConfiguration local = new YamlConfiguration();
+        local.set("ai.enable", true);
+        local.set("ai.review.keywords.match", List.of("bad"));
+        local.set("ai.review.contacts", false);
+        YamlConfiguration defaults = new YamlConfiguration();
+        defaults.set("chat-filter.enable", false);
+        defaults.set("chat-filter.keywords.match", List.of("default"));
+        defaults.set("chat-filter.block-ips", true);
+        assertTrue(ConfigDefaults.merge(local, defaults, "config.yml"));
+        assertTrue(local.getBoolean("chat-filter.enable"));
+        assertEquals(List.of("bad"), local.getStringList("chat-filter.keywords.match"));
+        assertFalse(local.getBoolean("chat-filter.contacts"));
+        assertTrue(local.getBoolean("chat-filter.block-ips"));
+        // 已有 chat-filter 后不再重复迁移
+        assertFalse(ConfigDefaults.merge(local, defaults, "config.yml"));
+    }
+
+    @Test void freshConfigDoesNotMigrateFilterAndUsesBundledDefaults() throws Exception {
+        YamlConfiguration defaults = new YamlConfiguration();
+        try (var input = getClass().getResourceAsStream("/config.yml")) {
+            defaults.load(new java.io.InputStreamReader(java.util.Objects.requireNonNull(input),
+                    java.nio.charset.StandardCharsets.UTF_8));
+        }
+        YamlConfiguration local = new YamlConfiguration();
+        ConfigDefaults.merge(local, defaults, "config.yml");
+        assertFalse(local.getBoolean("chat-filter.enable"));
+        assertEquals(defaults.getStringList("chat-filter.keywords.match"),
+                local.getStringList("chat-filter.keywords.match"));
     }
 
     @Test void privateChatDefaultsHaveSeparateReplyActions() throws Exception {

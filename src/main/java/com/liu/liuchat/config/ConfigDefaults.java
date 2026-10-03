@@ -48,7 +48,7 @@ public final class ConfigDefaults {
             YamlConfiguration defaults = new YamlConfiguration();
             defaults.options().parseComments(true);
             defaults.load(new InputStreamReader(input, StandardCharsets.UTF_8));
-            boolean changed = merge(local, defaults);
+            boolean changed = merge(local, defaults, name);
             if (changed) local.save(file);
         } catch (Exception e) {
             plugin.getLogger().log(Level.WARNING, "补全 " + name + " 配置失败", e);
@@ -57,18 +57,17 @@ public final class ConfigDefaults {
     }
 
     static boolean merge(YamlConfiguration local, YamlConfiguration defaults) {
+        return merge(local, defaults, "");
+    }
+
+    /**
+     * 把内置默认值补进已有文件，不覆盖用户改过的值；name 用于识别需要一次性升级迁移的文件。
+     */
+    static boolean merge(YamlConfiguration local, YamlConfiguration defaults, String name) {
         boolean changed = false;
-        String legacyHornFormat = local.getString("horn.format");
-        if (legacyHornFormat != null) {
-            for (String key : new String[]{"horn.message-format", "horn.title-message-format",
-                    "horn.actionbar-message-format"}) {
-                if (!local.contains(key, true) && defaults.contains(key, true)) {
-                    local.set(key, legacyHornFormat);
-                    local.setComments(key, defaults.getComments(key));
-                    local.setInlineComments(key, defaults.getInlineComments(key));
-                    changed = true;
-                }
-            }
+        if ("config.yml".equals(name)) {
+            changed |= migrateHornTemplates(local, defaults);
+            changed |= migrateChatFilter(local);
         }
         for (String path : defaults.getKeys(true)) {
             Object value = defaults.get(path);
@@ -79,5 +78,50 @@ public final class ConfigDefaults {
             changed = true;
         }
         return changed;
+    }
+
+    /** 旧版只有一个 horn.format，拆成三种显示格式时按它补齐缺失项。 */
+    private static boolean migrateHornTemplates(YamlConfiguration local, YamlConfiguration defaults) {
+        String legacy = local.getString("horn.format");
+        if (legacy == null) {
+            return false;
+        }
+        boolean changed = false;
+        for (String key : new String[]{"horn.message-format", "horn.title-message-format",
+                "horn.actionbar-message-format"}) {
+            if (!local.contains(key, true) && defaults.contains(key, true)) {
+                local.set(key, legacy);
+                local.setComments(key, defaults.getComments(key));
+                local.setInlineComments(key, defaults.getInlineComments(key));
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * 旧版屏蔽词在 {@code ai.review} 下；现已拆为共享的 {@code chat-filter}（AI 配置改为每服本地）。
+     * 仅在完全没有 chat-filter 段时迁移，避免与用户新配置冲突。
+     */
+    private static boolean migrateChatFilter(YamlConfiguration local) {
+        if (local.contains("chat-filter", true)) {
+            return false;
+        }
+        boolean changed = false;
+        changed |= move(local, "ai.enable", "chat-filter.enable");
+        changed |= move(local, "ai.review.keywords.match", "chat-filter.keywords.match");
+        changed |= move(local, "ai.review.keywords.all", "chat-filter.keywords.all");
+        changed |= move(local, "ai.review.contacts", "chat-filter.contacts");
+        changed |= move(local, "ai.review.block-ips", "chat-filter.block-ips");
+        changed |= move(local, "ai.review.block-domains", "chat-filter.block-domains");
+        return changed;
+    }
+
+    private static boolean move(YamlConfiguration config, String from, String to) {
+        if (!config.contains(from, true)) {
+            return false;
+        }
+        config.set(to, config.get(from));
+        return true;
     }
 }

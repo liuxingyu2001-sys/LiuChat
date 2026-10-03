@@ -19,11 +19,11 @@ settings:
 
 目录选择优先级为显式路径、已存在的 `/mc/shared/liuchat-config`、插件本地目录。显式路径不存在时尝试创建，失败会记录警告并回退本地；未指定路径时不会主动创建默认共享目录。路径修改需要重启。共享目录为空时仅复制缺失的内置默认文件，不会迁移或覆盖本地自定义配置，请将需要保留的配置预先放入共享目录。
 
-共享文件包括 `config.yml`、`messages.yml`、`shortcut.yml`、`dialogs.yml`、`npc-assistants.yml`、`reminders.yml` 和 `skills/`。以下文件始终从各子服本地 `plugins/LiuChat/` 读取，不共享，共享目录里的同名文件不会读取、覆盖本地文件或触发重载：`chat.yml`（聊天格式）、`ai.yml`（AI 键/模型/助手/审核/公屏 AI）。开启自动重载时仍监听这些本地文件。`settings.shared-config-path` 与 `settings.shared-skills-path` 从本地配置读取，修改需重启；`server` 也始终保留本地值，各子服必须使用不同标识。单独指定的 skills 目录同样参与自动监听。
+共享文件包括 `config.yml`、`messages.yml`、`shortcut.yml`、`dialogs.yml`、`npc-assistants.yml`、`reminders.yml` 和 `skills/`。聊天本地屏蔽词属于全服策略，放在共享 `config.yml` 的 `chat-filter` 段。以下文件始终从各子服本地 `plugins/LiuChat/` 读取，不共享，共享目录里的同名文件不会读取、覆盖本地文件或触发重载：`chat.yml`（聊天格式）、`ai.yml`（AI 键/模型/助手/审核/公屏 AI）。开启自动重载时仍监听这些本地文件。`settings.shared-config-path` 与 `settings.shared-skills-path` 从本地配置读取，修改需重启；`server` 也始终保留本地值，各子服必须使用不同标识。单独指定的 skills 目录同样参与自动监听。
 
 共享配置目录中的 `reminders.yml` 用于定时消息提醒。提醒可使用 `interval-seconds` 或 `times`（二选一），`times` 为指定时刻，`timezone` 控制时区，`days` 使用数字 `1` 到 `7` 分别表示周一到周日，空列表表示每天。共享配置下各子服按同一计划各自本地投递一次，不通过代理转发，因此不会重复；`servers` 可限制子服。
 
-数据库、AI 会话持久化文件仍留在本地。升级到本版首次启动时，旧 `config.yml` 的 `ai` 段会自动复制到本地 `ai.yml` 并标记 `migrated: true`，之后 AI 配置只从 `ai.yml` 读取，`config.yml` 里的 `ai` 段不再生效，可自行删除。聊天记录可通过 `chat-log.shared-path` 指向共享目录，插件会按子服标识隔离到 `servers/server-<编码>/`，避免多台服务器并发追加同一个文件；AI 审核默认读取各子服自己的历史，避免重复审核。共享目录需对插件可写，历史本地文件不会自动迁移。共享日志按接收子服保存，跨服聊天可能在不同子服文件中各有一份，汇总时应注意重复记录。
+数据库、AI 会话持久化文件仍留在本地。升级到本版首次启动时，旧 `config.yml` 的 `ai` 段会自动迁移：AI 端点/助手/审核等复制到本地 `ai.yml` 并标记 `migrated: true`；屏蔽词、联系方式、IP/域名开关改迁到共享 `chat-filter`（仅当 `config.yml` 还没有 `chat-filter` 段时执行，不覆盖新配置）。之后 AI 配置只从 `ai.yml` 读取、屏蔽词只从 `chat-filter` 读取，`config.yml` 里旧的 `ai` 段不再生效，可自行删除。聊天记录可通过 `chat-log.shared-path` 指向共享目录，插件会按子服标识隔离到 `servers/server-<编码>/`，避免多台服务器并发追加同一个文件；AI 审核默认读取各子服自己的历史，避免重复审核。共享目录需对插件可写，历史本地文件不会自动迁移。共享日志按接收子服保存，跨服聊天可能在不同子服文件中各有一份，汇总时应注意重复记录。
 
 **自动重载默认关闭。** 关闭时修改配置后需在各子服执行 `/liuc reload`。启用时，将实际配置目录中的 `settings.auto-reload-config` 改为 `true` 并执行 `/liuc reload`，之后每 10 秒异步检查上述文件的路径、修改时间和大小，变化后在主线程执行与手动命令相同的重载流程。手动重载会重新记录基线，停用插件时取消监听。开启后也能监听 `skills/` 的新增、修改和删除；YAML 语法错误会在刷新组件前拒绝重载。存储连接和数据库同步间隔仍需重启生效，已有 AI 定时任务每次执行读取当前配置，无需重复创建。
 

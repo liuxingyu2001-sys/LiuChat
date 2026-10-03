@@ -45,6 +45,10 @@ public final class ConfigManager {
         return ai;
     }
 
+    /** 旧 ai 段里已迁走、不再属于 AI 配置的键（现在在共享的 chat-filter）。 */
+    private static final java.util.Set<String> AI_FILTER_KEYS = java.util.Set.of(
+            "review.keywords", "review.contacts", "review.block-ips", "review.block-domains");
+
     /** 首次启动把旧 ai 段的值搬进 ai.yml，之后只认 ai.yml，返回是否需要保存。 */
     static boolean applyLegacyAi(org.bukkit.configuration.file.YamlConfiguration ai,
                                  org.bukkit.configuration.ConfigurationSection legacy) {
@@ -52,7 +56,7 @@ public final class ConfigManager {
             return false;
         }
         if (legacy != null) {
-            copySection(ai, "", legacy);
+            copySection(ai, "", legacy, AI_FILTER_KEYS);
         }
         ai.set("migrated", true);
         return true;
@@ -61,17 +65,20 @@ public final class ConfigManager {
     /** 把 source 的值按 prefix 路径写入 target；显式递归，空列表也能保留。 */
     static void mountAi(org.bukkit.configuration.ConfigurationSection target, String prefix,
                         org.bukkit.configuration.ConfigurationSection source) {
-        copySection(target, prefix, source);
+        copySection(target, prefix, source, java.util.Set.of());
     }
 
     private static void copySection(org.bukkit.configuration.ConfigurationSection target, String prefix,
-                                    org.bukkit.configuration.ConfigurationSection source) {
+                                    org.bukkit.configuration.ConfigurationSection source,
+                                    java.util.Set<String> skip) {
         for (String key : source.getKeys(false)) {
+            String path = prefix + key;
+            if (skip.contains(path)) continue;
             Object value = source.get(key);
             if (value instanceof org.bukkit.configuration.ConfigurationSection child) {
-                copySection(target, prefix + key + ".", child);
+                copySection(target, path + ".", child, skip);
             } else if (value != null) {
-                target.set(prefix + key, value);
+                target.set(path, value);
             }
         }
     }
@@ -117,19 +124,21 @@ public final class ConfigManager {
     public String aiAssistantPrompt() {
         return config.getString("ai.assistant.prompt", "你是 Minecraft 服务器聊天助手。简洁回答玩家的问题。不要声称已执行游戏内操作。");
     }
-    public java.util.List<String> aiReviewMatchKeywords() { return config.getStringList("ai.review.keywords.match"); }
-    public java.util.List<java.util.List<String>> aiReviewAllKeywords() {
+    // ---------------- 聊天本地过滤（共享 config.yml 的 chat-filter） ----------------
+    public boolean chatFilterEnabled() { return config.getBoolean("chat-filter.enable", false); }
+    public java.util.List<String> chatFilterMatchKeywords() { return config.getStringList("chat-filter.keywords.match"); }
+    public java.util.List<java.util.List<String>> chatFilterAllKeywords() {
         java.util.List<java.util.List<String>> groups = new java.util.ArrayList<>();
-        for (Object entry : config.getList("ai.review.keywords.all", java.util.List.of())) {
+        for (Object entry : config.getList("chat-filter.keywords.all", java.util.List.of())) {
             if (entry instanceof java.util.List<?> group) {
                 groups.add(group.stream().filter(String.class::isInstance).map(String.class::cast).toList());
             }
         }
         return groups;
     }
-    public boolean aiReviewContacts() { return config.getBoolean("ai.review.contacts", true); }
-    public boolean aiReviewBlockIps() { return config.getBoolean("ai.review.block-ips", true); }
-    public boolean aiReviewBlockDomains() { return config.getBoolean("ai.review.block-domains", true); }
+    public boolean chatFilterContacts() { return config.getBoolean("chat-filter.contacts", true); }
+    public boolean chatFilterBlockIps() { return config.getBoolean("chat-filter.block-ips", true); }
+    public boolean chatFilterBlockDomains() { return config.getBoolean("chat-filter.block-domains", true); }
     public boolean aiReviewEnabled() { return config.getBoolean("ai.review.enable", false); }
     public boolean aiReviewManualEnabled() { return config.getBoolean("ai.review.manual-enable", true); }
     public boolean aiReviewPrivate() { return config.getBoolean("ai.review.private-chat", true); }
