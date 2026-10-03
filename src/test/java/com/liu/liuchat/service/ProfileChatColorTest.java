@@ -37,6 +37,16 @@ class ProfileChatColorTest {
         assertTrue(mention.text().contains("https://www.mc99.top"), mention.text());
     }
 
+    @Test void protectsEveryKindOfItemTokenFromTheProfileGradient() {
+        String result = ProfileChatColor.apply("<gradient:#1AFFF0:#2EA4FF>&l",
+                "装备[盔甲][i13][副手]完成", "[i]");
+        // token 整段受保护，内部不会被渐变色插色，否则下游正则会失配
+        assertTrue(result.contains("§r[盔甲]"), result);
+        assertTrue(result.contains("§r[i13]"), result);
+        assertTrue(result.contains("§r[副手]"), result);
+        assertFalse(result.contains("§x§1§A§F§F§F§0§["), result);
+    }
+
     @Test void keepsPlayerMiniMessageLiteral() {
         String result = ProfileChatColor.apply("<gradient:#000000:#FFFFFF>", "<click:run_command:'/op me'>", "[i]");
         assertTrue(result.contains("<"));

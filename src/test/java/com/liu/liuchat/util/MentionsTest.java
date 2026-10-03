@@ -89,6 +89,22 @@ class MentionsTest {
         assertEquals(List.of("Steve"), marked.names());
     }
 
+    @Test void protectedSpansKeepItemTokensOutFromMentionHighlight() {
+        // 在线玩家叫 armor 时，物品 token [armor] 内的名字不能被提及染色
+        Mentions.Marked marked = Mentions.mark("[armor] armor", List.of("armor"), true, "§b",
+                List.of(new int[]{0, 7}));
+        assertEquals("[armor] §b@armor§r", marked.text());
+        assertEquals(List.of("armor"), marked.names());
+    }
+
+    @Test void protectedSpansAreMappedThroughLeadingColorCodes() {
+        // token 前有颜色码时用原始坐标比对，整条 token 照原样输出
+        Mentions.Marked marked = Mentions.mark("§7[armor]", List.of("armor"), true, "§b",
+                List.of(new int[]{2, 9}));
+        assertEquals("§7[armor]", marked.text());
+        assertEquals(List.of(), marked.names());
+    }
+
     @Test void nullAndEmptyMessages() {
         assertEquals("", Mentions.mark(null, List.of("Steve"), true, "§b").text());
         assertEquals("", Mentions.mark("", List.of("Steve"), true, "§b").text());

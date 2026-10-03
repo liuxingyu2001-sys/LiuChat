@@ -101,7 +101,7 @@ public final class ChatListener implements Listener {
             }
         }
 
-        // 3. 重复/相似发言；[i] 物品展示跳过（每次展示的物品可能不同，同文案不算刷屏）
+        // 3. 重复/相似发言；物品展示（[i]/[i12]/[盔甲]/[副手]）跳过（每次展示的物品可能不同，同文案不算刷屏）
         if (repeats.spam(uuid, text, now, config.repeatTime(), config.repeatSimilarity(),
                 config.repeatMinLength(), chatService.isItemShow(text))) {
             messages.send(player, "chat.repeat");

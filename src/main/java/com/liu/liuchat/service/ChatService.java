@@ -45,10 +45,9 @@ public final class ChatService {
 
     public record Dispatch(String message, String itemData, String placeholders, String nick) { }
 
-    /** [i] 物品展示消息：每次展示的物品都可能不同，重复检测要整条跳过。 */
+    /** 物品展示消息：每次展示的物品都可能不同，重复检测要整条跳过。 */
     public boolean isItemShow(String message) {
-        return message != null && presentation.itemEnabled()
-                && message.contains(presentation.itemToken());
+        return presentation.hasItemToken(message);
     }
 
     public void sendOwnChat(Player player, String message) {
@@ -56,7 +55,7 @@ public final class ChatService {
         String nick = profile == null || profile.nick().isBlank() ? player.getName() : profile.nick();
         String placeholders = presentation.snapshotPlaceholders(player, message);
         if (profile != null && !profile.color().isBlank())
-            message = ProfileChatColor.apply(profile.color(), message, presentation.itemToken());
+            message = ProfileChatColor.apply(profile.color(), message, presentation.itemTokens());
         BaseComponent[] line = presentation.render(config.server(), player.getName(),
                 player.getUniqueId().toString(), player.getWorld().getName(), player, message,
                 null, player, placeholders, nick);
@@ -67,13 +66,14 @@ public final class ChatService {
         String nick = profile == null || profile.nick().isBlank() ? player.getName() : profile.nick();
         String placeholders = presentation.snapshotPlaceholders(player, message);
         if (profile != null && !profile.color().isBlank()) {
-            message = ProfileChatColor.apply(profile.color(), message, presentation.itemToken());
+            message = ProfileChatColor.apply(profile.color(), message, presentation.itemTokens());
         }
-        String itemData = presentation.itemEnabled() && message.contains(presentation.itemToken())
-                ? items.snapshot(player) : "";
-        if (presentation.itemEnabled() && message.contains(presentation.itemToken()) && itemData.isEmpty()) {
-            player.sendMessage("§c手上没有可展示的物品，或物品数据超出跨服消息限制。");
-            message = message.replace(presentation.itemToken(), "§7[物品不可展示]§r");
+        String itemData = "";
+        if (presentation.hasItemToken(message)) {
+            ItemShowcase.Encoded encoded = items.encode(player, presentation.parseItems(message),
+                    presentation.itemMaxCount());
+            itemData = encoded.data();
+            if (itemData.isEmpty()) message = presentation.itemUnavailable(message);
         }
         NameplatesChatHook.publish(player, message);
         deliver(config.server(), player.getUniqueId().toString(), player.getName(),
@@ -146,7 +146,7 @@ public final class ChatService {
 
     private void deliver(String server, String uuid, String playerName, String world,
                          Player sender, String message, String itemData, String placeholders, String nick) {
-        String itemId = presentation.itemEnabled() && message.contains(presentation.itemToken())
+        String itemId = presentation.hasItemToken(message)
                 ? items.register(playerName, uuid, itemData) : null;
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (ignores != null && ignores.ignores(online, uuid, playerName)) continue;

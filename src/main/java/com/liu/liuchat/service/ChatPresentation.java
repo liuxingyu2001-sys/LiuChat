@@ -39,11 +39,15 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
     private final ConfigManager config;
     private final ItemShowcase items;
     private YamlConfiguration chat;
+    /** 物品展示 token 解析器；item.enable 关闭时为 null（整条消息按普通文本处理）。 */
+    private ItemTokens.Parser itemTokens;
     private List<Shortcut> shortcuts = List.of();
     private final ThreadLocal<Map<String, String>> remoteValues = ThreadLocal.withInitial(Map::of);
     private final ThreadLocal<Map<String, String>> emojiValues = ThreadLocal.withInitial(Map::of);
     private final ThreadLocal<YamlConfiguration> remoteFormat = new ThreadLocal<>();
     private static final Pattern PAPI_TOKEN = Pattern.compile("%[^%\\r\\n]{1,100}%");
+    /** 物品数据拿不到时的占位（一个 token 一个占位，不会展开成多件）。 */
+    private static final String ITEM_UNAVAILABLE = "§7[物品不可展示]§r";
     private static final Pattern CHAT_URL = Pattern.compile("(?i)(https?://[^\\s§<>\\\"{}|\\\\^`]+|www\\.[^\\s§<>\\\"{}|\\\\^`]+)");
     private final ThreadLocal<String> displayNick = ThreadLocal.withInitial(() -> "");
     private final ThreadLocal<String> privateTarget = ThreadLocal.withInitial(() -> "");
@@ -71,6 +75,9 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
     public void reload() {
         items.reloadTranslations();
         chat = ConfigDefaults.load(plugin, "chat.yml");
+        itemTokens = itemEnabled()
+                ? ItemTokens.parser(new ItemTokens.Settings(itemToken(), itemSlots(), itemArmor(), itemOffhand()))
+                : null;
         YamlConfiguration rules = ConfigDefaults.load(plugin, "shortcut.yml");
         List<Shortcut> loaded = new ArrayList<>();
         if (rules.getBoolean("enable", false)) {
@@ -115,10 +122,15 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
             Collection<String> extra = knownNames.get();
             if (extra != null) names.addAll(extra);
             Mentions.Marked marked = Mentions.mark(message, names, chat.getBoolean("at.keepAt", true),
-                    mentionColor(chat.getString("at.atColor", "&b")));
+                    mentionColor(chat.getString("at.atColor", "&b")), itemSpans(message));
             mentionCache.put(message, marked);
             return marked;
         }
+    }
+
+    /** 物品 token 区间：@ 提及不得染进 token，否则 token 正则失配、chip 渲染不出来还会串位。 */
+    private List<int[]> itemSpans(String message) {
+        return itemTokens == null ? List.of() : itemTokens.spans(message);
     }
 
     /** ColorParser discards a bare formatting code; give it text to color, then remove that text. */
@@ -168,13 +180,45 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
     }
 
     public boolean itemEnabled() { return chat.getBoolean("item.enable", true); }
-    public String itemUnavailable(String message) {
-        return message.replace(itemToken(), "§7[物品不可展示]§r");
-    }
+
+    /** 主手 token 字面量（只管这一个，槽位/盔甲/副手 token 固定写法）。 */
     public String itemToken() {
         String token = chat.getString("item.format", "[i]");
         return token == null || token.isEmpty() ? "[i]" : token;
     }
+
+    /** token 解析结果；物品展示关闭时整条消息就是一段普通文本。 */
+    public List<ItemTokens.Part> parseItems(String message) {
+        if (message == null || message.isEmpty()) return List.of();
+        return itemTokens == null ? List.of(new ItemTokens.Plain(message)) : itemTokens.parse(message);
+    }
+
+    /** 消息里是否有可展示的物品 token（发送、渲染、重复检测共用）。 */
+    public boolean hasItemToken(String message) {
+        return itemTokens != null && itemTokens.hasToken(message);
+    }
+
+    /** 个人配色保护用：token 起始位置匹配。 */
+    public ItemTokens.Parser itemTokens() { return itemTokens; }
+
+    /** 展示不了时把每个 token 换成占位文本。 */
+    public String itemUnavailable(String message) {
+        if (message == null || itemTokens == null) return message;
+        return itemTokens.replace(message, ITEM_UNAVAILABLE);
+    }
+
+    /** 同一条消息里相邻两个展示 chip 之间插入的内容。 */
+    public String itemSeparator() { return chat.getString("item.separator", "&7, "); }
+
+    /** 展示件数达到 2 件时改用的紧凑样式；留空则一律用 content。 */
+    public String itemMultiContent() { return chat.getString("item.multi-content", "&e[ ${item} ]"); }
+
+    /** 单条消息最多展示几件（9 快捷栏 + 4 盔甲 + 1 副手 = 14）。 */
+    public int itemMaxCount() { return Math.max(1, chat.getInt("item.max-count", 14)); }
+
+    private boolean itemSlots() { return chat.getBoolean("item.slots", true); }
+    private boolean itemArmor() { return chat.getBoolean("item.armor", true); }
+    private boolean itemOffhand() { return chat.getBoolean("item.offhand", true); }
 
     public boolean privateEnabled() { return chat.getBoolean("private.enable", true); }
 
@@ -344,24 +388,49 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
 
     private void appendMessage(TextComponent line, String message, String server, String player,
                                String world, Player sender, String itemId, HoverEvent hint, ClickEvent action) {
-        String marker = itemId == null ? "" : itemToken();
-        int offset = 0;
-        while (!marker.isEmpty()) {
-            int index = message.indexOf(marker, offset);
-            if (index < 0) break;
-            shortcuts(line, message.substring(offset, index), server, player, world, sender, hint, action);
-            ItemStack stack = items.item(itemId);
-            if (stack != null) {
-                String name = items.name(itemId, Math.max(1, chat.getInt("item.length", 18)));
-                String shown = chat.getString("item.content", "&e[ ${item} &e]").replace("${item}", name);
-                HoverEvent itemHover = new HoverEvent(HoverEvent.Action.SHOW_ITEM,
-                        new Item(stack.getType().getKey().toString(), stack.getAmount(), null));
-                append(line, TextUtil.color(shown), itemHover,
-                        new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/liuc item " + itemId));
+        List<ItemTokens.Part> parts = parseItems(message);
+        int[] counts = itemId == null ? null : items.counts(itemId);
+        int total = 0;
+        if (counts != null) for (int count : counts) total += count;
+        // 单件仍用原来的「物品展示 [名]」，多件换紧凑样式，否则一条消息会重复 9 遍前缀
+        String multi = itemMultiContent();
+        String content = total >= 2 && !multi.isBlank()
+                ? multi : chat.getString("item.content", "&e[ ${item} &e]");
+        String separator = itemId == null ? "" : TextUtil.color(itemSeparator());
+        int tokenIndex = 0;
+        int stackIndex = 0;
+        boolean chipShown = false;
+        for (ItemTokens.Part part : parts) {
+            if (part instanceof ItemTokens.Token token) {
+                if (itemId == null) {
+                    // 没有物品数据时保留原文，不吞掉玩家输入
+                    shortcuts(line, token.raw(), server, player, world, sender, hint, action);
+                    continue;
+                }
+                int count = counts == null || tokenIndex >= counts.length ? 0 : counts[tokenIndex];
+                int base = stackIndex;
+                tokenIndex++;
+                stackIndex += count;
+                for (int k = 0; k < count; k++) {
+                    String id = ItemShowcase.subId(itemId, base + k);
+                    ItemStack stack = items.item(id);
+                    if (stack == null) continue;
+                    if (chipShown) append(line, separator, hint, action);
+                    String name = items.name(id, Math.max(1, chat.getInt("item.length", 18)));
+                    String shown = content.replace("${item}", name);
+                    HoverEvent itemHover = new HoverEvent(HoverEvent.Action.SHOW_ITEM,
+                            new Item(stack.getType().getKey().toString(), stack.getAmount(), null));
+                    append(line, TextUtil.color(shown), itemHover,
+                            new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/liuc item " + id));
+                    chipShown = true;
+                }
+                continue;
             }
-            offset = index + marker.length();
+            String text = ((ItemTokens.Plain) part).value();
+            if (text.isEmpty()) continue;
+            shortcuts(line, text, server, player, world, sender, hint, action);
+            chipShown = false;
         }
-        shortcuts(line, message.substring(offset), server, player, world, sender, hint, action);
     }
 
     private void shortcuts(TextComponent line, String message, String server, String player, String world,

@@ -50,6 +50,15 @@ public final class Mentions {
      * @param highlight  高亮颜色（§ 码，可为空表示不高亮）
      */
     public static Marked mark(String message, Collection<String> knownNames, boolean keepAt, String highlight) {
+        return mark(message, knownNames, keepAt, highlight, List.of());
+    }
+
+    /**
+     * @param protectedSpans 原始消息里不可染指的 [start, end) 区间（物品展示 token 等）；
+     *                       与这些区间重叠的提及直接丢弃，否则 token 被插色后下游正则会失配
+     */
+    public static Marked mark(String message, Collection<String> knownNames, boolean keepAt, String highlight,
+                              Collection<int[]> protectedSpans) {
         if (message == null || message.isEmpty()) {
             return new Marked(message == null ? "" : message, List.of());
         }
@@ -91,6 +100,8 @@ public final class Mentions {
         int boundary = 0;
         for (Span span : spans) {
             if (span.start() < boundary) continue;
+            // 提及若落在受保护区间里（如 [armor] 里的 armor），不标记
+            if (overlaps(map[span.start()], map[span.end()], protectedSpans)) continue;
             picked.add(span);
             boundary = span.end();
         }
@@ -120,6 +131,14 @@ public final class Mentions {
     /** 文本末尾生效的颜色与样式状态（§ 码），用于在插入高亮后恢复原样式。 */
     public static String state(String text) {
         return text == null ? "" : stateAt(text, text.length());
+    }
+
+    private static boolean overlaps(int start, int end, Collection<int[]> protectedSpans) {
+        if (protectedSpans == null || protectedSpans.isEmpty()) return false;
+        for (int[] span : protectedSpans) {
+            if (span != null && span.length == 2 && start < span[1] && span[0] < end) return true;
+        }
+        return false;
     }
 
     private static String stateAt(String raw, int end) {

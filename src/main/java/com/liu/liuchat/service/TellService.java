@@ -148,12 +148,13 @@ public final class TellService {
     }
 
     private boolean hasItemToken(String message) {
-        return presentation != null && presentation.privateEnabled() && presentation.itemEnabled()
-                && message.contains(presentation.itemToken());
+        return presentation != null && presentation.privateEnabled()
+                && presentation.hasItemToken(message);
     }
 
     private String snapshotItem(Player sender, String message) {
-        return hasItemToken(message) && items != null ? items.snapshot(sender) : "";
+        return hasItemToken(message) && items != null
+                ? items.encode(sender, presentation.parseItems(message), presentation.itemMaxCount()).data() : "";
     }
 
     private String registerItem(String owner, String uuid, String data) {

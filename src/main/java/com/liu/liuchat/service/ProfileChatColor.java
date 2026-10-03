@@ -14,7 +14,16 @@ final class ProfileChatColor {
 
     private ProfileChatColor() { }
 
+    /** 默认配置（槽位/盔甲/副手都开）的便捷重载，测试与简单调用用。 */
     static String apply(String format, String message, String itemToken) {
+        return apply(format, message, ItemTokens.parser(
+                new ItemTokens.Settings(itemToken, true, true, true)));
+    }
+
+    /**
+     * @param itemTokens 物品展示 token 解析器；null 时只保护提及/表情/链接
+     */
+    static String apply(String format, String message, ItemTokens.Parser itemTokens) {
         Matcher matcher = GRADIENT.matcher(format);
         if (!matcher.matches()) {
             String prefix = TextUtil.color(format + "x");
@@ -27,7 +36,7 @@ final class ProfileChatColor {
         StringBuilder colored = new StringBuilder(message.length() * 16);
         int count = 0;
         for (int i = 0; i < message.length();) {
-            int protectedEnd = protectedEnd(message, i, itemToken);
+            int protectedEnd = protectedEnd(message, i, itemTokens);
             if (protectedEnd > i) {
                 i = protectedEnd;
                 continue;
@@ -41,7 +50,7 @@ final class ProfileChatColor {
         }
         int position = 0;
         for (int i = 0; i < message.length();) {
-            int protectedEnd = protectedEnd(message, i, itemToken);
+            int protectedEnd = protectedEnd(message, i, itemTokens);
             if (protectedEnd > i) {
                 colored.append("§r").append(message, i, protectedEnd);
                 i = protectedEnd;
@@ -68,8 +77,11 @@ final class ProfileChatColor {
         return colored.toString();
     }
 
-    private static int protectedEnd(String message, int offset, String itemToken) {
-        if (!itemToken.isEmpty() && message.startsWith(itemToken, offset)) return offset + itemToken.length();
+    private static int protectedEnd(String message, int offset, ItemTokens.Parser itemTokens) {
+        if (itemTokens != null) {
+            int tokenEnd = itemTokens.tokenEnd(message, offset);
+            if (tokenEnd > offset) return tokenEnd;
+        }
         Matcher match = SPECIAL.matcher(message);
         match.region(offset, message.length());
         return match.lookingAt() ? match.end() : offset;
