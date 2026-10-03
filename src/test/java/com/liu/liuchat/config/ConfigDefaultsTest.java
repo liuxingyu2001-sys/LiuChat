@@ -69,6 +69,24 @@ class ConfigDefaultsTest {
                 local.getStringList("chat-filter.keywords.match"));
     }
 
+    @Test void upgradesOldBotTextDefaultsToGrayButKeepsCustomColors() {
+        YamlConfiguration messages = new YamlConfiguration();
+        messages.set("ai.answer-text", "&f${answer}");
+        assertTrue(ConfigDefaults.merge(messages, new YamlConfiguration(), "messages.yml"));
+        assertEquals("&7${answer}", messages.getString("ai.answer-text"));
+        assertFalse(ConfigDefaults.merge(messages, new YamlConfiguration(), "messages.yml"));
+
+        YamlConfiguration custom = new YamlConfiguration();
+        custom.set("ai.answer-text", "&e${answer}");
+        assertFalse(ConfigDefaults.merge(custom, new YamlConfiguration(), "messages.yml"));
+        assertEquals("&e${answer}", custom.getString("ai.answer-text"));
+
+        YamlConfiguration ai = new YamlConfiguration();
+        ai.set("chat.format", "&7[AI] &b${player}&7: &f${message}");
+        assertTrue(ConfigDefaults.merge(ai, new YamlConfiguration(), "ai.yml"));
+        assertEquals("&7[AI] &b${player}&7: &7${message}", ai.getString("chat.format"));
+    }
+
     @Test void privateChatDefaultsHaveSeparateReplyActions() throws Exception {
         try (var input = getClass().getResourceAsStream("/chat.yml")) {
             var defaults = YamlConfiguration.loadConfiguration(

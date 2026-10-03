@@ -78,8 +78,9 @@ public final class AskCommand implements ChatCommand {
                     TextUtil.color(config.aiAssistantTitle(assistant)));
             reserved = AiAnswerFormatter.visibleWidth(prefix);
         }
-        String body = messages.get("ai.answer-text", "${answer}",
-                TextUtil.color(AiAnswerFormatter.block(answer, reserved)));
+        String block = AiAnswerFormatter.block(answer, reserved,
+                AiAnswerFormatter.resetColor(messages.getRaw("ai.answer-text")));
+        String body = messages.get("ai.answer-text", "${answer}", TextUtil.color(block));
         player.sendMessage(messages.prefix() + prefix + body);
     }
 

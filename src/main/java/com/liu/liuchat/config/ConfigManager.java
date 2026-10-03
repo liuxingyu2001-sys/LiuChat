@@ -227,8 +227,8 @@ public final class ConfigManager {
     public int aiChatMaxAnswer() { return Math.max(20, Math.min(400, config.getInt("ai.chat.max-answer", 200))); }
     public int aiChatContextMessages() { return Math.max(0, Math.min(100, config.getInt("ai.chat.context-messages", 12))); }
     public String aiChatFormat() {
-        String format = config.getString("ai.chat.format", "&7[AI] &b${player}&7: &f${message}");
-        return format == null || format.isBlank() ? "&7[AI] &b${player}&7: &f${message}" : format;
+        String format = config.getString("ai.chat.format", "&7[AI] &b${player}&7: &7${message}");
+        return format == null || format.isBlank() ? "&7[AI] &b${player}&7: &7${message}" : format;
     }
     /** ${head} 头像用的皮肤 UUID；留空 = AI 虚拟 UUID（默认皮肤） */
     public String aiChatHeadUuid() { return config.getString("ai.chat.head-uuid", "").trim(); }

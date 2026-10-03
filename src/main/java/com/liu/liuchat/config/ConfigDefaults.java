@@ -60,6 +60,10 @@ public final class ConfigDefaults {
         return merge(local, defaults, "");
     }
 
+    /** 旧版机器人正文默认色，仅当用户没改过时才升级为灰色。 */
+    private static final String OLD_ANSWER_TEXT = "&f${answer}";
+    private static final String OLD_AI_CHAT_FORMAT = "&7[AI] &b${player}&7: &f${message}";
+
     /**
      * 把内置默认值补进已有文件，不覆盖用户改过的值；name 用于识别需要一次性升级迁移的文件。
      */
@@ -68,6 +72,12 @@ public final class ConfigDefaults {
         if ("config.yml".equals(name)) {
             changed |= migrateHornTemplates(local, defaults);
             changed |= migrateChatFilter(local);
+        }
+        if ("messages.yml".equals(name)) {
+            changed |= replaceExact(local, "ai.answer-text", OLD_ANSWER_TEXT, "&7${answer}");
+        }
+        if ("ai.yml".equals(name)) {
+            changed |= replaceExact(local, "chat.format", OLD_AI_CHAT_FORMAT, "&7[AI] &b${player}&7: &7${message}");
         }
         for (String path : defaults.getKeys(true)) {
             Object value = defaults.get(path);
@@ -122,6 +132,15 @@ public final class ConfigDefaults {
             return false;
         }
         config.set(to, config.get(from));
+        return true;
+    }
+
+    /** 只把“恰好还是旧默认值”的项换成新默认值，用户自定义过的颜色不动。 */
+    private static boolean replaceExact(YamlConfiguration config, String path, String oldValue, String newValue) {
+        if (!oldValue.equals(config.getString(path))) {
+            return false;
+        }
+        config.set(path, newValue);
         return true;
     }
 }

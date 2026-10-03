@@ -12,7 +12,7 @@ AI 配置在每台子服本地的 `plugins/LiuChat/ai.yml`，**不随共享配�
 
 AI 助手独立于审核，可单独开启 `ai.assistant.enable`。在 `ai.assistant.profiles` 下配置多个助手及其 `skill` 目录，例如 `profiles.bot.skill: bot`、`profiles.guide.skill: guide`。`/liuc ask <问题>` 使用 `ai.assistant.default` 指定的助手（默认 `bot`），`/liuc ask guide <问题>` 选择其他助手；`/liuc ask list` 列出助手。无需 `@`。每个 skill 位于 `plugins/LiuChat/skills/<目录名>/`，读取 `SKILL.md` 及下层 `.md`/`.txt`；`/liuc reload` 刷新。skill 仅作为提示词知识，不会执行脚本或调用工具。
 
-助手可以自定义显示名称：`ai.assistant.name` 是全局默认（默认 `聊天助手`），`ai.assistant.profiles.<助手名>.name` 单独覆盖，例如 `profiles.bot.name: '久久酱'`。显示名用在回答前缀和 `/liuc dialog ai` 的标题上，`ai.assistant.default` 仍然是命令读的助手 ID。回答前的 `[显示名]` 前缀由 `ai.assistant.answer-prefix` 开关（默认 `true`，关掉就只发正文）；前缀与正文的格式分别写在 `messages.yml` 的 `ai.answer-prefix`、`ai.answer-text`，`/liuc reload` 生效。
+助手可以自定义显示名称：`ai.assistant.name` 是全局默认（默认 `聊天助手`），`ai.assistant.profiles.<助手名>.name` 单独覆盖，例如 `profiles.bot.name: '久久酱'`。显示名用在回答前缀和 `/liuc dialog ai` 的标题上，`ai.assistant.default` 仍然是命令读的助手 ID。回答前的 `[显示名]` 前缀由 `ai.assistant.answer-prefix` 开关（默认 `true`，关掉就只发正文）；前缀与正文的格式分别写在 `messages.yml` 的 `ai.answer-prefix`、`ai.answer-text`，`/liuc reload` 生效。**回答正文默认灰色（`&7`）**；正文里的指令会高亮为青色，高亮结束后的复位色自动跟随正文色，因此灰色回答不会因为出现指令而冒出一截白字。公屏 AI 回复的正文同样默认灰色，由 `ai.yml` 的 `chat.format` 控制。
 
 `/liuc ask` 的回答按**一条消息**发送：回答里的换行与段落空行原样保留（段落之间就是一个空行），不再逐行刷出 N 条消息；折行按显示宽度算（中文全角算 2 个半角，对齐聊天框 320px，中文长句不会被顶出屏幕），指令高亮为青色并在段尾复位颜色，避免整条消息被染色。输出只剥 Markdown记号（代码围栏、行首标题符、成对的 `**粗体**`、`` `代码` ``），正文符号一律保留 —— 指令占位符 `<名称>` 里的 `>`、`/tp ~ ~ ~` 的 `~`、`player_name` 的 `_` 都不会被吃掉。
 

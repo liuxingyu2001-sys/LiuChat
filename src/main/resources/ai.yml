@@ -81,6 +81,6 @@ chat:
   # 支持 & 色码与 MiniMessage 混写（如 <gradient:#afd9c2:#97e1cb>渐变</gradient>）；
   # ${head} 显示头像（可用 head-uuid 指定真实玩家皮肤），回复内容原样显示，不解析色码/占位符/标签。
   # AI 回复跨服时携带发送服的格式与头像设置，接收服不会套用自己的配置
-  format: '&7[AI] &b${player}&7: &f${message}'
+  format: '&7[AI] &b${player}&7: &7${message}'
   head-uuid: '' # ${head} 的皮肤 UUID；留空用 AI 虚拟 UUID（可能显示默认皮肤），可填真实玩家 UUID
   # 提问拼接受 ai.assistant.max-question 限制（默认 300），想带更多上下文把它调大（上限 2000）

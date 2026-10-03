@@ -39,9 +39,14 @@ class PublicChatAiServiceTest {
         assertTrue(plain.endsWith("大家好"));
     }
 
-    @Test void blankFormatFallsBackToDefault() {
-        assertEquals("§7[AI] §b小派蒙§7: §fhi", PublicChatAiService.formatLine("", "小派蒙", "hi"));
-        assertEquals("§7[AI] §b小派蒙§7: §fhi", PublicChatAiService.formatLine(null, "小派蒙", "hi"));
+    @Test void blankFormatFallsBackToGrayDefault() {
+        for (String format : new String[]{"", null}) {
+            String line = PublicChatAiService.formatLine(format, "小派蒙", "hi");
+            assertTrue(line.startsWith("§7[AI]"), line);
+            assertTrue(line.endsWith("hi"), line);
+            // 机器人正文默认灰色：MiniMessage 合并相邻同色，不再单独输出正文色码
+            assertFalse(line.contains("§f"), line);
+        }
     }
 
     @Test void headPlaceholderUsesConfiguredUuidAndDoesNotParseReply() {

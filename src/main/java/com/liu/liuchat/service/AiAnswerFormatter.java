@@ -23,6 +23,8 @@ public final class AiAnswerFormatter {
     private static final Pattern HEADING = Pattern.compile("^#{1,6}\\s*");
     private static final Pattern COMMAND = Pattern.compile("(?<!\\S)(/[-a-zA-Z0-9_:]+(?:\\s+[^\\s]+){0,8})");
     private static final Pattern COLOR_CODE = Pattern.compile("(?i)(?:[§&]x(?:[§&][0-9a-f]){6})|[§&][0-9a-fk-or]");
+    /** 回答模板里 ${answer} 前紧贴的颜色码，用作指令高亮后的复位色 */
+    private static final Pattern RESET_CODES = Pattern.compile("((?:&|§)[0-9a-fk-or])+$", Pattern.CASE_INSENSITIVE);
     /** 一行的宽度预算（半角单位，全角算 2），对齐聊天框 320px 的可用宽度 */
     private static final int MAX_WIDTH = 46;
     private static final int MIN_WIDTH = 8;
@@ -32,8 +34,12 @@ public final class AiAnswerFormatter {
 
     /** 逐行输出（Dialog 用）：段落之间的空行丢弃，一行一条 */
     public static List<String> lines(String answer) {
+        return lines(answer, "&f");
+    }
+
+    static List<String> lines(String answer, String reset) {
         List<String> out = new ArrayList<>();
-        for (String line : wrap(answer, MAX_WIDTH)) if (!line.isEmpty()) out.add(line);
+        for (String line : wrap(answer, MAX_WIDTH, reset)) if (!line.isEmpty()) out.add(line);
         return out.isEmpty() ? List.of(EMPTY_HINT) : List.copyOf(out);
     }
 
@@ -43,8 +49,25 @@ public final class AiAnswerFormatter {
      * @param reserved 首行前缀占的显示宽度，正文给它让位，避免前缀把内容挤出屏幕
      */
     public static String block(String answer, int reserved) {
-        List<String> out = wrap(answer, Math.max(MIN_WIDTH, MAX_WIDTH - Math.max(0, reserved)));
+        return block(answer, reserved, "&f");
+    }
+
+    /**
+     * @param reset 指令高亮（&b）之后的复位色，通常取正文自身的颜色，
+     *              这样灰色回答里不会因为出现指令就冒出一截白字
+     */
+    public static String block(String answer, int reserved, String reset) {
+        List<String> out = wrap(answer, Math.max(MIN_WIDTH, MAX_WIDTH - Math.max(0, reserved)), reset);
         return out.isEmpty() ? EMPTY_HINT : String.join("\n", out);
+    }
+
+    /** 从回答模板（如 {@code &7${answer}}）里取 ${answer} 前的颜色码；没有则回退默认白。 */
+    public static String resetColor(String template) {
+        if (template == null) return "&f";
+        int at = template.indexOf("${answer}");
+        if (at < 0) return "&f";
+        Matcher matcher = RESET_CODES.matcher(template.substring(0, at));
+        return matcher.find() ? matcher.group() : "&f";
     }
 
     /** 去掉颜色码后的显示宽度（半角单位，全角算 2） */
@@ -52,7 +75,7 @@ public final class AiAnswerFormatter {
         return text == null || text.isEmpty() ? 0 : width(COLOR_CODE.matcher(text).replaceAll(""));
     }
 
-    private static List<String> wrap(String answer, int firstWidth) {
+    private static List<String> wrap(String answer, int firstWidth, String reset) {
         String source = answer == null ? "" : CODE_FENCE.matcher(answer).replaceAll("");
         source = source.replace("\r\n", "\n").replace('\r', '\n');
         List<String> out = new ArrayList<>();
@@ -68,7 +91,7 @@ public final class AiAnswerFormatter {
                 out.add("");
                 gap = false;
             }
-            emit(out, text, started ? MAX_WIDTH : firstWidth);
+            emit(out, text, started ? MAX_WIDTH : firstWidth, reset);
             started = true;
         }
         return out;
@@ -78,7 +101,7 @@ public final class AiAnswerFormatter {
      * 一行里可能有指令要高亮：短引导（序号、项目符号）尽量和指令同一行，
      * 指令段用 {@code &f} 复位 —— 整段回答现在是一条消息，不复位颜色会一路染到最后。
      */
-    private static void emit(List<String> out, String text, int firstWidth) {
+    private static void emit(List<String> out, String text, int firstWidth, String reset) {
         Matcher command = COMMAND.matcher(text);
         if (!command.find()) {
             addWrapped(out, text, "", firstWidth, MAX_WIDTH);
@@ -99,10 +122,10 @@ public final class AiAnswerFormatter {
         // 尾巴放得下就接回同一行，省得冒出只有句号的一行；尾巴里还有指令就继续拆
         if (!tail.isBlank() && !COMMAND.matcher(tail).find()
                 && visibleWidth(out.get(last)) + gap + width(tailText) <= MAX_WIDTH)
-            out.set(last, out.get(last) + "&f" + " ".repeat(gap) + tailText);
+            out.set(last, out.get(last) + reset + " ".repeat(gap) + tailText);
         else {
-            out.set(last, out.get(last) + "&f");
-            if (!tail.isBlank()) emit(out, tailText, MAX_WIDTH);
+            out.set(last, out.get(last) + reset);
+            if (!tail.isBlank()) emit(out, tailText, MAX_WIDTH, reset);
         }
     }
 

@@ -79,7 +79,7 @@ ai.thinking: "&7${name}正在回答..." # ${name} = 助手显示名
 ai.failed: "&c聊天助手暂时不可用，请稍后再试。"
 # 助手回答：前缀 + 正文拼成一条消息发送，多段内容用换行分段（${answer} 里自带换行）
 ai.answer-prefix: "&b[${name}] " # 显示名前缀，ai.assistant.answer-prefix: false 时不输出
-ai.answer-text: "&f${answer}" # 回答正文
+ai.answer-text: "&7${answer}" # 回答正文（默认灰色）
 help.ask.desc: "&7询问聊天助手 &e<问题> 或 &e<助手名> <问题>"
 help.audit.desc: "&7审查最近 1-24 小时公开聊天 &e<小时>"
 ai.audit-usage: "&c用法: /liuc audit <1-24>"

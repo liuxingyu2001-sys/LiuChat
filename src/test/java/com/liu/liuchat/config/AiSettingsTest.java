@@ -78,7 +78,7 @@ class AiSettingsTest {
     @Test void bundledAnswerMessageSplitsPrefixAndBody() throws Exception {
         var defaults = resource("/messages.yml");
         assertEquals("&b[${name}] ", defaults.getString("ai.answer-prefix"));
-        assertEquals("&f${answer}", defaults.getString("ai.answer-text"));
+        assertEquals("&7${answer}", defaults.getString("ai.answer-text"));
     }
 
     @Test void localAiFileIsMountedUnderTheAiSection() {

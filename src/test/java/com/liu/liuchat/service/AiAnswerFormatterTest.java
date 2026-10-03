@@ -17,6 +17,20 @@ class AiAnswerFormatterTest {
         assertTrue(lines.size() > 3);
     }
 
+    @Test void resetColorFollowsAnswerTemplateColor() {
+        assertEquals("&7", AiAnswerFormatter.resetColor("&7${answer}"));
+        assertEquals("&f", AiAnswerFormatter.resetColor("&f${answer}"));
+        assertEquals("&l&7", AiAnswerFormatter.resetColor("&l&7${answer}"));
+        assertEquals("&f", AiAnswerFormatter.resetColor("${answer}"));
+        assertEquals("&f", AiAnswerFormatter.resetColor(null));
+    }
+
+    @Test void grayBlockResetsCommandHighlightBackToGray() {
+        String block = AiAnswerFormatter.block("执行 `/spawn`。再回来", 0, "&7");
+        assertTrue(block.contains("&b/spawn&7。"), block);
+        assertFalse(block.contains("&f"), block);
+    }
+
     @Test void emptyAnswerGetsFallback() {
         assertTrue(AiAnswerFormatter.lines("").getFirst().contains("没有返回内容"));
     }
