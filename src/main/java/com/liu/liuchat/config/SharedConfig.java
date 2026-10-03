@@ -24,6 +24,8 @@ public final class SharedConfig implements AutoCloseable {
     private volatile Map<String, FileStamp> baseline = Map.of();
     static final List<String> CONFIG_FILES = List.of("config.yml", "messages.yml",
             "shortcut.yml", "dialogs.yml", "npc-assistants.yml", "reminders.yml");
+    /** 每服本地业务配置：不共享，但参与自动重载监听与重载前校验。 */
+    static final List<String> LOCAL_FILES = List.of("chat.yml", "ai.yml");
     private volatile BukkitTask task;
     private volatile boolean closed;
     private final AtomicBoolean reloading = new AtomicBoolean();
@@ -67,11 +69,13 @@ public final class SharedConfig implements AutoCloseable {
                 throw new IllegalStateException("Invalid configuration: " + file, e);
             }
         }
-        Path localChat = plugin.getDataFolder().toPath().resolve("chat.yml");
-        try {
-            if (Files.exists(localChat)) new YamlConfiguration().load(localChat.toFile());
-        } catch (IOException | InvalidConfigurationException e) {
-            throw new IllegalStateException("Invalid local configuration: " + localChat, e);
+        for (String name : LOCAL_FILES) {
+            Path local = plugin.getDataFolder().toPath().resolve(name);
+            try {
+                if (Files.exists(local)) new YamlConfiguration().load(local.toFile());
+            } catch (IOException | InvalidConfigurationException e) {
+                throw new IllegalStateException("Invalid local configuration: " + local, e);
+            }
         }
         Path local = plugin.getDataFolder().toPath().toAbsolutePath().normalize().resolve("config.yml");
         if (!local.equals(root.resolve("config.yml"))) {
@@ -125,10 +129,12 @@ public final class SharedConfig implements AutoCloseable {
             Map<String, FileStamp> result = new HashMap<>(snapshot(root,
                     plugin instanceof com.liu.liuchat.LiuChat chat
                             ? chat.getSkillsRoot() : root.resolve("skills")));
-            Path localChat = plugin.getDataFolder().toPath().resolve("chat.yml");
-            if (Files.isRegularFile(localChat)) {
-                result.put("local/chat.yml", new FileStamp(Files.getLastModifiedTime(localChat).toMillis(),
-                        Files.size(localChat)));
+            for (String name : LOCAL_FILES) {
+                Path local = plugin.getDataFolder().toPath().resolve(name);
+                if (Files.isRegularFile(local)) {
+                    result.put("local/" + name, new FileStamp(Files.getLastModifiedTime(local).toMillis(),
+                            Files.size(local)));
+                }
             }
             return Map.copyOf(result);
         } catch (IOException e) {

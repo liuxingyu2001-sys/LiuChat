@@ -26,7 +26,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class PublicChatAiService {
 
-    /** 固定聊天格式的缺省值（与 config.yml / ConfigManager 一致） */
+    /** 固定聊天格式的缺省值（与 ai.yml / ConfigManager 一致） */
     private static final String DEFAULT_FORMAT = "&7[AI] &b${player}&7: &f${message}";
 
     /** 公屏请求的会话键：同时只处理一个公屏问题 */

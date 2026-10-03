@@ -72,6 +72,13 @@ class SharedConfigTest {
         assertTrue(SharedConfig.snapshot(root, skills).containsKey("reminders.yml"));
     }
 
+    @Test void keepsAiAndChatOutOfSharedFiles() {
+        assertTrue(SharedConfig.LOCAL_FILES.contains("ai.yml"));
+        assertTrue(SharedConfig.LOCAL_FILES.contains("chat.yml"));
+        assertFalse(SharedConfig.CONFIG_FILES.contains("ai.yml"));
+        assertFalse(SharedConfig.CONFIG_FILES.contains("chat.yml"));
+    }
+
     @Test void automaticReloadDefaultsToDisabled() throws Exception {
         try (var input = getClass().getResourceAsStream("/config.yml")) {
             var config = new YamlConfiguration();

@@ -1,5 +1,7 @@
 # AI 功能配置
 
+AI 配置在每台子服本地的 `plugins/LiuChat/ai.yml`，**不随共享配置同步**（不同子服可用各自的 url、key、model 与助手）。本文中的 `ai.xxx` 键对应 `ai.yml` 里的 `xxx`；`/liuc reload` 后生效。升级首次启动会把旧 `config.yml` 的 `ai` 段自动迁移到 `ai.yml`（标记 `migrated: true`），之后请只改 `ai.yml`。
+
 ## 聊天审核
 
 `ai.enable` 是即时本地屏蔽和历史采集的总开关：屏蔽词（含 `*`、`?` 有限通配）、数字联系方式、IPv4 和域名在发送时直接拦截，未命中则立即广播。`ai.review.enable: true` 才启动定时 AI 审查，默认每 60 分钟分析最近 1 小时本服已发送的公开聊天；`ai.review.manual-enable: true` 允许管理员用 `/liuc audit <1-24>` 审查指定小时数。两项开关互不影响。记录单独存于 `audit-history/YYYY-MM-DD.jsonl`，不依赖可自定义格式的普通聊天日志；报告写入 `audit-reports/` 并通知 `liuchat.audit.notify` 管理员。每次最多提交最近 250 条、每条最多 300 字，报告记录超量丢弃数；模型只生成待人工复核的报告，不自动禁言。跨服需在各子服分别执行审核。审核 URL/模型沿用 `ai.url` / `ai.model`，`ai.review.prompt` 与 `ai.review.timeout-seconds` 单独配置。`/liuc reload` 可切换定时/手动开关。
@@ -18,6 +20,6 @@ AI 助手独立于审核，可单独开启 `ai.assistant.enable`。在 `ai.assis
 
 省 token 相关：`max-tokens`（默认 1024，0 = 不限制）限制单次回答的输出 —— 超出 `max-answer` 的部分本来就会被截掉不显示，模型却已经生成并计费；`cache-seconds`（默认 300，0 = 关闭）让“相同配置 + 相同上下文 + 相同问题”在有效期内直接返回缓存答案，不请求模型 = 0 token（缓存 key 含上下文指纹，会话一推进自动失效，不会答非所问）。system 提示词（`prompt` + skill 全文）每次全量重发，且刻意保持逐字节稳定、排在消息最前面，用于命中 OpenAI/DeepSeek/Kimi 等服务的前缀缓存（命中部分约 1/10 计价）；因此不要往 `prompt` 里拼时间戳、玩家名等动态内容，skill 内容也尽量少改。
 
-`/liuc dialog ai` 是独立的 AI 对话 Dialog，标题取该助手的自定义显示名称。回答正文宽度由 `config.yml` 中的 `ai.assistant.dialog-width` 控制，默认 520，范围 100-800。
+`/liuc dialog ai` 是独立的 AI 对话 Dialog，标题取该助手的自定义显示名称。回答正文宽度由 `ai.yml` 中的 `ai.assistant.dialog-width` 控制，默认 520，范围 100-800。
 
 NPC 助手使用 Citizens 软依赖，不需要 CustomNameplates：在 `npc-assistants.yml` 中按 Citizens NPC ID 绑定助手名（例如 `npcs.'12'.assistant: bot`）；右键该 NPC 打开专用提问 Dialog，回答仅对点击者可见，但问答会进入该助手的共享会话供其他玩家续上。配置支持 `max-distance`、`cancel-other-actions`；未绑定的 NPC 不受影响。**本轮不做聊天气泡。** `npc-assistants.yml` 和技能在 `/liuc reload` 后重载。

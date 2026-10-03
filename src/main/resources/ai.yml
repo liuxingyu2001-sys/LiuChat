@@ -1,0 +1,104 @@
+# ============================================================
+#  LiuChat AI 配置
+#  每台子服独立，不随共享配置同步（可分别用不同 url / key / model / 助手）
+#  修改后执行 /liuc reload 生效
+# ============================================================
+
+# 首次启动会把旧 config.yml 的 ai 段迁移到这里；之后请只改本文件。
+migrated: false
+
+# 审核不阻塞发言；本地规则即时拦截，AI 每小时汇总本服公开聊天并生成报告。
+enable: false
+url: ''
+api-key: ''
+model: ''
+# 请求 AI 失败时是否放行（true = 失败放行，不阻断发言）。
+fail-open: true
+review:
+  enable: false # 每小时审核历史；不影响普通聊天速度
+  manual-enable: true # 管理员可用 /lc audit <1-24> 手动审查
+  private-chat: true # 将私聊纳入历史审查，仍只写入本地审查文件
+  interval-minutes: 60 # 定时审查最近一小时；/liuc reload 生效
+  timeout-seconds: 90
+  prompt: '审核 Minecraft 聊天记录，识别违规发言并返回结构化 JSON。'
+  # match 任意一词命中即拦截；all 每组词全部命中即拦截，任意一组成立即可
+  # 支持 * (0-8 字符)、? (1 字符)；普通字符间允许插入 0-2 字符
+  keywords:
+    match: [
+      代充, 加群, 私服, 出号, RMB交易,
+      cnm, 傻逼, sb, fuck,
+      你妈, 你爹, 操你妈, 草泥马, 草你妈,
+      泥马隔壁, 杂种, 傻屌, 傻鸟, 狗逼, 狗叫,
+      弱智, 智障, 脑残, 废物, 垃圾,
+      小丑, 人机, 滚, 闭嘴, 破防, 急了,
+      玻璃心, 小学生, 菜鸟, 有本事,
+      跑路实锤, 退游, 倒闭
+    ]
+
+    all: []
+  contacts: true # 数字联系方式直接屏蔽
+  block-ips: true # 有效 IPv4 与 IPv4:端口直接屏蔽，不请求 AI
+  block-domains: true # 域名、域名:端口、URL 中的域名直接屏蔽
+assistant:
+  enable: false
+  url: '' # 留空时沿用 ai.url；可填 /v1 或完整 /v1/chat/completions
+  api-key: '' # 留空时沿用 ai.api-key，再回退 LIUCHAT_AI_API_KEY
+  model: '' # 留空时沿用 ai.model
+  prompt: '你是 Minecraft 服务器聊天助手。简洁回答玩家的问题。不要声称已执行游戏内操作。'
+  # 注意：prompt + skill 会原样作为请求的第一条 system 消息且每次全量重发。
+  # 保持它逐字节不变，才能命中 OpenAI/DeepSeek/Kimi 等服务的前缀缓存（命中部分约 1/10 计价）；
+  # 不要往 system 里拼时间戳、玩家名等动态内容，skill 内容也尽量少改。
+  max-question: 300
+  max-answer: 600
+  dialog-width: 520 # AI Dialog 回答正文宽度，范围 100-800
+  timeout-seconds: 60 # 助手生成较长回答时可调至 30~120 秒
+  default: bot # /lc ask <问题> 使用此助手（机器读的 ID）
+  name: '聊天助手' # 助手显示名称：回答前缀 [名称]、/liuc dialog ai 标题用
+  answer-prefix: true # 回答前加 [显示名] 前缀；false = 只发正文
+  # ---------------- 省 token ----------------
+  # 单次回答的输出 token 上限，0 = 不限制。
+  # 超出 max-answer 的部分本来就会被截掉不显示，模型却已经生成并计费，这里直接不让它生成。
+  max-tokens: 1024
+  # 相同问题（且配置、上下文都相同）在该时间内直接返回缓存答案，不请求模型 = 0 token，0 = 关闭。
+  cache-seconds: 300
+  # 多轮上下文：按助手名共享一份会话，全服玩家共用（多个 NPC 绑同一助手 = 同一份上下文，
+  # /lc ask、/lc dialog ai、NPC 右键都接在同一条会话上）。请求与回答各算 1 条消息。
+  history-messages: 20 # 会话最多保留多少条消息，超出从最旧开始丢，0 = 关闭上下文
+  history-chars: 4000 # 上下文字符预算，超出从最旧开始丢，0 = 不限制
+  history-seconds: 0 # 会话闲置多少秒后清空，0 = 永不过期；设个 600~3600 能进一步省 token
+  history-persist: true # 会话写入 plugins/LiuChat/ai-sessions.json，重启不丢
+  profiles:
+    bot:
+      skill: '' # 填 plugins/LiuChat/skills 下的子目录名，例如 bot
+      name: '' # 该助手的自定义显示名称（如 久久酱），留空用 ai.assistant.name
+    # guide:
+    #   skill: guide
+    #   name: '游玩指南'
+  default-skill: '' # 老配置兼容；未设置默认助手 skill 时使用
+# 公屏 AI 聊天：AI 像普通玩家一样参与公共聊天。需要 ai.assistant.enable。
+# 公屏点名（@AI 或消息里提到它的名字）就回复，回答以它的玩家名走正常聊天渲染（本服 + 跨服）。
+chat:
+  enable: false
+  name: '小派蒙' # 公屏里 AI 的玩家名（固定虚拟 UUID，跨服一致；/lc ignore 也能屏蔽它）
+  assistant: '' # 用 ai.assistant.profiles 里的哪个助手（机器读的 ID）；留空用 ai.assistant.default
+  chance: 0.0 # 没点名也插话的概率 0~1（0 = 只在被点名或关键词命中时回复）
+  keywords: [] # 额外触发词，忽略英文大小写、按字面包含匹配，如 [求助, 服务器活动]；空列表关闭
+  keyword-trigger:
+    enable: true # 只控制关键词触发；关闭后仍可通过点名 AI、随机插话和主动发言触发
+    mention-player: true # 关键词触发的回复先 @ 发言玩家；关闭后仅发送回答
+  proactive:
+    enable: false # 定时主动发公屏消息；仅本服有在线玩家时运行，多服部署只在一台服开启
+    interval-minutes: 30 # 主动发言间隔（分钟），不因玩家聊天而重置
+    prompt: '根据最近的公屏话题自然说一句话；如果没有话题，就简短打个招呼。不要重复之前说过的话。'
+  cooldown-seconds: 10 # 全局回复冷却，防刷屏
+  respond-remote: false # 是否响应其他子服的公屏消息；多台服都开 AI 时保持 false 避免同时抢答
+  max-answer: 200 # 公屏一行回复长度上限（像玩家说话，别太长）
+  context-messages: 12 # 带多少条最近公屏消息作为聊天氛围上下文，0 = 不带
+  # 公屏聊天格式（固定）：只替换 ${player} = AI 名字、${message} = 回复内容，
+  # 不解析聊天格式节点、PAPI 变量与其他占位符（假人拿不到占位符输出）。
+  # 支持 & 色码与 MiniMessage 混写（如 <gradient:#afd9c2:#97e1cb>渐变</gradient>）；
+  # ${head} 显示头像（可用 head-uuid 指定真实玩家皮肤），回复内容原样显示，不解析色码/占位符/标签。
+  # AI 回复跨服时携带发送服的格式与头像设置，接收服不会套用自己的配置
+  format: '&7[AI] &b${player}&7: &f${message}'
+  head-uuid: '' # ${head} 的皮肤 UUID；留空用 AI 虚拟 UUID（可能显示默认皮肤），可填真实玩家 UUID
+  # 提问拼接受 ai.assistant.max-question 限制（默认 300），想带更多上下文把它调大（上限 2000）

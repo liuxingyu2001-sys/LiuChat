@@ -24,7 +24,56 @@ public final class ConfigManager {
             loaded.set("server", ConfigDefaults.load(plugin, plugin.getDataFolder(), "config.yml")
                     .getString("server", "server"));
         }
+        mountAi(loaded, "ai.", loadAi(loaded));
         config = loaded;
+    }
+
+    /**
+     * AI 配置每服独立：读取本地 {@code ai.yml}（不随共享配置同步），并在首次启动时
+     * 把旧 {@code config.yml} 的 {@code ai} 段迁移进去，避免升级后丢失自定义值。
+     */
+    private org.bukkit.configuration.ConfigurationSection loadAi(FileConfiguration legacy) {
+        org.bukkit.configuration.file.YamlConfiguration ai = ConfigDefaults.load(plugin, "ai.yml");
+        if (applyLegacyAi(ai, legacy.getConfigurationSection("ai"))) {
+            try {
+                ai.save(new java.io.File(plugin.getDataFolder(), "ai.yml"));
+                plugin.getLogger().info("已把 config.yml 的 ai 段迁移到 ai.yml；AI 配置改为每服本地读取");
+            } catch (java.io.IOException e) {
+                plugin.getLogger().warning("写入 ai.yml 失败: " + e.getMessage());
+            }
+        }
+        return ai;
+    }
+
+    /** 首次启动把旧 ai 段的值搬进 ai.yml，之后只认 ai.yml，返回是否需要保存。 */
+    static boolean applyLegacyAi(org.bukkit.configuration.file.YamlConfiguration ai,
+                                 org.bukkit.configuration.ConfigurationSection legacy) {
+        if (ai.getBoolean("migrated", false)) {
+            return false;
+        }
+        if (legacy != null) {
+            copySection(ai, "", legacy);
+        }
+        ai.set("migrated", true);
+        return true;
+    }
+
+    /** 把 source 的值按 prefix 路径写入 target；显式递归，空列表也能保留。 */
+    static void mountAi(org.bukkit.configuration.ConfigurationSection target, String prefix,
+                        org.bukkit.configuration.ConfigurationSection source) {
+        copySection(target, prefix, source);
+    }
+
+    private static void copySection(org.bukkit.configuration.ConfigurationSection target, String prefix,
+                                    org.bukkit.configuration.ConfigurationSection source) {
+        for (String key : source.getKeys(false)) {
+            Object value = source.get(key);
+            if (value instanceof org.bukkit.configuration.ConfigurationSection child) {
+                copySection(target, prefix + key + ".", child);
+            } else if (value != null) {
+                target.set(prefix + key, value);
+            }
+        }
     }
 
     public void reload() {
