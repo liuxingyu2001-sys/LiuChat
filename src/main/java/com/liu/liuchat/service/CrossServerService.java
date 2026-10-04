@@ -39,38 +39,97 @@ public final class CrossServerService implements PluginMessageListener, Listener
     private TellService tellService;
     private MuteService muteService;
     private boolean enabled;
-    private boolean warned;
     private final RemotePlayers remotePlayers = new RemotePlayers();
     private BukkitTask presenceTask;
     /** Redis 传输层（transport=redis 时创建）；null = 纯代理模式，行为与旧版完全一致 */
     private RedisBus redis;
+    /** 当前 Redis 连接参数指纹，/lc reload 时判断要不要重连。 */
+    private String redisKey;
+    /** 协议失败告警去重（跨服收到解析不了的 LiuChat 包时提示）。 */
+    private long lastProtocolFailures;
+    private long lastProtocolReportAt;
 
     public CrossServerService(JavaPlugin plugin, ConfigManager config, ChatService chatService) {
         this.plugin = plugin;
         this.config = config;
         this.chatService = chatService;
         CrossServerCodec.setSharedSecret(config.crossServerSecret());
-        this.enabled = config.crossServerEnabled();
-        if (!enabled) {
-            return;
+        if (config.crossServerEnabled()) {
+            start();
         }
+    }
+
+    /** 注册通道与事件、起 Redis 与名单广播。构造时与 /lc reload 打开开关时都会走这里。 */
+    private void start() {
+        if (enabled) return;
+        CrossServerCodec.setSharedSecret(config.crossServerSecret());
+        String server = config.server();
+        if (server == null || server.isBlank() || "server".equals(server)) {
+            // 两个子服共用默认名时，收发两端的 originServer 互相相等，
+            // 防回环判断会把对方消息全当本服发的丢掉 —— 表现为「跨服没反应」且零日志
+            plugin.getLogger().warning("跨服已开启但 server: 未配置（当前为 '"
+                    + server + "'）。两个子服同名会互相丢弃对方消息，跨服将表现为无反应！请在 config.yml 设置唯一子服名。");
+        }
+        enabled = true;
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, CrossServerCodec.BUNGEE_CHANNEL);
         // Bukkit 会将旧名和 namespaced 名规范化为同一通道，注册一次即可。
         plugin.getServer().getMessenger().registerIncomingPluginChannel(
                 plugin, CrossServerCodec.BUNGEE_CHANNEL, this);
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        if (config.crossServerRedisTransport()) {
-            redis = new RedisBus(new RedisBus.Settings(config.redisHost(), config.redisPort(),
-                    config.redisPassword(), config.redisDb(), config.redisChannel()),
-                    this::onRedisFrame, plugin.getLogger());
-            redis.start();
-            plugin.getLogger().info("跨服传输: redis（发布失败自动回落代理转发）");
-        }
+        openRedis();
         presenceTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::publishPresence, 1200L, 1200L);
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             publishPresence();
             sendViaAny(() -> CrossServerCodec.encodePresenceRequest(config.server()));
         }, 20L);
+        plugin.getLogger().info("跨服已开启（server=" + config.server()
+                + "，传输=" + (redis != null ? "redis+代理回落" : "proxy") + "）");
+    }
+
+    private String redisKey() {
+        return config.redisHost() + ":" + config.redisPort() + ":" + config.redisDb()
+                + ":" + config.redisChannel() + ":" + config.redisPassword();
+    }
+
+    /** 打开 Redis 传输（transport=redis 时）。 */
+    private void openRedis() {
+        if (redis != null || !config.crossServerRedisTransport()) return;
+        redisKey = redisKey();
+        redis = new RedisBus(new RedisBus.Settings(config.redisHost(), config.redisPort(),
+                config.redisPassword(), config.redisDb(), config.redisChannel()),
+                this::onRedisFrame, plugin.getLogger());
+        redis.start();
+        plugin.getLogger().info("跨服传输: redis（发布失败自动回落代理转发）");
+    }
+
+    /**
+     * 重载跨服配置：密钥、enable 开关、Redis 连接参数都在 {@code /lc reload} 生效。
+     * <p>
+     * 原实现三者都只在构造器读一次 —— 改了密钥必须重启；而改密钥后忘重启的那台服
+     * 签出来的包会被所有对端验签拒绝并<b>静默丢弃</b>。
+     */
+    public void reload() {
+        CrossServerCodec.setSharedSecret(config.crossServerSecret());
+        boolean want = config.crossServerEnabled();
+        if (want && !enabled) {
+            start();
+            return;
+        }
+        if (!want && enabled) {
+            close();
+            plugin.getLogger().info("跨服已按配置关闭");
+            return;
+        }
+        if (enabled) {
+            if (redis != null && !redisKey().equals(redisKey)) {
+                redis.close();
+                redis = null;
+                plugin.getLogger().info("Redis 跨服传输已按新配置重连");
+            }
+            openRedis();
+            // 密钥可能已变，立刻同步一次名单方便当场验证链路
+            publishPresence();
+        }
     }
 
     public void setTellService(TellService tellService) {
@@ -288,7 +347,9 @@ public final class CrossServerService implements PluginMessageListener, Listener
     private void handleFrame(byte[] message) {
         CrossServerCodec.Inbound inbound = CrossServerCodec.decodeInbound(message);
         if (inbound == null) {
-            // 同通道上还有其它插件（GetServer、白名单同步等）的消息，忽略
+            // 同通道上还有其它插件（GetServer、白名单同步等）的消息，忽略 —— 属正常；
+            // 但「标签是我们的、负载解不开」是真故障（密钥不一致/协议版本不符），必须能看出来
+            reportProtocolFailure();
             return;
         }
         switch (inbound) {
@@ -358,12 +419,29 @@ public final class CrossServerService implements PluginMessageListener, Listener
         return false;
     }
 
-    private void warnOnce(Exception e) {
-        // 只警告一次，避免刷屏
-        if (!warned) {
-            warned = true;
-            plugin.getLogger().log(Level.WARNING, "跨服消息发送失败，后续失败不再提示", e);
+    /** 协议解析失败的限流告警（代理与 Redis 两条链路共用）。 */
+    private void reportProtocolFailure() {
+        long failures = CrossServerCodec.protocolFailures();
+        if (failures == lastProtocolFailures
+                || System.currentTimeMillis() - lastProtocolReportAt <= WARN_INTERVAL_MILLIS) {
+            return;
         }
+        lastProtocolFailures = failures;
+        lastProtocolReportAt = System.currentTimeMillis();
+        plugin.getLogger().warning("跨服收到 " + failures + " 条无法解析的 LiuChat 包"
+                + "（常见原因：各子服 cross-server.secret 不一致，或 LiuChat 版本/协议不同）");
+    }
+
+    /** 同类告警的最小间隔：原实现是「第一次之后永久静默」，
+     *  导致第一次故障之后无论再出什么错都看不到日志，跨服断了都没人知道。 */
+    private static final long WARN_INTERVAL_MILLIS = 60_000L;
+    private long lastWarnAt;
+
+    private void warnOnce(Exception e) {
+        long now = System.currentTimeMillis();
+        if (now - lastWarnAt < WARN_INTERVAL_MILLIS) return;
+        lastWarnAt = now;
+        plugin.getLogger().log(Level.WARNING, "跨服消息发送失败（60 秒内不重复提示）", e);
     }
 
     public void close() {

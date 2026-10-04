@@ -91,6 +91,47 @@ abstract class AbstractJdbcDatabase implements Database {
         return ready;
     }
 
+    /**
+     * 查询失败时的自愈。
+     * <p>
+     * 原实现 {@code ready} 一旦为 true 就终身不变：MySQL 重启、{@code wait_timeout}（默认 8 小时）
+     * 或网络抖动把连接掐断后，<b>所有写入会永久失败直到 MC 服重启</b>。
+     * 这里在失败时检测连接健康度，坏了就重连，让下一次操作恢复。
+     * <p>
+     * 跑在 {@link DbExecutor} 的工作线程上，重连不会卡主线程。
+     *
+     * @return true = 刚刚完成了重连（本次操作仍未生效）
+     */
+    protected synchronized boolean tryReconnect() {
+        if (!plugin.isEnabled()) return false;   // 关服过程中不要重建连接
+        boolean healthy;
+        try {
+            healthy = connection != null && connection.isValid(2);
+        } catch (Exception e) {
+            healthy = false;
+        }
+        if (healthy) return false;                // 连接没坏，是别的错误，别瞎重连
+        try {
+            if (connection != null) connection.close();
+        } catch (Exception ignored) {
+            // 关不掉就算了，反正要丢弃
+        }
+        connection = null;
+        ready = false;
+        if (!init()) return false;
+        plugin.getLogger().info("数据库连接已自动重连（" + describe() + "）");
+        return true;
+    }
+
+    /** 统一的失败出口：能自愈就自愈并降级告警，否则按原样报严重错误。 */
+    private void fail(String what, Exception e) {
+        if (tryReconnect()) {
+            plugin.getLogger().log(Level.WARNING, what + "（连接已自动重连，本次操作未生效，下一次会重试）", e);
+        } else {
+            plugin.getLogger().log(Level.SEVERE, what, e);
+        }
+    }
+
     /** Allows dialect-specific migrations for existing installations. */
     protected void migrateProfileSchema(Statement statement) {
     }
@@ -117,7 +158,7 @@ abstract class AbstractJdbcDatabase implements Database {
                         rs.getString(4), rs.getString(5)));
             }
         } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "读取禁言数据失败", e);
+            fail("读取禁言数据失败", e);
             return null;
         }
         return result;
@@ -136,7 +177,7 @@ abstract class AbstractJdbcDatabase implements Database {
                 bindUpsertTail(ps, mute);
                 ps.executeUpdate();
             } catch (Exception e) {
-                plugin.getLogger().log(Level.SEVERE, "保存禁言数据失败", e);
+                fail("保存禁言数据失败", e);
             }
         });
     }
@@ -157,7 +198,7 @@ abstract class AbstractJdbcDatabase implements Database {
                 ps.setString(1, uuid);
                 ps.executeUpdate();
             } catch (Exception e) {
-                plugin.getLogger().log(Level.SEVERE, "删除禁言数据失败", e);
+                fail("删除禁言数据失败", e);
             }
         });
     }
@@ -179,7 +220,7 @@ abstract class AbstractJdbcDatabase implements Database {
                 if (rs.next()) return new Profile(rs.getString(1) == null ? "" : rs.getString(1),
                         rs.getString(2) == null ? "" : rs.getString(2));
             }
-        } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "读取聊天资料失败", e); }
+        } catch (Exception e) { fail("读取聊天资料失败", e); }
         return new Profile("", "");
     }
 
@@ -192,7 +233,7 @@ abstract class AbstractJdbcDatabase implements Database {
                 ps.setString(2, profile.nick());
                 ps.setString(3, profile.color());
                 ps.executeUpdate();
-            } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "保存聊天资料失败", e); }
+            } catch (Exception e) { fail("保存聊天资料失败", e); }
         });
     }
 
@@ -213,7 +254,7 @@ abstract class AbstractJdbcDatabase implements Database {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) names.add(rs.getString(1));
             }
-        } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "读取屏蔽列表失败", e); }
+        } catch (Exception e) { fail("读取屏蔽列表失败", e); }
         return names;
     }
 
@@ -226,7 +267,7 @@ abstract class AbstractJdbcDatabase implements Database {
                 ps.setString(1, owner);
                 ps.setString(2, name);
                 ps.executeUpdate();
-            } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "保存屏蔽项失败", e); }
+            } catch (Exception e) { fail("保存屏蔽项失败", e); }
         });
     }
 
@@ -239,7 +280,7 @@ abstract class AbstractJdbcDatabase implements Database {
                 ps.setString(1, owner);
                 ps.setString(2, name);
                 ps.executeUpdate();
-            } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "删除屏蔽项失败", e); }
+            } catch (Exception e) { fail("删除屏蔽项失败", e); }
         });
     }
 
@@ -260,7 +301,7 @@ abstract class AbstractJdbcDatabase implements Database {
                 return rs.next() ? Math.max(0, rs.getInt(1)) : 0;
             }
         } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "读取喇叭数量失败", e);
+            fail("读取喇叭数量失败", e);
             return -1;
         }
     }
@@ -276,7 +317,7 @@ abstract class AbstractJdbcDatabase implements Database {
                 ps.setInt(2, amount);
                 ps.executeUpdate();
             } catch (Exception e) {
-                plugin.getLogger().log(Level.SEVERE, "发放喇叭数量失败", e);
+                fail("发放喇叭数量失败", e);
                 return -1;
             }
             return doHornBalance(owner);
@@ -293,7 +334,7 @@ abstract class AbstractJdbcDatabase implements Database {
                 ps.setString(1, owner);
                 return ps.executeUpdate() == 1;
             } catch (Exception e) {
-                plugin.getLogger().log(Level.SEVERE, "扣除喇叭数量失败", e);
+                fail("扣除喇叭数量失败", e);
                 return false;
             }
         });

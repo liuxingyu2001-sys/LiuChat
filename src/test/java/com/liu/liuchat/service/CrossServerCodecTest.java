@@ -350,4 +350,16 @@ class CrossServerCodecTest {
         }
         return bytes.toByteArray();
     }
+
+    @Test
+    void redisChannelCarriesExactlyTheProxyFrame() throws IOException {
+        // Redis 通道投递的必须是 stripForward 产出的帧——与代理剥壳后逐字节一致，
+        // 这样接收侧 decodeInbound 对两条链路完全一视同仁。
+        byte[] outbound = CrossServerCodec.encodeChat("fb", "u-1", "Steve", "hi", "", "", "Steve");
+        byte[] frame = CrossServerCodec.stripForward(outbound);
+        org.junit.jupiter.api.Assertions.assertArrayEquals(proxyHop(outbound, expectedMode("ALL")), frame);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                CrossServerCodec.decodeInbound(frame), CrossServerCodec.decodeInbound(proxyHop(outbound, "ALL")));
+    }
+
 }

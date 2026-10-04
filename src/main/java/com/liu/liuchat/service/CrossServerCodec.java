@@ -68,6 +68,19 @@ public final class CrossServerCodec {
 
     private static volatile String sharedSecret = "";
 
+    /**
+     * 「是我们这条标签、但负载解不出来」的包数。
+     * 同通道上还有别的插件的包（返回 null 但不计数），两者必须能区分，
+     * 否则跨服整体不通时与「其它插件正常通信」看起来一模一样，无从诊断。
+     */
+    private static final java.util.concurrent.atomic.AtomicLong protocolFailures =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /** 协议解析失败计数（标签匹配但负载非法/版本不符）。 */
+    public static long protocolFailures() {
+        return protocolFailures.get();
+    }
+
     public static void setSharedSecret(String secret) {
         sharedSecret = secret == null ? "" : secret;
     }
@@ -328,9 +341,12 @@ public final class CrossServerCodec {
     /**
      * 解析代理转发进来的完整数据包。
      * <p>
-     * 官方格式：第一个 UTF 就是通道名（BungeeCord DownstreamBridge 与
-     * Velocity 均只写 channel|len|data）；部分文档/衍生实现会多一个
-     * "Forwarded" 前缀，同样兼容。
+     * 接收侧拿到的<b>永远是帧形态</b>——代理投递前会剥掉 {@code Forward|mode} 外层，
+     * Redis 通道投递的是 {@link #stripForward} 的产物，两条链路因此完全对称：
+     * <pre>
+     *   UTF TAG | ushort len | payload             ← 代理转发（官方，BungeeCord/Velocity）
+     *   UTF "Forwarded" | UTF TAG | ... payload     ← 部分文档/衍生实现
+     * </pre>
      *
      * @return 不是本插件的消息（或格式非法/版本不符）返回 null
      */
@@ -341,6 +357,18 @@ public final class CrossServerCodec {
             if (!TAG.equals(channel)) {
                 return null;
             }
+            Inbound result = decodeTagged(in);
+            if (result == null) protocolFailures.incrementAndGet();
+            return result;
+        } catch (IOException | RuntimeException e) {
+            // 畸形数据（同通道上还有其它插件的消息）直接忽略
+            return null;
+        }
+    }
+
+    /** 读完标签之后的部分；返回 null 表示「是我们标签但解不出来」（密钥不符/版本不符/半截包）。 */
+    private static Inbound decodeTagged(DataInputStream in) {
+        try {
             int length = in.readUnsignedShort();
             byte[] payload = in.readNBytes(length);
             if (payload.length != length || in.available() != 0) {
@@ -349,7 +377,6 @@ public final class CrossServerCodec {
             payload = verify(payload);
             return payload == null ? null : decodePayload(payload);
         } catch (IOException | RuntimeException e) {
-            // 畸形数据（同通道上还有其它插件的消息）直接忽略
             return null;
         }
     }

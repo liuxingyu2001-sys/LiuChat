@@ -93,6 +93,8 @@ public final class LiuChat extends JavaPlugin {
             throw new IllegalStateException("Invalid reminders.yml", e);
         }
         reloadCommand.reload();
+        // 跨服密钥与 enable 开关随 reload 生效（原实现要重启，密钥不一致时会静默丢包）
+        if (crossServer != null) crossServer.reload();
         reminders.reload();
         sharedConfig.watch(configManager.autoReloadConfig(), this::reloadChatConfiguration);
     }
