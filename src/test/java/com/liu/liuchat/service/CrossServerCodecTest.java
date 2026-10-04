@@ -263,6 +263,44 @@ class CrossServerCodecTest {
         assertNull(CrossServerCodec.decodeInbound(proxyHop(outbound, "ALL")));
     }
 
+    // ---------------- Redis 传输（stripForward） ----------------
+
+    @Test
+    void stripForwardMatchesProxyHopAndDecodes() throws IOException {
+        byte[] outbound = CrossServerCodec.encodeChat("lobby", "uuid-1", "Notch", "hi", "", "", "");
+        byte[] stripped = CrossServerCodec.stripForward(outbound);
+        // 与代理实际产出的帧完全一致 → 接收侧 decodeInbound 原样可用
+        assertArrayEquals(proxyHop(outbound, expectedMode("ALL")), stripped);
+        var chat = assertInstanceOf(CrossServerCodec.Inbound.ChatMessage.class,
+                CrossServerCodec.decodeInbound(stripped));
+        assertEquals("hi", chat.message());
+    }
+
+    @Test
+    void stripForwardIsIdempotentOnFrameForm() throws IOException {
+        byte[] frame = proxyHop(
+                CrossServerCodec.encodeTellAck("msg-1", "game", "lobby"), expectedMode("lobby"));
+        // 定向 mode（非 ALL）同样适用；已是目标形态的帧原样返回
+        assertArrayEquals(frame, CrossServerCodec.stripForward(frame));
+    }
+
+    @Test
+    void stripForwardRejectsForeignAndMalformedPackets() throws IOException {
+        assertNull(CrossServerCodec.stripForward(new byte[0]));
+        assertNull(CrossServerCodec.stripForward(new byte[]{0x50, 0x61, 0x73}));
+        // 其它插件的帧：TAG 不匹配
+        byte[] foreign = patchTag(proxyHop(
+                CrossServerCodec.encodeChat("s", "u", "n", "m", "", "", ""), expectedMode("ALL")),
+                "OtherPlugin");
+        assertNull(CrossServerCodec.stripForward(foreign));
+        // 截断与带尾部垃圾的帧
+        byte[] frame = proxyHop(
+                CrossServerCodec.encodeChat("s", "u", "n", "m", "", "", ""), expectedMode("ALL"));
+        assertNull(CrossServerCodec.stripForward(java.util.Arrays.copyOf(frame, frame.length - 1)));
+        byte[] withTrailing = java.util.Arrays.copyOf(frame, frame.length + 1);
+        assertNull(CrossServerCodec.stripForward(withTrailing));
+    }
+
     // ---------------- 测试工具 ----------------
 
     private static String expectedMode(String mode) {

@@ -1,18 +1,40 @@
 # 跨服
 
-跨服链路：BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持）。
+跨服链路（二选一，`cross-server.transport`）：
+
+| transport | 机制 | 特点 |
+|---|---|---|
+| `proxy`（默认） | BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持） | 零额外组件；空服收不到、发送需在线玩家载体 |
+| `redis` | Redis pub/sub 直连（手写 RESP，零第三方依赖） | 空服也能收发、不依赖玩家载体；发布失败自动回落 proxy |
 
 ```yaml
 server: "lobby"          # 每个子服必须配成不同值（跨服消息按它区分来源）
 
 cross-server:
   enable: true           # 群组服跨服聊天开关
+  transport: proxy       # proxy | redis
+  redis: { host: 127.0.0.1, port: 6379, password: '', db: 0, channel: liuchat }
 
 storage:
   type: mysql            # sqlite（单服）| mysql（跨服共享禁言）
   sync-interval: 30      # 每 30 秒与数据库对账，同步其他子服的禁言/解禁，0 = 关
   mysql: { host: ..., port: 3306, database: liuchat, username: ..., password: ... }
 ```
+
+## Redis 传输（transport: redis）
+
+- **复用同一套协议载荷**（`CrossServerCodec` 协议 9，无协议号变更、不需要协调升级）：
+  发送时 `stripForward` 把 Forward 外层剥成接收帧，接收时与代理链路走同一个
+  `decodeInbound` 分发口；HMAC 密钥校验同样生效。
+- **只发一条、两条都听**：每条消息只走当前可用的一条链路（Redis 优先，发布失败回落代理），
+  接收端代理监听与 Redis 订阅同时开着——天然无重复投递，链路互为兑底。
+- **自回环防护**：Redis 会把自己发布的包回传；各消息类型的 origin 校验 + MUTE/UNMUTE
+  幂等处理已覆盖，不会重复渲染/重复改状态。
+- **失败语义**：连接/发布失败 → 当条消息回落代理；发布失败后 5 秒冷却（冷却内直接走代理，
+  避免主线程反复付连接成本）；订阅线程指数退避自动重连（1s → 30s）。
+- **部署要求**：全组子服的 `redis` 指向同一实例、相同 `channel`/`db`/密码；
+  跨服 `secret` 照常必填（既是签名密钥，也隔离共用 Redis 的不同群组）。
+- 单元测试不依赖真实 Redis：RESP 编解码 + 假服务器链路见 `RedisBusTest`。
 
 ## 跨服私聊链路
 

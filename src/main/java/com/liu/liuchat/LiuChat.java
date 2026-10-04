@@ -256,7 +256,8 @@ public final class LiuChat extends JavaPlugin {
 
         getLogger().info("LiuChat 已启用（存储: " + configManager.storageType()
                 + (database.isReady() ? " 就绪" : " 不可用-仅内存")
-                + "，跨服: " + (configManager.crossServerEnabled() ? "开" : "关") + "）");
+                + "，跨服: " + (!configManager.crossServerEnabled() ? "关"
+                        : configManager.crossServerRedisTransport() ? "开(redis)" : "开(proxy)") + "）");
     }
 
     /** 取 plugin.yml 命令，缺失视为安装损坏 */

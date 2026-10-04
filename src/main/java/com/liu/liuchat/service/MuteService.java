@@ -24,10 +24,33 @@ public final class MuteService {
     private final Database database;
     /** key = uuid */
     private final Map<String, MuteData> cache = new ConcurrentHashMap<>();
+    /** 名字兜底查询索引：key = 小写玩家名，value = uuid（与 cache 同步增删，避免 O(n) 扫描） */
+    private final Map<String, String> uuidByName = new ConcurrentHashMap<>();
     private final java.util.concurrent.atomic.AtomicLong revisions = new java.util.concurrent.atomic.AtomicLong();
 
     public MuteService(Database database) {
         this.database = database;
+    }
+
+    /** 所有缓存写入的唯一入口，保证 uuidByName 与 cache 不分叉 */
+    private void cachePut(MuteData mute) {
+        MuteData previous = cache.put(mute.uuid(), mute);
+        // 同一 uuid 改名重禁（改名/大小写变化）时清掉旧名字的索引残留
+        if (previous != null && previous.name() != null
+                && !previous.name().equalsIgnoreCase(mute.name())) {
+            uuidByName.remove(previous.name().toLowerCase(Locale.ROOT), mute.uuid());
+        }
+        if (mute.name() != null && !mute.name().isBlank()) {
+            uuidByName.put(mute.name().toLowerCase(Locale.ROOT), mute.uuid());
+        }
+    }
+
+    /** 所有缓存删除的唯一入口；仅当索引仍指向该 uuid 时才移除（防同名覆盖被误删） */
+    private void cacheRemove(String uuid, String name) {
+        cache.remove(uuid);
+        if (name != null && !name.isBlank()) {
+            uuidByName.remove(name.toLowerCase(Locale.ROOT), uuid);
+        }
     }
 
     /** 对账式全量刷新，见类注释 */
@@ -43,36 +66,45 @@ public final class MuteService {
         for (MuteData row : rows) {
             seen.add(row.uuid());
             if (row.isExpired(now)) {
-                cache.remove(row.uuid());
+                cacheRemove(row.uuid(), row.name());
                 database.deleteMute(row.uuid());
             } else {
-                cache.put(row.uuid(), row);
+                cachePut(row);
             }
         }
         // 库里不存在的 = 其他子服已解除（或写库失败），移出缓存
-        cache.keySet().removeIf(uuid -> !seen.contains(uuid));
+        for (String uuid : new HashSet<>(cache.keySet())) {
+            if (!seen.contains(uuid)) {
+                MuteData removed = cache.get(uuid);
+                cacheRemove(uuid, removed == null ? null : removed.name());
+            }
+        }
     }
 
     public synchronized void mute(MuteData mute) {
         revisions.incrementAndGet();
-        cache.put(mute.uuid(), mute);
+        cachePut(mute);
         database.saveMute(mute);
     }
 
     public synchronized void unmute(MuteData mute) {
         revisions.incrementAndGet();
-        cache.remove(mute.uuid());
+        cacheRemove(mute.uuid(), mute.name());
         database.deleteMute(mute.uuid());
     }
 
     public synchronized void applyRemote(MuteData mute) {
+        // 幂等：Redis 传输会把自己发布的包也回给本服，内容一致时跳过（避免无意义的修订号跳变）
+        if (mute.equals(cache.get(mute.uuid()))) return;
         revisions.incrementAndGet();
-        cache.put(mute.uuid(), mute);
+        cachePut(mute);
     }
 
     public synchronized void removeRemote(String uuid) {
+        MuteData removed = cache.get(uuid);
+        if (removed == null) return; // 已解除，幂等跳过
         revisions.incrementAndGet();
-        cache.remove(uuid);
+        cacheRemove(uuid, removed.name());
     }
 
     /**
@@ -83,11 +115,8 @@ public final class MuteService {
     public Optional<MuteData> check(String uuid, String name) {
         MuteData mute = cache.get(uuid);
         if (mute == null && name != null) {
-            String lower = name.toLowerCase(Locale.ROOT);
-            mute = cache.values().stream()
-                    .filter(m -> m.name() != null && m.name().toLowerCase(Locale.ROOT).equals(lower))
-                    .findFirst()
-                    .orElse(null);
+            String matched = uuidByName.get(name.toLowerCase(Locale.ROOT));
+            mute = matched == null ? null : cache.get(matched);
         }
         if (mute == null) {
             return Optional.empty();
@@ -114,6 +143,7 @@ public final class MuteService {
 
     private void evict(MuteData mute) {
         if (cache.remove(mute.uuid(), mute)) {
+            uuidByName.remove(mute.name() == null ? "" : mute.name().toLowerCase(Locale.ROOT), mute.uuid());
             database.deleteMute(mute.uuid());
         }
     }

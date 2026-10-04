@@ -270,6 +270,41 @@ public final class ConfigManager {
         return config.getString("cross-server.secret", "").strip();
     }
 
+    /** 跨服传输方式：proxy = 代理转发（默认） | redis = Redis pub/sub；非法值按 proxy 处理 */
+    public String crossServerTransport() {
+        String value = config.getString("cross-server.transport", "proxy");
+        if (value == null) return "proxy";
+        value = value.trim().toLowerCase(java.util.Locale.ROOT);
+        return value.equals("redis") ? value : "proxy";
+    }
+
+    /** 是否启用 Redis 传输（需跨服总开关开启且 transport=redis） */
+    public boolean crossServerRedisTransport() {
+        return crossServerEnabled() && crossServerTransport().equals("redis");
+    }
+
+    public String redisHost() {
+        return config.getString("cross-server.redis.host", "127.0.0.1").trim();
+    }
+
+    public int redisPort() {
+        int port = config.getInt("cross-server.redis.port", 6379);
+        return port >= 1 && port <= 65535 ? port : 6379;
+    }
+
+    public String redisPassword() {
+        return config.getString("cross-server.redis.password", "").trim();
+    }
+
+    public int redisDb() {
+        return Math.max(0, config.getInt("cross-server.redis.db", 0));
+    }
+
+    public String redisChannel() {
+        String channel = config.getString("cross-server.redis.channel", "liuchat").trim();
+        return channel.isEmpty() ? "liuchat" : channel;
+    }
+
     // ---------------- 存储 ----------------
 
     public String storageType() {

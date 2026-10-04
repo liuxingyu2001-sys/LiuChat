@@ -16,8 +16,12 @@ import java.util.List;
 import java.util.logging.Level;
 
 /**
- * 跨服消息收发：BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持）。
+ * 跨服消息收发：两条可选链路，协议载荷共用 {@link CrossServerCodec}。
  * <ul>
+ *   <li>transport=proxy（默认）：BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持）</li>
+ *   <li>transport=redis：{@link RedisBus} pub/sub 直连，发布失败自动回落代理；
+ *       空服也能收发、发送不依赖在线玩家载体；两条链路接收侧都监听，
+ *       汇合到 handleFrame 同一分发口；Redis 自回环靠 origin 校验与 MUTE/UNMUTE 幂等</li>
  *   <li>发送：经在线玩家连接 Forward 给代理，代理转发（ALL 或定向到具体子服）</li>
  *   <li>接收：按 {@link CrossServerCodec.Inbound} 类型分流 ——
  *       CHAT 落地渲染，TELL/TELL_ACK 交给 {@link TellService}</li>
@@ -38,6 +42,8 @@ public final class CrossServerService implements PluginMessageListener, Listener
     private boolean warned;
     private final RemotePlayers remotePlayers = new RemotePlayers();
     private BukkitTask presenceTask;
+    /** Redis 传输层（transport=redis 时创建）；null = 纯代理模式，行为与旧版完全一致 */
+    private RedisBus redis;
 
     public CrossServerService(JavaPlugin plugin, ConfigManager config, ChatService chatService) {
         this.plugin = plugin;
@@ -53,6 +59,13 @@ public final class CrossServerService implements PluginMessageListener, Listener
         plugin.getServer().getMessenger().registerIncomingPluginChannel(
                 plugin, CrossServerCodec.BUNGEE_CHANNEL, this);
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
+        if (config.crossServerRedisTransport()) {
+            redis = new RedisBus(new RedisBus.Settings(config.redisHost(), config.redisPort(),
+                    config.redisPassword(), config.redisDb(), config.redisChannel()),
+                    this::onRedisFrame, plugin.getLogger());
+            redis.start();
+            plugin.getLogger().info("跨服传输: redis（发布失败自动回落代理转发）");
+        }
         presenceTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::publishPresence, 1200L, 1200L);
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             publishPresence();
@@ -79,16 +92,16 @@ public final class CrossServerService implements PluginMessageListener, Listener
     public void publishItemAnnouncement(Player sender, String template, String snapshot) {
         if (!enabled) return;
         try {
-            fire(sender, CrossServerCodec.encodeItemAnnouncement(config.server(), sender.getUniqueId().toString(),
-                    sender.getName(), template, snapshot));
+            send(CrossServerCodec.encodeItemAnnouncement(config.server(), sender.getUniqueId().toString(),
+                    sender.getName(), template, snapshot), sender);
         } catch (Exception e) { warnOnce(e); }
     }
 
     public void publishAnnouncement(Player carrier, net.md_5.bungee.api.chat.BaseComponent[] components) {
         if (!enabled) return;
         try {
-            fire(carrier, CrossServerCodec.encodeAnnouncement(config.server(),
-                    net.md_5.bungee.chat.ComponentSerializer.toString(components)));
+            send(CrossServerCodec.encodeAnnouncement(config.server(),
+                    net.md_5.bungee.chat.ComponentSerializer.toString(components)), carrier);
         } catch (Exception e) { warnOnce(e); }
     }
 
@@ -99,16 +112,38 @@ public final class CrossServerService implements PluginMessageListener, Listener
     public void publishHorn(Player player, String message) {
         if (!enabled) return;
         try {
-            fire(player, CrossServerCodec.encodeHorn(config.server(), player.getUniqueId().toString(),
-                    player.getName(), message));
+            send(CrossServerCodec.encodeHorn(config.server(), player.getUniqueId().toString(),
+                    player.getName(), message), player);
         } catch (Exception e) { warnOnce(e); }
     }
 
     private interface Packet { byte[] encode() throws java.io.IOException; }
+
+    /**
+     * 统一发送入口：Redis（transport=redis 且可用）优先——不需在线玩家载体，空服也能收；
+     * 未启用或发布失败则回落代理转发（借在线玩家当载体）。
+     * 每条消息只走一条链路，接收端两条链路都监听，天然无重复投递。
+     * 异常原样抛给调用方，各调用点保留原有的降级与告警逻辑。
+     */
+    private boolean send(byte[] forwardPacket, Player carrierHint) {
+        if (redis != null) {
+            byte[] frame = CrossServerCodec.stripForward(forwardPacket);
+            if (frame != null && redis.publish(frame)) return true;
+        }
+        Player carrier = carrierHint != null ? carrierHint
+                : Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
+        // 代理消息需要玩家载体；没有载体时禁言等靠数据库对账兜底
+        if (carrier == null) return false;
+        fire(carrier, forwardPacket);
+        return true;
+    }
+
     private void sendViaAny(Packet packet) {
-        Player carrier = Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
-        if (carrier == null) return; // Proxy messaging needs a player; database polling is the fallback.
-        try { fire(carrier, packet.encode()); } catch (Exception e) { warnOnce(e); }
+        try {
+            send(packet.encode(), null);
+        } catch (Exception e) {
+            warnOnce(e);
+        }
     }
 
     public boolean isEnabled() {
@@ -141,7 +176,9 @@ public final class CrossServerService implements PluginMessageListener, Listener
     public void onQuit(PlayerQuitEvent event) {
         if (!enabled) return;
         try {
-            fire(event.getPlayer(), CrossServerCodec.encodePresenceQuit(config.server(), event.getPlayer().getName()));
+            // 下线通知同样走统一入口：Redis 优先，空服对端也能收到
+            send(CrossServerCodec.encodePresenceQuit(config.server(), event.getPlayer().getName()),
+                    event.getPlayer());
         } catch (Exception e) { warnOnce(e); }
     }
 
@@ -162,17 +199,17 @@ public final class CrossServerService implements PluginMessageListener, Listener
             return;
         }
         try {
-            fire(sender, CrossServerCodec.encodeChat(
+            send(CrossServerCodec.encodeChat(
                     config.server(),
                     sender.getUniqueId().toString(),
                     sender.getName(),
-                    message, itemData, placeholders, nick));
+                    message, itemData, placeholders, nick), sender);
         } catch (Exception e) {
             warnOnce(e);
             if (!itemData.isEmpty()) {
                 try {
-                    fire(sender, CrossServerCodec.encodeChat(config.server(),
-                            sender.getUniqueId().toString(), sender.getName(), message, "", placeholders, nick));
+                    send(CrossServerCodec.encodeChat(config.server(),
+                            sender.getUniqueId().toString(), sender.getName(), message, "", placeholders, nick), sender);
                 } catch (Exception fallbackError) {
                     warnOnce(fallbackError);
                 }
@@ -194,8 +231,8 @@ public final class CrossServerService implements PluginMessageListener, Listener
             return false;
         }
         try {
-            fire(via, CrossServerCodec.encodeTell(msgId, config.server(), senderName, targetName, message,
-                    via.getUniqueId().toString(), via.getWorld().getName(), placeholders, nick, itemData));
+            send(CrossServerCodec.encodeTell(msgId, config.server(), senderName, targetName, message,
+                    via.getUniqueId().toString(), via.getWorld().getName(), placeholders, nick, itemData), via);
             return true;
         } catch (Exception e) {
             warnOnce(e);
@@ -209,7 +246,7 @@ public final class CrossServerService implements PluginMessageListener, Listener
             return;
         }
         try {
-            fire(via, CrossServerCodec.encodeTellAck(msgId, config.server(), replyToServer));
+            send(CrossServerCodec.encodeTellAck(msgId, config.server(), replyToServer), via);
         } catch (Exception e) {
             warnOnce(e);
         }
@@ -227,6 +264,28 @@ public final class CrossServerService implements PluginMessageListener, Listener
         if (!enabled || !isIncomingChannel(channel)) {
             return;
         }
+        handleFrame(message);
+    }
+
+    /** Redis 订阅线程回调：切回主线程再分发（与代理链路同一路口，会触碰 Bukkit API）。 */
+    private void onRedisFrame(byte[] frame) {
+        if (!enabled) return;
+        try {
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (enabled) handleFrame(frame);
+            });
+        } catch (RuntimeException e) {
+            // 停服过程中调度器已关闭：丢弃本帧，不影响代理链路
+            if (enabled) plugin.getLogger().log(Level.FINE, "Redis 帧调度失败", e);
+        }
+    }
+
+    /**
+     * 解码并按类型分发——代理与 Redis 两条链路的公共入口，均在主线程执行。
+     * Redis 会把本服自己发布的包也回传进来，
+     * 各类型的 origin 校验 + MUTE/UNMUTE 幂等已覆盖自回环。
+     */
+    private void handleFrame(byte[] message) {
         CrossServerCodec.Inbound inbound = CrossServerCodec.decodeInbound(message);
         if (inbound == null) {
             // 同通道上还有其它插件（GetServer、白名单同步等）的消息，忽略
@@ -312,6 +371,10 @@ public final class CrossServerService implements PluginMessageListener, Listener
             return;
         }
         enabled = false;
+        if (redis != null) {
+            redis.close(); // 先停 Redis，避免回调在注销期间继续调度
+            redis = null;
+        }
         if (presenceTask != null) presenceTask.cancel();
         org.bukkit.event.HandlerList.unregisterAll(this);
         plugin.getServer().getMessenger().unregisterOutgoingPluginChannel(plugin, CrossServerCodec.BUNGEE_CHANNEL);

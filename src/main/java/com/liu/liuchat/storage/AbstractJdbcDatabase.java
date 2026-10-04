@@ -10,19 +10,28 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
 /**
  * JDBC 通用实现：连接、建表、CRUD 模板全部在这里，
  * 方言差异（jdbc url / 驱动 / DDL / upsert SQL）由子类提供。
  * <p>
- * 所有方法同步；初始化失败时降级为"仅内存"运行。
+ * 所有 JDBC 操作经 {@link DbExecutor} 串行执行在专用工作线程上：
+ * <ul>
+ *   <li>写操作（保存/删除禁言、资料、屏蔽项）异步落库，主线程命令不等网络往返；</li>
+ *   <li>读操作同步返回，且排在此前所有已入队写入之后（读己之写屏障）；</li>
+ *   <li>组合操作（发喇叭 = 更新 + 回读）合成单个任务，原子且不自锁。</li>
+ * </ul>
+ * 初始化失败时降级为"仅内存"运行。
  */
 abstract class AbstractJdbcDatabase implements Database {
 
     protected final JavaPlugin plugin;
-    private Connection connection;
-    private boolean ready;
+    private volatile Connection connection;
+    private volatile boolean ready;
+    private final DbExecutor executor = new DbExecutor("LiuChat-db-writer");
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     protected AbstractJdbcDatabase(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -68,7 +77,7 @@ abstract class AbstractJdbcDatabase implements Database {
         return ready;
     }
 
-    /** 非 SQLite 数据库的用户名，SQLite 子类返回 null 即可 */
+    /** 非 SQLite 数据库的用户名；SQLite 子类返回 null 即可 */
     protected String username() {
         return null;
     }
@@ -86,8 +95,15 @@ abstract class AbstractJdbcDatabase implements Database {
     protected void migrateProfileSchema(Statement statement) {
     }
 
+    // ---------------- 禁言 ----------------
+
     @Override
-    public synchronized List<MuteData> loadMutes() {
+    public List<MuteData> loadMutes() {
+        if (!ready) return new ArrayList<>();
+        return executor.read(this::doLoadMutes);
+    }
+
+    private List<MuteData> doLoadMutes() {
         List<MuteData> result = new ArrayList<>();
         if (!ready) {
             return result;
@@ -108,21 +124,21 @@ abstract class AbstractJdbcDatabase implements Database {
     }
 
     @Override
-    public synchronized void saveMute(MuteData mute) {
-        if (!ready) {
-            return;
-        }
-        try (PreparedStatement ps = connection.prepareStatement(upsertSql())) {
-            ps.setString(1, mute.uuid());
-            ps.setString(2, mute.name());
-            ps.setLong(3, mute.expireAt());
-            ps.setString(4, mute.reason());
-            ps.setString(5, mute.operator());
-            bindUpsertTail(ps, mute);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "保存禁言数据失败", e);
-        }
+    public void saveMute(MuteData mute) {
+        executor.write(() -> {
+            if (!ready) return;
+            try (PreparedStatement ps = connection.prepareStatement(upsertSql())) {
+                ps.setString(1, mute.uuid());
+                ps.setString(2, mute.name());
+                ps.setLong(3, mute.expireAt());
+                ps.setString(4, mute.reason());
+                ps.setString(5, mute.operator());
+                bindUpsertTail(ps, mute);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "保存禁言数据失败", e);
+            }
+        });
     }
 
     /**
@@ -134,23 +150,30 @@ abstract class AbstractJdbcDatabase implements Database {
     }
 
     @Override
-    public synchronized void deleteMute(String uuid) {
-        if (!ready) {
-            return;
-        }
-        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM mute WHERE uuid = ?")) {
-            ps.setString(1, uuid);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "删除禁言数据失败", e);
-        }
+    public void deleteMute(String uuid) {
+        executor.write(() -> {
+            if (!ready) return;
+            try (PreparedStatement ps = connection.prepareStatement("DELETE FROM mute WHERE uuid = ?")) {
+                ps.setString(1, uuid);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "删除禁言数据失败", e);
+            }
+        });
     }
 
+    // ---------------- 资料 ----------------
+
     @Override
-    public synchronized Profile loadProfile(String owner) {
+    public Profile loadProfile(String owner) {
+        if (!ready) return new Profile("", "");
+        return executor.read(() -> doLoadProfile(owner));
+    }
+
+    private Profile doLoadProfile(String owner) {
         if (!ready) return new Profile("", "");
         try (PreparedStatement ps = connection.prepareStatement(
-                "SELECT nick, color FROM chat_profile WHERE owner = ?")) {
+                     "SELECT nick, color FROM chat_profile WHERE owner = ?")) {
             ps.setString(1, owner);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return new Profile(rs.getString(1) == null ? "" : rs.getString(1),
@@ -161,63 +184,77 @@ abstract class AbstractJdbcDatabase implements Database {
     }
 
     @Override
-    public synchronized void saveProfile(String owner, Profile profile) {
-        if (!ready) return;
-        try (PreparedStatement ps = connection.prepareStatement(upsertProfileSql())) {
-            ps.setString(1, owner);
-            ps.setString(2, profile.nick());
-            ps.setString(3, profile.color());
-            ps.executeUpdate();
-        } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "保存聊天资料失败", e); }
+    public void saveProfile(String owner, Profile profile) {
+        executor.write(() -> {
+            if (!ready) return;
+            try (PreparedStatement ps = connection.prepareStatement(upsertProfileSql())) {
+                ps.setString(1, owner);
+                ps.setString(2, profile.nick());
+                ps.setString(3, profile.color());
+                ps.executeUpdate();
+            } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "保存聊天资料失败", e); }
+        });
     }
 
+    // ---------------- 屏蔽列表 ----------------
+
     @Override
-    public synchronized List<String> loadIgnores(String owner) {
+    public List<String> loadIgnores(String owner) {
+        if (!ready) return new ArrayList<>();
+        return executor.read(() -> doLoadIgnores(owner));
+    }
+
+    private List<String> doLoadIgnores(String owner) {
         List<String> names = new ArrayList<>();
         if (!ready) return names;
         try (PreparedStatement ps = connection.prepareStatement(
-                "SELECT ignored_name FROM chat_ignore WHERE owner = ?")) {
+                     "SELECT ignored_name FROM chat_ignore WHERE owner = ?")) {
             ps.setString(1, owner);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) names.add(rs.getString(1));
             }
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "读取屏蔽列表失败", e);
-        }
+        } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "读取屏蔽列表失败", e); }
         return names;
     }
 
     @Override
-    public synchronized void addIgnore(String owner, String name) {
-        if (!ready) return;
-        try (PreparedStatement ps = connection.prepareStatement(
-                "INSERT INTO chat_ignore (owner, ignored_name) VALUES (?, ?)")) {
-            ps.setString(1, owner);
-            ps.setString(2, name);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "保存屏蔽列表失败", e);
-        }
+    public void addIgnore(String owner, String name) {
+        executor.write(() -> {
+            if (!ready) return;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO chat_ignore (owner, ignored_name) VALUES (?, ?)")) {
+                ps.setString(1, owner);
+                ps.setString(2, name);
+                ps.executeUpdate();
+            } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "保存屏蔽项失败", e); }
+        });
     }
 
     @Override
-    public synchronized void removeIgnore(String owner, String name) {
-        if (!ready) return;
-        try (PreparedStatement ps = connection.prepareStatement(
-                "DELETE FROM chat_ignore WHERE owner = ? AND ignored_name = ?")) {
-            ps.setString(1, owner);
-            ps.setString(2, name);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "删除屏蔽项失败", e);
-        }
+    public void removeIgnore(String owner, String name) {
+        executor.write(() -> {
+            if (!ready) return;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM chat_ignore WHERE owner = ? AND ignored_name = ?")) {
+                ps.setString(1, owner);
+                ps.setString(2, name);
+                ps.executeUpdate();
+            } catch (Exception e) { plugin.getLogger().log(Level.SEVERE, "删除屏蔽项失败", e); }
+        });
     }
 
+    // ---------------- 喇叭 ----------------
+
     @Override
-    public synchronized int hornBalance(String owner) {
+    public int hornBalance(String owner) {
+        if (!ready) return -1;
+        return executor.read(() -> doHornBalance(owner));
+    }
+
+    private int doHornBalance(String owner) {
         if (!ready) return -1;
         try (PreparedStatement ps = connection.prepareStatement(
-                "SELECT credits FROM horn_balance WHERE owner = ?")) {
+                     "SELECT credits FROM horn_balance WHERE owner = ?")) {
             ps.setString(1, owner);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Math.max(0, rs.getInt(1)) : 0;
@@ -229,44 +266,60 @@ abstract class AbstractJdbcDatabase implements Database {
     }
 
     @Override
-    public synchronized int addHorns(String owner, int amount) {
+    public int addHorns(String owner, int amount) {
         if (!ready || amount <= 0) return -1;
-        try (PreparedStatement ps = connection.prepareStatement(upsertHornSql())) {
-            ps.setString(1, owner);
-            ps.setInt(2, amount);
-            ps.executeUpdate();
-            return hornBalance(owner);
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "发放喇叭数量失败", e);
-            return -1;
-        }
+        // 更新 + 回读合并成一个任务：同线程顺序执行，避免任务内再提交造成自锁
+        return executor.read(() -> {
+            if (!ready || amount <= 0) return -1;
+            try (PreparedStatement ps = connection.prepareStatement(upsertHornSql())) {
+                ps.setString(1, owner);
+                ps.setInt(2, amount);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "发放喇叭数量失败", e);
+                return -1;
+            }
+            return doHornBalance(owner);
+        });
     }
 
     @Override
-    public synchronized boolean spendHorn(String owner) {
+    public boolean spendHorn(String owner) {
         if (!ready) return false;
-        try (PreparedStatement ps = connection.prepareStatement(
-                "UPDATE horn_balance SET credits = credits - 1 WHERE owner = ? AND credits > 0")) {
-            ps.setString(1, owner);
-            return ps.executeUpdate() == 1;
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "扣除喇叭数量失败", e);
-            return false;
-        }
+        return executor.read(() -> {
+            if (!ready) return false;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "UPDATE horn_balance SET credits = credits - 1 WHERE owner = ? AND credits > 0")) {
+                ps.setString(1, owner);
+                return ps.executeUpdate() == 1;
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "扣除喇叭数量失败", e);
+                return false;
+            }
+        });
     }
 
     protected abstract String upsertHornSql();
 
     @Override
-    public synchronized void close() {
-        if (connection != null) {
+    public void close() {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
+        // 先排空写队列（停服前把异步落库刷完），再按 ready → connection 顺序关闭，
+        // 让并发读先在 ready 检查上短路，避免触碰已关闭的连接
+        if (!executor.close(10)) {
+            plugin.getLogger().warning("数据库队列未在 10 秒内排空，可能有未落盘的写入");
+        }
+        ready = false;
+        Connection open = connection;
+        connection = null;
+        if (open != null) {
             try {
-                connection.close();
+                open.close();
             } catch (Exception ignored) {
                 // 关闭失败无须处理
             }
-            connection = null;
         }
-        ready = false;
     }
 }

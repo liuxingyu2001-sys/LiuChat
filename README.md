@@ -6,7 +6,7 @@ Paper / Leaf 1.21+ 聊天插件（Java 21，零第三方框架依赖）。当前
 
 - **平台**：完整物品悬浮及 Dialogs 使用 Paper API
 - **存储**：SQLite（单服）/ MySQL（跨服共享），驱动经 plugin.yml `libraries` 由 Paper 自动下载
-- **跨服**：BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持，协议 9）
+- **跨服**：BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持，协议 9）；可选 `cross-server.transport: redis` 改走 Redis pub/sub（手写 RESP 零依赖，空服可收发，失败自动回落代理）
 - **可选依赖**：PlaceholderAPI、CustomNameplates、CraftEngine、SoulSpace、Citizens；未安装时基础聊天可用
 
 ## 功能一览

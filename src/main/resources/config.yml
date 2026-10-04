@@ -26,14 +26,29 @@ console-format: "&8[${server}] &7[控制台] &e${player}&8» &f${message}"
 
 # ------------------------------------------------------------
 # 跨服聊天（群组服）
-# 走 BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持），
-# 消息经代理转发到其他子服，由各子服按自己的 format 渲染。
-# 单服/无代理环境开着也没影响：转发无人接收，静默丢弃。
+# 两种传输（cross-server.transport）：
+#   proxy = 经代理转发（BungeeCord / Velocity 均原生支持），
+#           由各子服按自己的 format 渲染；单服/无代理开着无副作用。
+#   redis = Redis pub/sub 直连，空服也能收发、不依赖在线玩家载体；
+#           发布失败自动回落 proxy。
 # ------------------------------------------------------------
 cross-server:
   enable: true
   # 所有子服必须使用相同的高强度随机密钥；为空时跨服功能关闭
   secret: ''
+  # 跨服传输方式（变更需重启生效）：
+  #   proxy = BungeeCord plugin messaging 经代理转发（默认，无需额外组件）
+  #   redis = Redis pub/sub 直连（空服也能收发、不依赖在线玩家载体；
+  #           需全组子服都配好 redis 且能连上同一实例，断连时自动回落代理）
+  transport: proxy
+  # transport: redis 时生效；所有子服必须指向同一 Redis（相同 channel/db/密码）
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    password: ''
+    db: 0
+    # 频道名：不同服务器群组共用一个 Redis 时隔离开（跨服密钥仍会再校验一层签名）
+    channel: liuchat
 
 # 冲突指令优先交给 LiuChat。可在 /lc reload 后生效；关闭则交由 CMI/其他插件自行处理。
 commands:

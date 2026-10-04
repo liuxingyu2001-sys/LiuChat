@@ -8,6 +8,9 @@ import java.util.List;
  * 存储层接口：SQLite（单服）/ MySQL（跨服共享）双实现，
  * 由 {@link DatabaseFactory} 按 config.yml 的 storage.type 选择。
  * <p>
+ * 并发语义：写操作异步落库（FIFO 单线程，插件关闭前排空），
+ * 读操作同步返回并保证看到此前所有已入队的写（读己之写）。
+ * <p>
  * 实现必须保证：初始化失败时降级为"仅内存"（isReady()=false），不阻塞插件启用。
  */
 public interface Database extends AutoCloseable {

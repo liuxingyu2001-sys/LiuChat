@@ -136,9 +136,11 @@ public final class ChatService {
 
     public void broadcastPlain(String uuid, String playerName, BaseComponent[] line,
                                String consoleLine, String rawMessage) {
+        // 组件对所有接收者相同，转换一次即可复用
+        net.kyori.adventure.text.Component rendered = PaperChatComponents.convert(line, items);
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (ignores != null && ignores.ignores(online, uuid, playerName)) continue;
-            online.sendMessage(PaperChatComponents.convert(line, items));
+            online.sendMessage(rendered);
         }
         Bukkit.getConsoleSender().sendMessage(consoleLine);
         if (logs != null) logs.record("CHAT", config.server(), playerName, "*", rawMessage);
@@ -148,11 +150,24 @@ public final class ChatService {
                          Player sender, String message, String itemData, String placeholders, String nick) {
         String itemId = presentation.hasItemToken(message)
                 ? items.register(playerName, uuid, itemData) : null;
+        // 同一条消息对所有接收者的渲染结果相同（viewer 只影响 @ 提示音），
+        // 渲染 + Adventure 转换只做一次，逐玩家复用；提示音单独按人播。
+        net.kyori.adventure.text.Component rendered = null;
+        com.liu.liuchat.util.Mentions.Marked marked = null;
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (ignores != null && ignores.ignores(online, uuid, playerName)) continue;
-            BaseComponent[] line = presentation.render(server, playerName, uuid, world,
-                    sender, message, itemId, online, placeholders, nick);
-            online.sendMessage(PaperChatComponents.convert(line, items));
+            if (rendered == null) {
+                BaseComponent[] line = presentation.render(server, playerName, uuid, world,
+                        sender, message, itemId, null, placeholders, nick);
+                rendered = PaperChatComponents.convert(line, items);
+                marked = presentation.markMentions(message);
+            }
+            online.sendMessage(rendered);
+            // 提示音只发给被 @ 的玩家，自己 @ 自己不响（与逐玩家渲染时的条件一致）
+            if ((sender == null || !sender.getUniqueId().equals(online.getUniqueId()))
+                    && marked.mentions(online.getName())) {
+                presentation.playMentionSound(online);
+            }
         }
         Bukkit.getConsoleSender().sendMessage(build(config.consoleFormat(), server, playerName, world, sender, message));
         if (logs != null) logs.record("CHAT", server, playerName, "*", message);

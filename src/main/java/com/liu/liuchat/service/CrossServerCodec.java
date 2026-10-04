@@ -290,6 +290,42 @@ public final class CrossServerCodec {
     // ---------------- 接收侧解码 ----------------
 
     /**
+     * 把发送侧包（Forward|mode|TAG|len|payload）剥成目标服/Redis 接收的帧形态
+     * （TAG|len|payload），供 Redis 传输层复用 {@link #decodeInbound} 原样解码。
+     * 已是目标形态的帧原样校验返回；任何非法输入返回 null。
+     */
+    public static byte[] stripForward(byte[] packet) {
+        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet))) {
+            String first = in.readUTF();
+            if (TAG.equals(first)) {
+                // 已是目标形态：校验长度后原样返回
+                int length = in.readUnsignedShort();
+                if (in.readNBytes(length).length != length || in.available() != 0) return null;
+                return packet;
+            }
+            if ("Forward".equals(first)) {
+                in.readUTF(); // mode：Redis 广播后所有子服都收，定向靠载荷内子服名
+            } else if (!"Forwarded".equals(first)) {
+                return null;
+            }
+            String channel = in.readUTF();
+            if (!TAG.equals(channel)) return null;
+            int length = in.readUnsignedShort();
+            byte[] payload = in.readNBytes(length);
+            if (payload.length != length || in.available() != 0) return null;
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (DataOutputStream out = new DataOutputStream(bytes)) {
+                out.writeUTF(TAG);
+                out.writeShort(payload.length);
+                out.write(payload);
+            }
+            return bytes.toByteArray();
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
      * 解析代理转发进来的完整数据包。
      * <p>
      * 官方格式：第一个 UTF 就是通道名（BungeeCord DownstreamBridge 与
