@@ -21,7 +21,9 @@ com.liu.liuchat
 ├── config/                 ConfigManager / MessageManager
 ├── model/MuteData          数据记录
 ├── hook/                   PapiHook + LiuChatExpansion（类隔离）
-└── util/TextUtil           颜色 / 时长解析 / 相似度
+└── util/
+    ├── TextUtil            颜色 / 时长解析 / 相似度
+    └── Schedulers          Paper / Folia 调度器兼容层（全局/异步/实体区域）
 ```
 
 关键设计：
@@ -32,4 +34,9 @@ com.liu.liuchat
 - **存储异步化**：JDBC 全部串行到专用线程（DbExecutor）；命令写库不阻塞主线程，
   读操作自动排在此前所有写之后（对账不漏未落盘数据），停服先排空队列再关连接
 - **数据库降级**：连不上自动转仅内存运行，不阻塞启用
+- **Folia 调度兼容**：禁止直接调用 `Bukkit.getScheduler()`（Folia 上抛异常）。全服级逻辑
+  （广播/计时器/异步 IO）走 `Schedulers.run*`，触碰玩家/实体的逻辑走
+  `Schedulers.runFor` / `forEachPlayer`，投递到该实体所在的区域线程；聊天事件等任意线程
+  回调统一经兼容层回到区域线程。运行环境由 `Schedulers.isFolia()` 自动探测，Paper 上
+  仍走原生 Bukkit 调度器，行为不变
 - maven 资源过滤只作用于 `plugin.yml`，配置里的 `${player}` 等占位符不会被 maven 碰

@@ -210,7 +210,7 @@ public final class LiuChat extends JavaPlugin {
         router.register(nick);
         router.register(chatColor);
         router.register(dialog);
-        TellCommand tell = new TellCommand(messageManager, tellService, configManager, crossServer);
+        TellCommand tell = new TellCommand(this, messageManager, tellService, configManager, crossServer);
         router.register(tell);
         ChatCommand reply = new ReplyCommand(messageManager, tellService, tell);
         router.register(reply);
@@ -246,8 +246,7 @@ public final class LiuChat extends JavaPlugin {
         int syncInterval = configManager.syncInterval();
         if (syncInterval > 0 && database.isReady()) {
             long ticks = syncInterval * 20L;
-            getServer().getScheduler().runTaskTimerAsynchronously(
-                    this, muteService::loadAll, ticks, ticks);
+            com.liu.liuchat.util.Schedulers.runAsyncTimer(this, muteService::loadAll, ticks, ticks);
         }
 
         // 7. PlaceholderAPI 挂钩（没装则自动跳过）
@@ -286,24 +285,33 @@ public final class LiuChat extends JavaPlugin {
         return true;
     }
 
-    /** Broadcast an external plugin's rich announcement locally and to other servers. Call on the main thread. */
+    /** Broadcast an external plugin's rich announcement locally and to other servers. Call on the global/main thread. */
     public void broadcastAnnouncement(Player carrier, net.md_5.bungee.api.chat.BaseComponent... components) {
         if (!isEnabled() || carrier == null || components == null || components.length == 0) {
             throw new IllegalArgumentException("LiuChat requires an online carrier and announcement components");
         }
-        if (!org.bukkit.Bukkit.isPrimaryThread()) {
+        if (!com.liu.liuchat.util.Schedulers.isGlobalThread()) {
+            if (com.liu.liuchat.util.Schedulers.isFolia()) {
+                // Folia：调用方可能在某个区域线程，投回全局区域再广播
+                com.liu.liuchat.util.Schedulers.run(this, () -> broadcastAnnouncement(carrier, components));
+                return;
+            }
             throw new IllegalStateException("Announcements must be sent on the server thread");
         }
         chatService.broadcastAnnouncement(components);
         crossServer.publishAnnouncement(carrier, components);
     }
 
-    /** Broadcast a template with %item% replaced by a snapshot of the supplied item. Main thread only. */
+    /** Broadcast a template with %item% replaced by a snapshot of the supplied item. Global/main thread only. */
     public void broadcastItemAnnouncement(Player sender, String template, org.bukkit.inventory.ItemStack item) {
         if (!isEnabled() || sender == null || !sender.isOnline() || template == null || item == null || item.getType().isAir()) {
             throw new IllegalArgumentException("An online sender, template and item are required");
         }
-        if (!org.bukkit.Bukkit.isPrimaryThread()) {
+        if (!com.liu.liuchat.util.Schedulers.isGlobalThread()) {
+            if (com.liu.liuchat.util.Schedulers.isFolia()) {
+                com.liu.liuchat.util.Schedulers.run(this, () -> broadcastItemAnnouncement(sender, template, item));
+                return;
+            }
             throw new IllegalStateException("Announcements must be sent on the server thread");
         }
         String snapshot = items.snapshot(item);

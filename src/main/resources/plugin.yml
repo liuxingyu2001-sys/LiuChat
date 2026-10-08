@@ -5,7 +5,7 @@ api-version: '1.21'
 authors: [liuxingyu2001]
 description: 聊天插件 —— 自定义格式 / 跨服聊天 / 禁言 / 冷却 / 重复检测 / 私聊（零第三方框架依赖）
 website: 'https://github.com/liuxingyu2001'
-folia-supported: false
+folia-supported: true
 
 softdepend:
   - PlaceholderAPI
@@ -16,7 +16,7 @@ softdepend:
   - SoulSpace
 
 # 依赖库交给 Paper 自己下载并挂到本插件类加载器，不打进 jar；
-# Paper/Leaf 会为插件加载 JDBC 驱动；CraftEngine、CustomNameplates、CMI、PAPI 均为可选软依赖。
+# Paper/Leaf/Folia 会为插件加载 JDBC 驱动；CraftEngine、CustomNameplates、CMI、PAPI 均为可选软依赖。
 libraries:
   - org.xerial:sqlite-jdbc:3.47.0.0
   - com.mysql:mysql-connector-j:8.0.33

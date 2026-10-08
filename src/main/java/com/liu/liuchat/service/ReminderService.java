@@ -3,10 +3,10 @@ package com.liu.liuchat.service;
 import com.liu.liuchat.config.ConfigDefaults;
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.hook.PapiHook;
+import com.liu.liuchat.util.Schedulers;
 import com.liu.liuchat.util.TextUtil;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -20,7 +20,7 @@ public final class ReminderService implements AutoCloseable {
     private List<ReminderPlan> plans = List.of();
     private final Map<String, Instant> delivered = new HashMap<>();
     private Instant lastTick = Instant.now();
-    private BukkitTask task;
+    private Schedulers.Handle task;
 
     public ReminderService(JavaPlugin plugin, ConfigManager config) {
         this.plugin = plugin;
@@ -37,7 +37,7 @@ public final class ReminderService implements AutoCloseable {
     public void start() {
         if (task != null) task.cancel();
         lastTick = Instant.now();
-        task = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
+        task = Schedulers.runTimer(plugin, this::tick, 20L, 20L);
     }
 
     private void tick() {
@@ -52,15 +52,15 @@ public final class ReminderService implements AutoCloseable {
                 delivered.put(plan.id(), occurrence);
                 for (String message : plan.messages()) {
                     String text = message.replace("${server}", config.server());
-                    for (var player : plugin.getServer().getOnlinePlayers()) {
-                        if (!plan.permission().isBlank() && !player.hasPermission(plan.permission())) continue;
+                    Schedulers.forEachPlayer(plugin, player -> {
+                        if (!plan.permission().isBlank() && !player.hasPermission(plan.permission())) return;
                         try {
                             player.spigot().sendMessage(TextComponent.fromLegacyText(
                                     TextUtil.color(PapiHook.setPlaceholders(player, text))));
                         } catch (RuntimeException e) {
                             plugin.getLogger().warning("提醒 " + plan.id() + " 渲染失败: " + e.getMessage());
                         }
-                    }
+                    });
                     if (plan.console()) plugin.getServer().getConsoleSender().sendMessage(TextUtil.color(text));
                 }
             });

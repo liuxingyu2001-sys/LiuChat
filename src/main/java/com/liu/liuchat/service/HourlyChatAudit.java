@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
-import org.bukkit.Bukkit;
+import com.liu.liuchat.util.Schedulers;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -43,7 +43,7 @@ public final class HourlyChatAudit {
 
     public void start() {
         // Check the current config each minute, so /lc reload can enable or disable scheduled reviews.
-        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+        Schedulers.runTimer(plugin, () -> {
             if (config.aiEnabled() && config.aiReviewEnabled()) {
                 long interval = config.aiReviewIntervalMinutes() * 60_000L;
                 long now = System.currentTimeMillis();
@@ -90,17 +90,17 @@ public final class HourlyChatAudit {
             if (batch.entries().isEmpty()) {
                 inFlight.set(false);
                 if (requester != null && plugin.isEnabled())
-                    Bukkit.getScheduler().runTask(plugin, () -> messages.send(requester, "ai.audit-empty"));
+                    Schedulers.run(plugin, () -> messages.send(requester, "ai.audit-empty"));
                 return;
             }
             client.complete(url, key, model, prompt, HourlyChatHistory.asJson(batch), timeout)
                     .whenComplete((response, error) -> {
                         if (error != null) { fail(requester, error); return; }
-                        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                        Schedulers.runAsync(plugin, () -> {
                             try {
                                 List<HourlyChatHistory.Finding> findings = HourlyChatHistory.findings(response, batch);
                                 Path report = writeReport(batch, findings, since, until, server);
-                                if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin,
+                                if (plugin.isEnabled()) Schedulers.run(plugin,
                                         () -> notifyStaff(requester, findings, report));
                             } catch (Exception ex) {
                                 fail(requester, ex);
@@ -121,7 +121,7 @@ public final class HourlyChatAudit {
             plugin.getLogger().log(Level.WARNING, "聊天历史审查失败", error);
         }
         if (requester != null && plugin.isEnabled())
-            Bukkit.getScheduler().runTask(plugin, () -> messages.send(requester,
+            Schedulers.run(plugin, () -> messages.send(requester,
                     error instanceof IllegalArgumentException && error.getMessage() != null
                             && error.getMessage().startsWith("AI 审查结果") ? "ai.audit-invalid" : "ai.audit-failed"));
     }
@@ -158,15 +158,19 @@ public final class HourlyChatAudit {
         String summary = "[LiuChat] 审查完成，发现 " + findings.size() + " 名疑似违规玩家；报告: " + report;
         plugin.getLogger().info(summary);
         if (requester != null) {
-            requester.sendMessage(summary);
-            for (HourlyChatHistory.Finding finding : findings)
-                requester.sendMessage("§c" + finding.player() + "§7: " + finding.reason());
+            Runnable notify = () -> {
+                requester.sendMessage(summary);
+                for (HourlyChatHistory.Finding finding : findings)
+                    requester.sendMessage("§c" + finding.player() + "§7: " + finding.reason());
+            };
+            if (requester instanceof Player player) Schedulers.runFor(plugin, player, notify);
+            else notify.run();
         }
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (!player.hasPermission("liuchat.audit.notify") || player.equals(requester)) continue;
+        Schedulers.forEachPlayer(plugin, player -> {
+            if (!player.hasPermission("liuchat.audit.notify") || player.equals(requester)) return;
             player.sendMessage("§e" + summary);
             for (HourlyChatHistory.Finding finding : findings)
                 player.sendMessage("§c" + finding.player() + "§7: " + finding.reason());
-        }
+        });
     }
 }

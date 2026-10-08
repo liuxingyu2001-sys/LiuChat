@@ -2,7 +2,6 @@ package com.liu.liuchat.config;
 
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.configuration.InvalidConfigurationException;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.List;
@@ -26,7 +25,7 @@ public final class SharedConfig implements AutoCloseable {
             "shortcut.yml", "dialogs.yml", "npc-assistants.yml", "reminders.yml");
     /** 每服本地业务配置：不共享，但参与自动重载监听与重载前校验。 */
     static final List<String> LOCAL_FILES = List.of("chat.yml", "ai.yml");
-    private volatile BukkitTask task;
+    private volatile com.liu.liuchat.util.Schedulers.Handle task;
     private volatile boolean closed;
     private final AtomicBoolean reloading = new AtomicBoolean();
 
@@ -95,7 +94,7 @@ public final class SharedConfig implements AutoCloseable {
             return;
         }
         baseline = snapshot();
-        task = plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+        task = com.liu.liuchat.util.Schedulers.runAsyncTimer(plugin, () -> {
             if (closed) return;
             Map<String, FileStamp> current;
             try {
@@ -108,7 +107,7 @@ public final class SharedConfig implements AutoCloseable {
             if (!current.equals(previous)) {
                 baseline = current;
                 if (reloading.compareAndSet(false, true)) {
-                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    com.liu.liuchat.util.Schedulers.run(plugin, () -> {
                         try {
                             if (closed || !plugin.isEnabled()) return;
                             reload.run();

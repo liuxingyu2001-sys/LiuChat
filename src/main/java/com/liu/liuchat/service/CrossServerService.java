@@ -10,7 +10,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
-import org.bukkit.scheduler.BukkitTask;
+import com.liu.liuchat.util.Schedulers;
 
 import java.util.List;
 import java.util.logging.Level;
@@ -40,7 +40,7 @@ public final class CrossServerService implements PluginMessageListener, Listener
     private MuteService muteService;
     private boolean enabled;
     private final RemotePlayers remotePlayers = new RemotePlayers();
-    private BukkitTask presenceTask;
+    private Schedulers.Handle presenceTask;
     /** Redis 传输层（transport=redis 时创建）；null = 纯代理模式，行为与旧版完全一致 */
     private RedisBus redis;
     /** 当前 Redis 连接参数指纹，/lc reload 时判断要不要重连。 */
@@ -77,8 +77,8 @@ public final class CrossServerService implements PluginMessageListener, Listener
                 plugin, CrossServerCodec.BUNGEE_CHANNEL, this);
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
         openRedis();
-        presenceTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::publishPresence, 1200L, 1200L);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+        presenceTask = Schedulers.runTimer(plugin, this::publishPresence, 1200L, 1200L);
+        Schedulers.runLater(plugin, () -> {
             publishPresence();
             sendViaAny(() -> CrossServerCodec.encodePresenceRequest(config.server()));
         }, 20L);
@@ -224,7 +224,7 @@ public final class CrossServerService implements PluginMessageListener, Listener
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         if (!enabled) return;
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+        Schedulers.runLater(plugin, () -> {
             if (!event.getPlayer().isOnline()) return;
             publishPresence();
             sendViaAny(() -> CrossServerCodec.encodePresenceRequest(config.server()));
@@ -323,14 +323,17 @@ public final class CrossServerService implements PluginMessageListener, Listener
         if (!enabled || !isIncomingChannel(channel)) {
             return;
         }
-        handleFrame(message);
+        // Bukkit 在 Paper 上于主线程回调；Folia 可能落在玩家区域线程，统一收敛到全局线程
+        Schedulers.runGlobal(plugin, () -> {
+            if (enabled) handleFrame(message);
+        });
     }
 
     /** Redis 订阅线程回调：切回主线程再分发（与代理链路同一路口，会触碰 Bukkit API）。 */
     private void onRedisFrame(byte[] frame) {
         if (!enabled) return;
         try {
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
+            Schedulers.runGlobal(plugin, () -> {
                 if (enabled) handleFrame(frame);
             });
         } catch (RuntimeException e) {

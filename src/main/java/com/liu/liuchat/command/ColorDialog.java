@@ -2,6 +2,7 @@ package com.liu.liuchat.command;
 
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.service.PlayerProfileService;
+import com.liu.liuchat.util.Schedulers;
 import com.liu.liuchat.util.TextUtil;
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.dialog.DialogResponseView;
@@ -16,7 +17,6 @@ import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -100,8 +100,8 @@ public final class ColorDialog {
 
     private void main(Player player, net.kyori.adventure.audience.Audience audience, Runnable action) {
         if (!player.equals(audience) || !plugin.isEnabled()) return;
-        if (Bukkit.isPrimaryThread()) action.run();
-        else Bukkit.getScheduler().runTask(plugin, action);
+        // 回调可能在任意线程（Folia 上未必在玩家区域），回到玩家所在区域再动 Bukkit API
+        Schedulers.runFor(plugin, player, action);
     }
 
     private static ColorState fromView(DialogResponseView view, ColorState previous) {

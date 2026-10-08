@@ -119,7 +119,7 @@ public final class AiSessionStore {
     /** 启动周期性异步保存（有改动才写盘）。 */
     public void start(JavaPlugin plugin) {
         long ticks = 30L * 20L;
-        plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, this::saveIfDirty, ticks, ticks);
+        com.liu.liuchat.util.Schedulers.runAsyncTimer(plugin, this::saveIfDirty, ticks, ticks);
     }
 
     /** 关服时同步写盘，保证会话不丢。 */

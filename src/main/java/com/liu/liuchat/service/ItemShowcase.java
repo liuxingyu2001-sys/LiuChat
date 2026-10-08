@@ -452,10 +452,10 @@ public final class ItemShowcase implements Listener {
                 entry.space = result.get();
                 if (viewer.isOnline()) openSpaceGui(viewer, entry, 0, defaultSort());
             };
-            if (Bukkit.isPrimaryThread()) finish.run();
-            else if (plugin.isEnabled()) {
+            if (plugin.isEnabled()) {
                 try {
-                    Bukkit.getScheduler().runTask(plugin, finish);
+                    // 投递到查看者所在区域线程：Folia 下 GUI 必须在玩家区域打开
+                    com.liu.liuchat.util.Schedulers.runFor(plugin, viewer, finish);
                 } catch (org.bukkit.plugin.IllegalPluginAccessException ignored) {
                     // Plugin disable may have started after the enabled check.
                 }

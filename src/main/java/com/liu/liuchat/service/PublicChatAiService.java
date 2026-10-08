@@ -3,6 +3,7 @@ package com.liu.liuchat.service;
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.util.AiChatTriggers;
 import com.liu.liuchat.util.Mentions;
+import com.liu.liuchat.util.Schedulers;
 import com.liu.liuchat.util.TextUtil;
 import org.bukkit.Bukkit;
 import net.md_5.bungee.api.chat.BaseComponent;
@@ -46,7 +47,7 @@ public final class PublicChatAiService {
     /** 每分钟检查一次；配置在 /lc reload 后无需重建定时任务。 */
     public void start() {
         lastProactiveAt = System.currentTimeMillis();
-        Bukkit.getScheduler().runTaskTimer(plugin, this::proactiveTick, 1200L, 1200L);
+        Schedulers.runTimer(plugin, this::proactiveTick, 1200L, 1200L);
     }
 
     private void proactiveTick() {
@@ -73,14 +74,17 @@ public final class PublicChatAiService {
         this.crossServer = crossServer;
     }
 
-    /** 本服玩家公屏发言（主线程）。 */
+    /**
+     * 本服玩家公屏发言。Folia 下不同玩家的聊天事件可能落在不同区域线程，
+     * 而最近的公屏消息队列是共享状态，统一收敛到全局线程再处理。
+     */
     public void onLocalMessage(String uuid, String name, String message) {
-        onMessage(uuid, name, message, false);
+        Schedulers.runGlobal(plugin, () -> onMessage(uuid, name, message, false));
     }
 
-    /** 其他子服的公屏发言（主线程）。 */
+    /** 其他子服的公屏发言（已在全局线程）。 */
     public void onRemoteMessage(String uuid, String name, String message) {
-        onMessage(uuid, name, message, true);
+        Schedulers.runGlobal(plugin, () -> onMessage(uuid, name, message, true));
     }
 
     private void onMessage(String uuid, String name, String message, boolean remote) {

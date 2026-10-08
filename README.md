@@ -2,9 +2,9 @@
 
 [![Maven CI](https://github.com/liuxingyu2001/LiuChat/actions/workflows/maven.yml/badge.svg)](https://github.com/liuxingyu2001/LiuChat/actions/workflows/maven.yml)
 
-Paper / Leaf 1.21+ 聊天插件（Java 21，零第三方框架依赖）。当前使用 Paper 1.21.11 API 编译；1.21 早期小版本尚未验证，部分功能可能需要较新版本。
+Paper / Leaf / Folia 1.21+ 聊天插件（Java 21，零第三方框架依赖）。当前使用 Paper 1.21.11 API 编译；1.21 早期小版本尚未验证，部分功能可能需要较新版本。
 
-- **平台**：完整物品悬浮及 Dialogs 使用 Paper API
+- **平台**：完整物品悬浮及 Dialogs 使用 Paper API；内置调度器兼容层，同一份 jar 在 Paper / Leaf 与 Folia 上均可运行（`folia-supported: true`）
 - **存储**：SQLite（单服）/ MySQL（跨服共享），驱动经 plugin.yml `libraries` 由 Paper 自动下载
 - **跨服**：BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持，协议 9）；可选 `cross-server.transport: redis` 改走 Redis pub/sub（手写 RESP 零依赖，空服可收发，失败自动回落代理）
 - **可选依赖**：PlaceholderAPI、CustomNameplates、CraftEngine、SoulSpace、Citizens；未安装时基础聊天可用

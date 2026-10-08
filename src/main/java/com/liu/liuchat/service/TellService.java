@@ -1,6 +1,7 @@
 package com.liu.liuchat.service;
 
 import com.liu.liuchat.config.MessageManager;
+import com.liu.liuchat.util.Schedulers;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -112,7 +113,7 @@ public final class TellService {
             if (config != null) logs.recordPrivate(sender.getUniqueId().toString(), sender.getName(), targetName, message);
         }
 
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+        Schedulers.runLater(plugin, () -> {
             if (pending.remove(msgId) == null) {
                 return; // 回执已到，送达成功
             }
@@ -177,7 +178,9 @@ public final class TellService {
         }
         var parts = presentation.renderPrivate(outgoing, server, senderName, uuid,
                 world, targetName, sender, message, itemId, placeholders, nick);
-        recipient.sendMessage(PaperChatComponents.convert(parts, items));
+        net.kyori.adventure.text.Component rendered = PaperChatComponents.convert(parts, items);
+        // 接收者可能和发送者在不同区域（Folia），投递必须回到接收者所在区域线程
+        Schedulers.runFor(plugin, recipient, () -> recipient.sendMessage(rendered));
     }
 
     /** 最近一次成功收发私聊的对象，没有时返回 null。 */

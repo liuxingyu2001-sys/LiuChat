@@ -1,23 +1,20 @@
 package com.liu.liuchat.hook;
 
-import net.momirealms.customnameplates.api.CustomNameplates;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
-/** Publishes accepted public chat to CustomNameplates' configured bubble listeners. */
+/**
+ * CustomNameplates 聊天气泡门面。
+ *
+ * <p>本类不引用任何 CustomNameplates 类型；未安装时直接使用引用它的类可能触发
+ * {@link NoClassDefFoundError}（软依赖类隔离）。实现在 {@link NameplatesChatResolver}。
+ */
 public final class NameplatesChatHook {
     private NameplatesChatHook() { }
 
+    /** 把已接受的公屏聊天推送给 CustomNameplates 配置的气泡监听器。 */
     public static void publish(Player sender, String message) {
         if (!Bukkit.getPluginManager().isPluginEnabled("CustomNameplates")) return;
-        try {
-            CustomNameplates plugin = CustomNameplates.getInstance();
-            if (plugin == null) return;
-            var player = plugin.getPlayer(sender.getUniqueId());
-            if (player != null && plugin.getChatManager() != null)
-                plugin.getChatManager().onChat(player, CraftEngineEmojiHook.resolveBubble(sender, message), "Global");
-        } catch (LinkageError | RuntimeException ex) {
-            Bukkit.getLogger().warning("LiuChat: CustomNameplates 气泡推送失败: " + ex);
-        }
+        NameplatesChatResolver.publish(sender, message);
     }
 }

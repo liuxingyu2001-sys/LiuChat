@@ -1,7 +1,7 @@
 package com.liu.liuchat.service;
 
 import com.liu.liuchat.config.ConfigManager;
-import org.bukkit.Bukkit;
+import com.liu.liuchat.util.Schedulers;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Locale;
@@ -29,7 +29,7 @@ public final class AiReviewService {
                 config.aiReviewTimeoutSeconds())
                 .whenComplete((answer, error) -> {
                     boolean result = decision(answer, error, failOpen);
-                    if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> callback.accept(result));
+                    if (plugin.isEnabled()) Schedulers.run(plugin, () -> callback.accept(result));
                 });
     }
 

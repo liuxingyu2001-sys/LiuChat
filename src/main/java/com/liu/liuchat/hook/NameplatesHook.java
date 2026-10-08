@@ -1,26 +1,19 @@
 package com.liu.liuchat.hook;
 
-import net.momirealms.customnameplates.api.CustomNameplatesAPI;
-import net.momirealms.customnameplates.api.feature.AdaptiveImage;
 import org.bukkit.Bukkit;
 
-/** Optional CustomNameplates image lookup; never invoked without the plugin. */
+/**
+ * CustomNameplates 图片节点门面。
+ *
+ * <p>本类不引用任何 CustomNameplates 类型；实现在 {@link NameplatesImageResolver}，
+ * 仅在插件已启用时加载。
+ */
 public final class NameplatesHook {
     private NameplatesHook() { }
 
+    /** 解析 CustomNameplates 图片为文本组件；未安装或解析失败时返回 null。 */
     public static String withImage(String text, String kind, String id, float left, float right) {
         if (!Bukkit.getPluginManager().isPluginEnabled("CustomNameplates")) return null;
-        try {
-            CustomNameplatesAPI api = CustomNameplatesAPI.getInstance();
-            if (api == null) return null;
-            AdaptiveImage image = switch (kind) {
-                case "background" -> api.getBackground(id).orElse(null);
-                case "nameplate" -> api.getNameplate(id).orElse(null);
-                default -> null;
-            };
-            return image == null ? null : api.createTextWithImage(text, image, left, right);
-        } catch (LinkageError | IllegalStateException ex) {
-            return null;
-        }
+        return NameplatesImageResolver.withImage(text, kind, id, left, right);
     }
 }

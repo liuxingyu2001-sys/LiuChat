@@ -1,6 +1,7 @@
 package com.liu.liuchat.service;
 
 import com.liu.liuchat.config.ConfigManager;
+import com.liu.liuchat.util.Schedulers;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -98,7 +99,7 @@ public final class AiAssistantService {
                 // 命中也照样入会话，后续玩家的上下文才是完整的
                 if (limits.enabled()) sessions.finish(sessions.open(session, limits, question), cached, limits);
                 String display = clean(cached, config.aiAssistantMaxAnswer());
-                Bukkit.getScheduler().runTask(plugin, () -> {
+                Schedulers.run(plugin, () -> {
                     pending.remove(pendingKey); // 缓存命中不走网络，也必须在这里解锁，否则该会话永久 BUSY
                     if (!plugin.isEnabled()) return;
                     onResult.accept(new Result(Status.OK, display));
@@ -111,7 +112,7 @@ public final class AiAssistantService {
         client.complete(url, key, model, prompt, history, question, timeout, config.aiAssistantMaxTokens())
                 .whenComplete((answer, error) -> {
                     if (!plugin.isEnabled()) return;
-                    Bukkit.getScheduler().runTask(plugin, () -> {
+                    Schedulers.run(plugin, () -> {
                         if (error == null) {
                             // 玩家在等待期间退出也要留下这轮问答，共享会话不因个人进出而丢数据
                             if (turn != null) sessions.finish(turn, answer, limits);

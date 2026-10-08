@@ -1,8 +1,10 @@
 package com.liu.liuchat.config;
 
 import com.liu.liuchat.model.MuteData;
+import com.liu.liuchat.util.Schedulers;
 import com.liu.liuchat.util.TextUtil;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -61,9 +63,14 @@ public final class MessageManager {
         return prefixEnabled ? get("prefix") : "";
     }
 
-    /** 带 prefix 的完整消息 */
+    /** 带 prefix 的完整消息；玩家消息会投递到其所在区域线程（Folia）。 */
     public void send(CommandSender to, String key, String... placeholders) {
-        to.sendMessage(prefix() + get(key, placeholders));
+        String message = prefix() + get(key, placeholders);
+        if (to instanceof Player player) {
+            Schedulers.runFor(plugin, player, () -> player.sendMessage(message));
+        } else {
+            to.sendMessage(message);
+        }
     }
 
     /** 模板颜色翻译：{@code &&}→字面 {@code &}，{@code <<}→字面 {@code <}，均躲开解析 */

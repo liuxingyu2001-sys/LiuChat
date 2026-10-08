@@ -4,6 +4,7 @@ import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.service.AiAssistantService;
 import com.liu.liuchat.service.AiAnswerFormatter;
+import com.liu.liuchat.util.Schedulers;
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.registry.data.dialog.ActionButton;
 import io.papermc.paper.registry.data.dialog.DialogBase;
@@ -13,7 +14,6 @@ import io.papermc.paper.registry.data.dialog.input.DialogInput;
 import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickCallback;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -38,7 +38,7 @@ public final class AssistantDialog {
         if (!player.hasPermission("liuchat.ask")) { messages.send(player, "no-permission"); return; }
         if (!config.aiAssistantEnabled()) { messages.send(player, "ai.unavailable"); return; }
         ActionButton send = ActionButton.create(Component.text("发送问题"), Component.empty(), 160,
-                DialogAction.customClick((response, audience) -> main(() -> {
+                DialogAction.customClick((response, audience) -> main(player, () -> {
                     if (!player.equals(audience) || !player.isOnline()) return;
                     String question = response.getText("question");
                     if (question == null || question.isBlank()) {
@@ -83,7 +83,7 @@ public final class AssistantDialog {
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(Component.text(title)).body(body).build())
                 .type(DialogType.multiAction(List.of(ActionButton.create(Component.text("继续提问"), Component.empty(), 140,
-                        DialogAction.customClick((response, audience) -> main(() -> {
+                        DialogAction.customClick((response, audience) -> main(player, () -> {
                             if (player.equals(audience)) open(player, name, title);
                         }), ClickCallback.Options.builder().uses(1).build()))),
                         ActionButton.create(Component.text("关闭"), Component.empty(), 100,
@@ -92,8 +92,8 @@ public final class AssistantDialog {
         player.showDialog(dialog);
     }
 
-    private void main(Runnable action) {
-        if (Bukkit.isPrimaryThread()) action.run();
-        else Bukkit.getScheduler().runTask(plugin, action);
+    private void main(Player player, Runnable action) {
+        // 对话框回调可能在任意线程（Folia 上未必在玩家区域），回到玩家所在区域再动 Bukkit API
+        Schedulers.runFor(plugin, player, action);
     }
 }

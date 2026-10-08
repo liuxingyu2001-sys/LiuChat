@@ -10,6 +10,7 @@ import com.liu.liuchat.service.PublicChatAiService;
 import com.liu.liuchat.service.CrossServerService;
 import com.liu.liuchat.service.MuteService;
 import com.liu.liuchat.util.RepeatCheck;
+import com.liu.liuchat.util.Schedulers;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.entity.Player;
@@ -66,7 +67,8 @@ public final class ChatListener implements Listener {
         UUID uuid = event.getPlayer().getUniqueId();
         String text = event.getMessage();
         if (event.isAsynchronous()) {
-            Bukkit.getScheduler().runTask(plugin, () -> processChat(uuid, text));
+            // Folia：聊天事件在任意线程触发，必须投递回该玩家所在区域线程。
+            Schedulers.runFor(plugin, event.getPlayer(), () -> processChat(uuid, text));
         } else {
             processChat(uuid, text);
         }
@@ -133,9 +135,9 @@ public final class ChatListener implements Listener {
 
     private void notifyModerators(Player sender, String text) {
         String notice = messages.get("ai.local-blocked-notify", "${player}", sender.getName(), "${message}", text);
-        for (Player online : Bukkit.getOnlinePlayers()) {
+        Schedulers.forEachPlayer(plugin, online -> {
             if (online.hasPermission("liuchat.moderation.notify")) online.sendMessage(notice);
-        }
+        });
     }
     /** 退出时清掉该玩家的临时状态；禁言缓存是全局的，不动 */
     @EventHandler
