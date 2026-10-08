@@ -1,5 +1,7 @@
 # 聊天节点按配置顺序拼接；${server} ${player} ${world} ${message} 可用。
 # ${head} 在 1.21.9+ 客户端显示发送玩家的皮肤头像。
+# 时间变量：${time}(HH:mm:ss) ${date}(yyyy-MM-dd) ${datetime} ${year} ${month} ${day}
+# ${hour} ${minute} ${second} ${weekday}，也可用自定义格式 ${time:HH:mm} / ${date:yyyy年MM月dd日}。
 item:
   enable: true
   format: '[i]'

@@ -5,6 +5,7 @@ import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.hook.PapiHook;
 import com.liu.liuchat.util.Schedulers;
 import com.liu.liuchat.util.TextUtil;
+import com.liu.liuchat.util.TimePlaceholders;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -50,8 +51,9 @@ public final class ReminderService implements AutoCloseable {
                 Instant previous = delivered.get(plan.id());
                 if (previous != null && !occurrence.isAfter(previous)) return;
                 delivered.put(plan.id(), occurrence);
+                java.time.ZonedDateTime zoned = now.atZone(plan.zone());
                 for (String message : plan.messages()) {
-                    String text = message.replace("${server}", config.server());
+                    String text = TimePlaceholders.apply(message.replace("${server}", config.server()), zoned);
                     Schedulers.forEachPlayer(plugin, player -> {
                         if (!plan.permission().isBlank() && !player.hasPermission(plan.permission())) return;
                         try {

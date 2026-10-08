@@ -84,6 +84,7 @@ chat-log:
   enable: true
   # 可选共享记录目录；留空保留本地。按子服标识隔离 logs/ 和 audit-history/，不共享数据库或会话。
   shared-path: ''
+  # ${time}=HH:mm:ss，另支持 ${date} ${datetime} ${year} ${month} ${day} ${hour} ${minute} ${second} ${weekday} 及自定义格式 ${time:HH:mm} / ${date:yyyy年MM月dd日}
   format: '[${time}] [${type}] [${server}] ${player} -> ${target}: ${message}'
 
   # 全服喇叭：/liuc horn <内容>，需要 liuchat.horn 权限和喇叭余额。

@@ -46,7 +46,7 @@ reminders:
       - '&6[提醒] &f记得适当休息！'
 ```
 
-间隔模式将 `times` 替换为 `interval-seconds: 600`，按 Unix 时间基准每 600 秒触发，所有子服使用同一时间槽，而非从各自启动时刻计时。每个计划的 `messages` 列表按顺序全部发送，支持颜色、渐变、`${server}` 和按接收玩家解析的 PlaceholderAPI。`days` 只接受整数 `1` 到 `7`。配置修改执行 `/liuc reload`，不重置已有计划的发送进度；首次启动不补发历史提醒，延迟执行最多发送最近一次，不积压刷屏。指定时刻支持 `HH:mm` 或 `HH:mm:ss`；夏令时不存在的时刻跳过，重复的时刻仅发送一次。服务端卡顿可能导致延迟，群组服应同步系统时间并使用相同配置。无需代理或在线玩家承载跨服消息，每台安装本插件的服务器都能独立投递。
+间隔模式将 `times` 替换为 `interval-seconds: 600`，按 Unix 时间基准每 600 秒触发，所有子服使用同一时间槽，而非从各自启动时刻计时。每个计划的 `messages` 列表按顺序全部发送，支持颜色、渐变、`${server}`、时间变量和按接收玩家解析的 PlaceholderAPI。`days` 只接受整数 `1` 到 `7`。配置修改执行 `/liuc reload`，不重置已有计划的发送进度；首次启动不补发历史提醒，延迟执行最多发送最近一次，不积压刷屏。指定时刻支持 `HH:mm` 或 `HH:mm:ss`；夏令时不存在的时刻跳过，重复的时刻仅发送一次。服务端卡顿可能导致延迟，群组服应同步系统时间并使用相同配置。无需代理或在线玩家承载跨服消息，每台安装本插件的服务器都能独立投递。
 
 共享记录配置示例（实际 `config.yml`）：
 
@@ -57,7 +57,22 @@ chat-log:
 
 文件位于 `servers/server-<子服标识UTF-8十六进制>/logs/` 和 `audit-history/`。修改路径后 `/liuc reload` 生效，仅影响后续记录；私聊审核历史可能含敏感信息，请限制共享目录访问权限。审核报告仍保存在各子服本地。
 
-命令格式：`/horn <消息>`，别名 `/lb`；喇叭余额使用 `/lb balance`，管理员发放为 `/horn give <玩家> <数量>`。`horn.message-format`、`horn.title-message-format` 和 `horn.actionbar-message-format` 分别控制聊天、Title 内容、ActionBar 文本，BossBar 使用 Title 内容；控制台跟随聊天格式。三个模板均支持 `${server}`、`${player}`、`${message}`。旧 `horn.format` 只作为缺少专用格式时的兼容回退。禁言及跨服超长消息检查在扣费前执行。
+命令格式：`/horn <消息>`，别名 `/lb`；喇叭余额使用 `/lb balance`，管理员发放为 `/horn give <玩家> <数量>`。`horn.message-format`、`horn.title-message-format` 和 `horn.actionbar-message-format` 分别控制聊天、Title 内容、ActionBar 文本，BossBar 使用 Title 内容；控制台跟随聊天格式。三个模板均支持 `${server}`、`${player}`、`${message}` 与时间变量。旧 `horn.format` 只作为缺少专用格式时的兼容回退。禁言及跨服超长消息检查在扣费前执行。
+
+## 时间变量
+
+聊天格式（`chat.yml`）、私聊格式、喇叭模板、定时提醒消息和聊天记录 `chat-log.format` 都可以直接使用时间变量，无需安装 PlaceholderAPI：
+
+| 变量 | 默认输出 | 说明 |
+|---|---|---|
+| `${time}` | `HH:mm:ss` | 可写 `${time:HH:mm}`、`${time:HH时mm分}` 等自定义 pattern |
+| `${date}` | `yyyy-MM-dd` | 可写 `${date:yyyy年MM月dd日}` |
+| `${datetime}` | `yyyy-MM-dd HH:mm:ss` | 可自定义 pattern |
+| `${year}` `${month}` `${day}` | `2025` `03` `04` | 月/日补零 |
+| `${hour}` `${minute}` `${second}` | `13` `05` `09` | 24 小时制，补零 |
+| `${weekday}` | `周二` | 周一至周日 |
+
+自定义格式写在冒号后，遵循 `DateTimeFormatter` 模式；无法解析的 pattern 输出为空串，不影响整条消息。提醒使用该计划的 `timezone`，其余场景使用服务器时区。变量在玩家可控文本（昵称、消息正文、跨服占位符）插入之前替换，玩家无法借此注入时间变量。
 
 ## 聊天颜色
 

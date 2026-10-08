@@ -5,6 +5,7 @@ import com.liu.liuchat.hook.NameplatesChatHook;
 import com.liu.liuchat.hook.PapiHook;
 import com.liu.liuchat.util.Schedulers;
 import com.liu.liuchat.util.TextUtil;
+import com.liu.liuchat.util.TimePlaceholders;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
@@ -225,7 +226,8 @@ public final class ChatService {
     }
 
     static String formatHorn(String template, String server, String player, String message) {
-        return TextUtil.color(template.replace("${server}", server).replace("${player}", player))
+        return TextUtil.color(TimePlaceholders.apply(template, java.time.ZonedDateTime.now())
+                .replace("${server}", server).replace("${player}", player))
                 .replace("${message}", message);
     }
 

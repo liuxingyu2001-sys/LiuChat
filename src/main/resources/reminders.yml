@@ -10,6 +10,9 @@ reminders:
     days: [] # 空列表 = 每天；1=周一，2=周二，3=周三，4=周四，5=周五，6=周六，7=周日
     permission: '' # 留空 = 所有玩家
     console: true # 是否在控制台也输出提醒；false 只发给玩家，不影响定时或跨服行为
+    # 消息支持 ${server}、PlaceholderAPI，以及时间变量：
+    # ${time}=HH:mm:ss，${date}=yyyy-MM-dd，${datetime}，${year} ${month} ${day}
+    # ${hour} ${minute} ${second} ${weekday}；自定义格式 ${time:HH:mm} / ${date:yyyy年MM月dd日}（按上方 timezone）
     messages:
       - '&6[提醒] &f请文明聊天，祝你游戏愉快！'
   evening:

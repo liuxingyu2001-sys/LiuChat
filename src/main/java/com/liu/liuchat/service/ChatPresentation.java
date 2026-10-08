@@ -7,6 +7,7 @@ import com.liu.liuchat.hook.NameplatesHook;
 import com.liu.liuchat.hook.PapiHook;
 import com.liu.liuchat.util.Mentions;
 import com.liu.liuchat.util.TextUtil;
+import com.liu.liuchat.util.TimePlaceholders;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
@@ -535,7 +536,9 @@ public final class ChatPresentation implements ItemShowcase.SpaceSettings {
     }
 
     private String template(String text, String server, String player, String world, Player sender) {
-        String result = text.replace("${server}", server).replace("${player}", player)
+        // 时间变量先替换（在玩家可控的昵称/目标等插入之前，避免其内容里的 ${...} 被当成变量展开）
+        String result = TimePlaceholders.apply(text, java.time.ZonedDateTime.now())
+                .replace("${server}", server).replace("${player}", player)
                 .replace("${target}", privateTarget.get())
                 .replace("${nick}", displayNick.get()).replace("${world}", world);
         if (sender != null) result = PapiHook.setPlaceholders(sender, result);

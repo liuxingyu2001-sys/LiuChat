@@ -1,6 +1,7 @@
 package com.liu.liuchat.service;
 
 import com.liu.liuchat.config.ConfigManager;
+import com.liu.liuchat.util.TimePlaceholders;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -45,7 +46,9 @@ public final class ChatLogService implements AutoCloseable {
         if (!config.logEnabled()) return;
         String format = config.logFormat();
         LocalDateTime time = LocalDateTime.now();
-        String line = format.replace("${time}", time.format(DateTimeFormatter.ofPattern("HH:mm:ss")))
+        // 时间/日期变量（${time}/${date}/${year}/${month} 等，含 ${time:HH:mm} 自定义格式）；
+        // 玩家与消息文本最后插入，避免其内容里的 ${...} 被当成时间变量展开
+        String line = TimePlaceholders.apply(format, time.atZone(ZoneId.systemDefault()))
                 .replace("${type}", clean(type)).replace("${server}", clean(server))
                 .replace("${player}", clean(player)).replace("${target}", clean(target))
                 .replace("${message}", clean(message));
