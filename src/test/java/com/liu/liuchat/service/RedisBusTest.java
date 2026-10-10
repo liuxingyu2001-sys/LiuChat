@@ -126,7 +126,7 @@ class RedisBusTest {
                 assertTrue(gotMessage.await(5, TimeUnit.SECONDS), "订阅线程未收到推送帧");
                 assertArrayEquals(frame, received.get());
                 // 发布：应答 :1 → true，且假服务器收到的载荷与发送一致
-                assertTrue(bus.publish(frame), "publish 应在假服务器应答 :1 后返回 true");
+                assertTrue(bus.publish(frame).get(5, TimeUnit.SECONDS), "publish 应在假服务器应答 :1 后返回 true");
                 assertTrue(fake.published.await(5, TimeUnit.SECONDS));
                 assertArrayEquals(frame, fake.lastPublished.get());
             } finally {
@@ -150,9 +150,9 @@ class RedisBusTest {
                 payload -> { }, silentLogger());
         bus.start();
         try {
-            assertFalse(bus.publish(frame), "连不上的 Redis 必须返回 false 以回落代理");
+            assertFalse(bus.publish(frame).get(5, TimeUnit.SECONDS), "连不上的 Redis 必须返回 false 以回落代理");
             long start = System.nanoTime();
-            assertFalse(bus.publish(frame), "冷却期内应立即失败");
+            assertFalse(bus.publish(frame).get(5, TimeUnit.SECONDS), "冷却期内应立即失败");
             long elapsedMs = (System.nanoTime() - start) / 1_000_000;
             assertTrue(elapsedMs < 500, "冷却期内的 publish 应瞬时返回，实际耗时 " + elapsedMs + "ms");
         } finally {
@@ -167,7 +167,7 @@ class RedisBusTest {
             RedisBus bus = new RedisBus(fake.settings(), payload -> { }, silentLogger());
             bus.start();
             try {
-                assertFalse(bus.publish(new byte[]{1, 2, 3}), ":0 应答必须视为失败");
+                assertFalse(bus.publish(new byte[]{1, 2, 3}).get(5, TimeUnit.SECONDS), ":0 应答必须视为失败");
             } finally {
                 bus.close();
             }
@@ -183,6 +183,50 @@ class RedisBusTest {
             bus.close();
             bus.close(); // 幂等
             assertFalse(bus.isSubscribed());
+        }
+    }
+
+    @Test
+    void slowReplyDoesNotBlockCallerAndCloseFinishesPendingPublication() throws Exception {
+        try (FakeRedis fake = new FakeRedis(new byte[0], 1, true)) {
+            RedisBus bus = new RedisBus(fake.settings(), payload -> {}, silentLogger());
+            bus.start();
+            try {
+                var publication = bus.publish(new byte[]{7});
+                assertTrue(fake.published.await(5, TimeUnit.SECONDS));
+                assertFalse(publication.isDone(), "调用线程已返回，但 Redis 尚未应答");
+                bus.close();
+                assertFalse(publication.get(5, TimeUnit.SECONDS));
+                assertFalse(bus.publish(new byte[]{8}).join());
+            } finally {
+                bus.close();
+            }
+        }
+    }
+
+    @Test
+    void lostRedisReplyFallsBackWithTheSameMessageId() throws Exception {
+        try (FakeRedis fake = new FakeRedis(new byte[0], 1, true)) {
+            RedisBus bus = new RedisBus(fake.settings(), payload -> {}, silentLogger());
+            byte[] packet = CrossServerCodec.encodeChat("lobby", "uuid", "name", "hello", "", "", "");
+            AtomicReference<byte[]> proxyFrame = new AtomicReference<>();
+            bus.start();
+            try {
+                MessageTransport primary = payload -> bus.publish(CrossServerCodec.stripForward(payload));
+                MessageTransport proxy = payload -> {
+                    proxyFrame.set(CrossServerCodec.stripForward(payload));
+                    return java.util.concurrent.CompletableFuture.completedFuture(true);
+                };
+                assertTrue(new FallbackTransport(primary, proxy).publish(packet).get(5, TimeUnit.SECONDS));
+                assertArrayEquals(fake.lastPublished.get(), proxyFrame.get());
+                var ids = new RecentMessageIds(10, java.time.Duration.ofMinutes(2), System::nanoTime);
+                var redis = CrossServerCodec.decodeReceived(fake.lastPublished.get());
+                var fallback = CrossServerCodec.decodeReceived(proxyFrame.get());
+                assertTrue(ids.first(redis.messageId()));
+                assertFalse(ids.first(fallback.messageId()));
+            } finally {
+                bus.close();
+            }
         }
     }
 
@@ -206,12 +250,18 @@ class RedisBusTest {
         final AtomicReference<byte[]> lastPublished = new AtomicReference<>();
         private final byte[] pushAfterSubscribe;
         private final long publishReceivers;
+        private final boolean withholdReply;
 
         FakeRedis(byte[] pushAfterSubscribe) throws IOException {
             this(pushAfterSubscribe, 1);
         }
 
         FakeRedis(byte[] pushAfterSubscribe, long publishReceivers) throws IOException {
+            this(pushAfterSubscribe, publishReceivers, false);
+        }
+
+        FakeRedis(byte[] pushAfterSubscribe, long publishReceivers, boolean withholdReply) throws IOException {
+            this.withholdReply = withholdReply;
             this.pushAfterSubscribe = pushAfterSubscribe;
             this.publishReceivers = publishReceivers;
             this.server = new ServerSocket(0, 5, InetAddress.getLoopbackAddress());
@@ -259,7 +309,7 @@ class RedisBusTest {
                         }
                         case "PUBLISH" -> {
                             lastPublished.set((byte[]) command[2]);
-                            write(out, bytes(":" + publishReceivers + "\r\n"));
+                            if (!withholdReply) write(out, bytes(":" + publishReceivers + "\r\n"));
                             published.countDown();
                         }
                         case "PING" -> write(out, RedisBus.command("pong", ""));

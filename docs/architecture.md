@@ -12,7 +12,9 @@ com.liu.liuchat
 │   ├── ChatService         本服广播 + 跨服落地渲染（broadcastRemote；逐玩家渲染合并为一次）
 │   ├── CrossServerService  跨服收发总入口（transport: proxy=代理插件消息 / redis=Redis pub/sub，同协议双链路）
 │   ├── CrossServerCodec    跨服协议编解码（CHAT/TELL/ACK/HORN/MUTE/UNMUTE）+ stripForward
-│   ├── RedisBus            可选 Redis 传输层（手写 RESP，零第三方依赖，失败自动回落代理）
+│   ├── RedisBus            可选 Redis 传输层（RESP，有界串行异步发布，零第三方依赖）
+│   ├── MessageTransport    异步传输结果接口；FallbackTransport 统一 Redis → 代理回落
+│   ├── PendingRequests     请求确认/失败/超时管理，完成后取消定时任务，关闭时清理
 │   ├── TellService         私聊：本服直达 + 跨服回执（送达确认/超时离线提示）
 │   └── MuteService         禁言缓存（uuid + 名字索引）+ 对账式全量刷新（跨服同步）
 ├── storage/                Database 接口 + AbstractJdbcDatabase
@@ -31,6 +33,16 @@ com.liu.liuchat
 - **渲染顺序**：模板先翻译 `&`（含 PAPI），`${message}` 最后插入 → 无权限玩家无法注入颜色
 - **跨服防回环**：代理 Forward ALL 天然不含发送端 + server 名兜底丢弃 + 协议 tag 隔离其他插件；
   Redis 链路在此之上另加 origin 校验与 MUTE/UNMUTE 幂等（自回环无副作用）
+- **跨服异步发送**：Redis 发布使用单线程、256 条有界队列，保持入队顺序，不在玩家区域或
+  全局线程等待网络；队列满、连接失败或无订阅者时尝试代理回落。代理发送在载体玩家区域
+  执行，无在线载体则返回失败。传输成功只表示链路接受，私聊仍需 3 秒内收到 TELL_ACK；
+  确认、失败、超时只产生一次结果，跨服关闭时取消待确认请求。验签保持原样。
+- **跨服重复投递防护**：协议 10 为每个发送包加入唯一 UUID，标识纳入签名；同一发送包
+  经 Redis 和代理回落时 ID 不变。接收端用最多 8192 条、2 分钟有效期的缓存去重；
+  连续发送相同内容因 ID 不同仍能正常显示。私聊按来源服 + 请求 ID 去重，重复请求只回
+  ACK，不再次显示或记录。协议 9 仍可接收，但其普通消息无 ID，不能可靠去重。
+  新发送端使用协议 10，旧节点无法接收，部署时必须统一更新所有群组服。
+  Pub/Sub 断线消息不补发；缓存过期、容量淘汰或进程重启后仍可能重复，不保证恰好一次。
 - **存储异步化**：JDBC 全部串行到专用线程（DbExecutor）；命令写库不阻塞主线程，
   读操作自动排在此前所有写之后（对账不漏未落盘数据），停服先排空队列再关连接
 - **数据库降级**：连不上自动转仅内存运行，不阻塞启用

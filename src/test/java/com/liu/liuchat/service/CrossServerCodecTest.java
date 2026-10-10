@@ -11,6 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -261,6 +263,36 @@ class CrossServerCodecTest {
         }
         byte[] outbound = CrossServerCodec.wrapForward("ALL", payload.toByteArray());
         assertNull(CrossServerCodec.decodeInbound(proxyHop(outbound, "ALL")));
+    }
+
+    @Test
+    void messageIdSurvivesBothTransportsAndIdenticalMessagesHaveDistinctIds() throws IOException {
+        byte[] first = CrossServerCodec.encodeChat("lobby", "uuid", "name", "same", "", "", "");
+        byte[] second = CrossServerCodec.encodeChat("lobby", "uuid", "name", "same", "", "", "");
+        var redis = CrossServerCodec.decodeReceived(CrossServerCodec.stripForward(first));
+        var proxy = CrossServerCodec.decodeReceived(proxyHop(first, "ALL"));
+        var other = CrossServerCodec.decodeReceived(CrossServerCodec.stripForward(second));
+        assertNotNull(redis);
+        assertNotNull(proxy);
+        assertNotNull(other);
+        assertEquals(redis.messageId(), proxy.messageId());
+        assertNotEquals(redis.messageId(), other.messageId());
+        assertEquals(redis.message(), other.message());
+    }
+
+    @Test
+    void acceptsLegacyProtocolNineWithoutInventingMessageId() throws IOException {
+        ByteArrayOutputStream payload = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(payload)) {
+            out.writeUTF("9");
+            out.writeUTF(CrossServerCodec.TYPE_UNMUTE);
+            out.writeUTF("uuid");
+        }
+        var received = CrossServerCodec.decodeReceived(CrossServerCodec.stripForward(
+                CrossServerCodec.wrapForward("ALL", payload.toByteArray())));
+        assertNotNull(received);
+        assertEquals("", received.messageId());
+        assertInstanceOf(CrossServerCodec.Inbound.Unmute.class, received.message());
     }
 
     // ---------------- Redis 传输（stripForward） ----------------

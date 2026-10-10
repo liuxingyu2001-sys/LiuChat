@@ -6,9 +6,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 私聊服务：本服直达 + 跨服投递。
@@ -45,16 +43,18 @@ public final class TellService {
     public void setChatLogService(ChatLogService logs) { this.logs = logs; }
     public void setConfig(com.liu.liuchat.config.ConfigManager config) { this.config = config; }
     private final RecentTellContacts recentContacts = new RecentTellContacts();
-    /** key = msgId；只存发送者标识与目标名，回执到达即移除 */
-    private final Map<String, Pending> pending = new ConcurrentHashMap<>();
-
-    private record Pending(String senderUuid, String targetName) {
-    }
+    private final PendingRequests<Boolean> pending;
+    private final RecentMessageIds deliveredIds = new RecentMessageIds(8192,
+            java.time.Duration.ofMinutes(2), System::nanoTime);
 
     public TellService(JavaPlugin plugin, MessageManager messages, CrossServerService crossServer) {
         this.plugin = plugin;
         this.messages = messages;
         this.crossServer = crossServer;
+        this.pending = new PendingRequests<>(action -> {
+            Schedulers.Handle task = Schedulers.runLater(plugin, action, ACK_TIMEOUT_TICKS);
+            return task::cancel;
+        });
     }
 
     public void setIgnoreService(IgnoreService ignores) { this.ignores = ignores; }
@@ -94,17 +94,28 @@ public final class TellService {
         String itemData = snapshotItem(sender, message);
         if (hasItemToken(message) && itemData.isEmpty()) message = presentation.itemUnavailable(message);
         String msgId = UUID.randomUUID().toString();
-        pending.put(msgId, new Pending(sender.getUniqueId().toString(), targetName));
+        UUID senderId = sender.getUniqueId();
+        var receipt = pending.register(msgId);
+        receipt.whenComplete((delivered, error) -> {
+            if (receipt.isCancelled()) return;
+            if (error == null) {
+                recentContacts.confirmed(senderId, targetName);
+            } else {
+                Schedulers.runFor(plugin, sender, () -> {
+                    if (sender.isOnline()) messages.send(sender, "tell.cross-offline", "${player}", targetName);
+                });
+            }
+        });
 
         // 回执只决定后续要不要补未送达提示。
         String placeholders = presentation != null && presentation.privateEnabled()
                 ? presentation.snapshotPlaceholders(sender, message) : "";
-        if (!crossServer.publishTell(sender, msgId, sender.getName(), targetName, message,
-                placeholders, nickname(sender), itemData)) {
-            pending.remove(msgId);
-            messages.send(sender, "tell.cross-offline", "${player}", targetName);
-            return;
-        }
+        crossServer.publishTell(sender, msgId, sender.getName(), targetName, message,
+                placeholders, nickname(sender), itemData).whenComplete((sent, error) -> {
+            if (error != null || !Boolean.TRUE.equals(sent)) {
+                pending.fail(msgId, error != null ? error : new IllegalStateException("No cross-server transport available"));
+            }
+        });
         String itemId = registerItem(sender.getName(), sender.getUniqueId().toString(), itemData);
         privateMessage(sender, true, config.server(), sender.getName(), sender.getUniqueId().toString(),
                 sender.getWorld().getName(), targetName, sender, message, itemId, placeholders, nickname(sender));
@@ -113,15 +124,6 @@ public final class TellService {
             if (config != null) logs.recordPrivate(sender.getUniqueId().toString(), sender.getName(), targetName, message);
         }
 
-        Schedulers.runLater(plugin, () -> {
-            if (pending.remove(msgId) == null) {
-                return; // 回执已到，送达成功
-            }
-            Player stillOnline = Bukkit.getPlayer(sender.getUniqueId());
-            if (stillOnline != null) {
-                messages.send(stillOnline, "tell.cross-offline", "${player}", targetName);
-            }
-        }, ACK_TIMEOUT_TICKS);
     }
 
     /**
@@ -130,7 +132,19 @@ public final class TellService {
      */
     public void onNetworkTell(CrossServerCodec.Inbound.TellMessage tell) {
         Player target = Bukkit.getPlayerExact(tell.targetName());
-        if (target == null || ignores != null && ignores.ignores(target, "", tell.senderName())) {
+        if (target == null) {
+            return;
+        }
+        Schedulers.runFor(plugin, target, () -> {
+            if (!crossServer.isEnabled() || !target.isOnline() || ignores != null && ignores.ignores(target, "", tell.senderName())) return;
+            deliverNetworkTell(target, tell);
+        });
+    }
+
+    private void deliverNetworkTell(Player target, CrossServerCodec.Inbound.TellMessage tell) {
+        String deliveryId = tell.originServer() + ":" + tell.msgId();
+        if (!deliveredIds.first(deliveryId)) {
+            crossServer.publishTellAck(target, tell.msgId(), tell.originServer());
             return;
         }
         // 发送端已裁决颜色，原样插入
@@ -190,9 +204,11 @@ public final class TellService {
 
     /** 收到回执：仅成功送达的跨服消息更新发送者的最近联系人。 */
     public void onAck(String msgId) {
-        Pending delivered = pending.remove(msgId);
-        if (delivered != null) {
-            recentContacts.confirmed(UUID.fromString(delivered.senderUuid()), delivered.targetName());
-        }
+        pending.complete(msgId, true);
+    }
+
+    public void clearPending() {
+        pending.clear();
+        deliveredIds.clear();
     }
 }

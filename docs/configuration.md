@@ -1,4 +1,6 @@
-# 配置要点
+## 群组服升级说明
+
+当前跨服协议为 10。新版本可以读取协议 9，但协议 9 的服务端无法读取协议 10 的新消息，须先升级所有后端，再启用混合版本流量。
 
 聊天交互在 `chat.yml`，正则快捷触发在 `shortcut.yml`，Paper Dialog 快捷操作在 `dialogs.yml`；`config.yml` 控制喇叭、AI、每日聊天记录与跨服（`cross-server.transport`：`proxy` 默认经代理转发，`redis` 改走 Redis pub/sub 直连、空服可收发、断连自动回落）。启动或 `/liuc reload` 自动补全缺失键，不覆盖现有值。物品展示 token 写在 `chat.yml` 的 `item` 段：`[i]` 主手、`[i1]`..`[i9]`/`[i1234]`/`[i1-9]` 快捷栏、`[盔甲]`（`[armor]`）盔甲 4 件、`[副手]`（`[offhand]`）1 件，全部不区分大小写，`item.slots`/`item.armor`/`item.offhand` 可分别关闭；`item.separator`、`item.multi-content`、`item.max-count` 控制多件展示的分隔、2 件以上的紧凑样式与上限。记录写到 `plugins/LiuChat/logs/YYYY-MM-DD.log`。`liuchat.color` 只允许玩家输入颜色/样式标签，不能注入点击指令。CE 表情以发送者权限调用其 CHAT 解析器，图片和悬浮内容会在跨服消息中随占位符快照传递；发送服需要安装 CraftEngine，客户端需加载对应资源包。本服公聊审核通过后会调用 CustomNameplates 的 `ChatManager.onChat` 触发聊天气泡（频道 `Global`）；气泡的显示仍受其 `bubble.yml` 的 `sender-requirements`、`viewer-requirements`、`blacklist-channels`、`max-lines` 等设置控制，不满足条件时正常聊天不受影响。
 
@@ -80,4 +82,4 @@ chat-log:
 
 ## 私聊格式
 
-私聊独立格式配置在 `chat.yml` 的 `private.to.format`（发送者回显）和 `private.from.format`（接收者显示），每个节点与公共聊天一样支持 `text`、`hover`、`click`、`clickSuggest`、`url` 和图片。`${player}`/`${nick}` 表示发送者，`${target}` 表示接收者，`${message}` 为正文；`private.enable: false` 恢复 `messages.yml` 的旧文本样式。跨服私聊发送者的昵称、UUID、世界与占位符快照随消息发送，接收服无需发送者在线。跨服在线名单在加入、退出时同步，并每分钟刷新；失联子服的名单约 150 秒后过期，供 `/tell`、`/msg` 等命令补全。**本次跨服协议升级至 9，所有子服须一起更新**，否则旧版子服间的消息会被拒收。
+私聊独立格式配置在 `chat.yml` 的 `private.to.format`（发送者回显）和 `private.from.format`（接收者显示），每个节点与公共聊天一样支持 `text`、`hover`、`click`、`clickSuggest`、`url` 和图片。`${player}`/`${nick}` 表示发送者，`${target}` 表示接收者，`${message}` 为正文；`private.enable: false` 恢复 `messages.yml` 的旧文本样式。跨服私聊发送者的昵称、UUID、世界与占位符快照随消息发送，接收服无需发送者在线。跨服在线名单在加入、退出时同步，并每分钟刷新；失联子服的名单约 150 秒后过期，供 `/tell`、`/msg` 等命令补全。**本次跨服协议升级至 10，所有子服须一起更新**。新版本可以接收协议 9，但旧版无法接收协议 10。新协议携带签名覆盖的唯一消息 ID，Redis 应答丢失后代理回落产生的重复包在接收端去重（最多 8192 条、有效期 2 分钟）；连续发送相同内容不会误判。私聊重复请求仅补发回执，不再次显示或记日志。缓存过期、容量淘汰或重启后不保证去重，断线期间的 Pub/Sub 消息不补发。

@@ -38,8 +38,10 @@ public final class CrossServerService implements PluginMessageListener, Listener
     /** 构造后注入（TellService 又要经本类发包，避免构造器循环依赖） */
     private TellService tellService;
     private MuteService muteService;
-    private boolean enabled;
+    private volatile boolean enabled;
     private final RemotePlayers remotePlayers = new RemotePlayers();
+    private final RecentMessageIds receivedIds = new RecentMessageIds(8192,
+            java.time.Duration.ofMinutes(2), System::nanoTime);
     private Schedulers.Handle presenceTask;
     /** Redis 传输层（transport=redis 时创建）；null = 纯代理模式，行为与旧版完全一致 */
     private RedisBus redis;
@@ -181,20 +183,62 @@ public final class CrossServerService implements PluginMessageListener, Listener
     /**
      * 统一发送入口：Redis（transport=redis 且可用）优先——不需在线玩家载体，空服也能收；
      * 未启用或发布失败则回落代理转发（借在线玩家当载体）。
-     * 每条消息只走一条链路，接收端两条链路都监听，天然无重复投递。
-     * 异常原样抛给调用方，各调用点保留原有的降级与告警逻辑。
+     * 每条消息先尝试 Redis，失败后尝试代理。Redis 应答丢失时可能重复投递；
+     * Pub/Sub 不保证断线补发。Redis 发布不阻塞调用线程，代理 IO 回到载体玩家区域。
+     * Future 表示传输接受结果，目标玩家送达由 TELL_ACK 单独确认。
      */
-    private boolean send(byte[] forwardPacket, Player carrierHint) {
-        if (redis != null) {
-            byte[] frame = CrossServerCodec.stripForward(forwardPacket);
-            if (frame != null && redis.publish(frame)) return true;
+    private java.util.concurrent.CompletableFuture<Boolean> send(byte[] forwardPacket, Player carrierHint) {
+        MessageTransport proxy = packet -> sendProxy(packet, carrierHint);
+        RedisBus current = redis;
+        if (current == null) return proxy.publish(forwardPacket);
+        MessageTransport primary = packet -> {
+            byte[] frame = CrossServerCodec.stripForward(packet);
+            return frame == null ? java.util.concurrent.CompletableFuture.completedFuture(false)
+                    : current.publish(frame);
+        };
+        var result = new FallbackTransport(primary, proxy).publish(forwardPacket);
+        result.whenComplete((sent, error) -> {
+            if (error != null && enabled) {
+                try {
+                    Schedulers.runGlobal(plugin, () -> warnOnce(new java.io.IOException("异步跨服传输失败", error)));
+                } catch (RuntimeException ignored) { }
+            }
+        });
+        return result;
+    }
+
+    private java.util.concurrent.CompletableFuture<Boolean> sendProxy(byte[] packet, Player hint) {
+        var result = new java.util.concurrent.CompletableFuture<Boolean>();
+        try {
+            Schedulers.runGlobal(plugin, () -> {
+                if (!enabled) { result.complete(false); return; }
+                Player carrier = hint != null && hint.isOnline() ? hint
+                        : Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
+                if (carrier == null) { result.complete(false); return; }
+                // EntityScheduler retirement must also finish the transport future.
+                if (Schedulers.isFolia()) {
+                    boolean accepted = carrier.getScheduler().execute(plugin,
+                            () -> completeProxySend(carrier, packet, result), () -> result.complete(false), 1L);
+                    if (!accepted) result.complete(false);
+                } else {
+                    Schedulers.runFor(plugin, carrier, () -> completeProxySend(carrier, packet, result));
+                }
+            });
+        } catch (RuntimeException error) {
+            result.complete(false);
         }
-        Player carrier = carrierHint != null ? carrierHint
-                : Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
-        // 代理消息需要玩家载体；没有载体时禁言等靠数据库对账兜底
-        if (carrier == null) return false;
-        fire(carrier, forwardPacket);
-        return true;
+        return result;
+    }
+
+    private void completeProxySend(Player carrier, byte[] packet,
+                                   java.util.concurrent.CompletableFuture<Boolean> result) {
+        try {
+            if (!enabled || !carrier.isOnline()) { result.complete(false); return; }
+            fire(carrier, packet);
+            result.complete(true);
+        } catch (RuntimeException error) {
+            result.completeExceptionally(error);
+        }
     }
 
     private void sendViaAny(Packet packet) {
@@ -284,28 +328,26 @@ public final class CrossServerService implements PluginMessageListener, Listener
     }
 
     /** 跨服私聊：广播给其他子服，只有目标所在服会投递并回执 */
-    public boolean publishTell(Player via, String msgId, String senderName, String targetName, String message,
+    public java.util.concurrent.CompletableFuture<Boolean> publishTell(Player via, String msgId, String senderName, String targetName, String message,
                                String placeholders, String nick, String itemData) {
         if (!enabled) {
-            return false;
+            return java.util.concurrent.CompletableFuture.completedFuture(false);
         }
         try {
-            send(CrossServerCodec.encodeTell(msgId, config.server(), senderName, targetName, message,
+            return send(CrossServerCodec.encodeTell(msgId, config.server(), senderName, targetName, message,
                     via.getUniqueId().toString(), via.getWorld().getName(), placeholders, nick, itemData), via);
-            return true;
         } catch (Exception e) {
             warnOnce(e);
-            return false;
+            return java.util.concurrent.CompletableFuture.completedFuture(false);
         }
     }
 
     /** 私聊回执：定向送回发送端子服（mode = 对方子服名） */
     public void publishTellAck(Player via, String msgId, String replyToServer) {
-        if (!enabled) {
-            return;
-        }
+        if (!enabled) return;
         try {
-            send(CrossServerCodec.encodeTellAck(msgId, config.server(), replyToServer), via);
+            byte[] packet = CrossServerCodec.encodeTellAck(msgId, config.server(), replyToServer);
+            send(packet, null);
         } catch (Exception e) {
             warnOnce(e);
         }
@@ -348,13 +390,17 @@ public final class CrossServerService implements PluginMessageListener, Listener
      * 各类型的 origin 校验 + MUTE/UNMUTE 幂等已覆盖自回环。
      */
     private void handleFrame(byte[] message) {
-        CrossServerCodec.Inbound inbound = CrossServerCodec.decodeInbound(message);
-        if (inbound == null) {
+        CrossServerCodec.Received received = CrossServerCodec.decodeReceived(message);
+        if (received == null) {
             // 同通道上还有其它插件（GetServer、白名单同步等）的消息，忽略 —— 属正常；
             // 但「标签是我们的、负载解不开」是真故障（密钥不一致/协议版本不符），必须能看出来
             reportProtocolFailure();
             return;
         }
+        CrossServerCodec.Inbound inbound = received.message();
+        // 私聊由接收者区域去重，重复请求仍需回 ACK；其他类型在全局入口去重。
+        if (!(inbound instanceof CrossServerCodec.Inbound.TellMessage)
+                && !receivedIds.first(received.messageId())) return;
         switch (inbound) {
             case CrossServerCodec.Inbound.ChatMessage chat -> {
                 // 回环/子服同名保护
@@ -452,6 +498,8 @@ public final class CrossServerService implements PluginMessageListener, Listener
             return;
         }
         enabled = false;
+        receivedIds.clear();
+        if (tellService != null) tellService.clearPending();
         if (redis != null) {
             redis.close(); // 先停 Redis，避免回调在注销期间继续调度
             redis = null;

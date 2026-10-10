@@ -20,8 +20,8 @@ import javax.crypto.spec.SecretKeySpec;
  *
  * mode:  "ALL" = 除发送端外的所有子服；具体子服名 = 仅该服（回执定向用）
  *
- * payload: UTF 协议版本 | UTF 类型 | 类型字段...
- *   CHAT     群聊广播:   UTF 发送端子服 | UTF 玩家uuid | UTF 玩家名 | UTF 消息文本 | UTF 物品快照
+ * payload 协议 9: UTF 协议版本 | UTF 类型 | 类型字段...（只读兼容）
+ * payload 协议 10: UTF 协议版本 | UTF UUID（message ID） | UTF 类型 | 类型字段...
  *   TELL     跨服私聊:   UTF msgId | UTF 发送端子服 | UTF 发送者 | UTF 目标 | UTF 消息文本 | UTF uuid | UTF world | UTF 占位符快照 | UTF 昵称 | [UTF 物品快照]
  *   TELL_ACK 私聊回执:   UTF msgId | UTF 应答子服
  *   PRESENCE 在线名单: UTF 子服 | ushort 人数 | UTF 玩家名...
@@ -40,7 +40,8 @@ public final class CrossServerCodec {
     /** 自定义子通道标签，与其它插件的跨服消息区分开 */
     public static final String TAG = "LiuChat";
     /** 协议版本；格式变化时递增，旧版本对端解析失败直接丢弃 */
-    public static final String PROTOCOL = "9";
+    public static final String PROTOCOL = "10";
+    private static final String LEGACY_PROTOCOL = "9";
     /** 转发给除发送端外的所有子服 */
     public static final String MODE_ALL = "ALL";
 
@@ -138,7 +139,7 @@ public final class CrossServerCodec {
             out.writeUTF(placeholders);
             out.writeUTF(nick);
         }
-        return wrapForward(MODE_ALL, bytes.toByteArray());
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
     }
 
     /** 跨服私聊包（mode=ALL；只有目标所在服会落地投递） */
@@ -168,7 +169,7 @@ public final class CrossServerCodec {
             out.writeUTF(nick);
             if (!itemData.isEmpty()) out.writeUTF(itemData);
         }
-        return wrapForward(MODE_ALL, bytes.toByteArray());
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
     }
 
     /** 私聊回执（mode=发送端子服名，定向送回，其它服不收） */
@@ -181,7 +182,7 @@ public final class CrossServerCodec {
             out.writeUTF(msgId);
             out.writeUTF(ackServer);
         }
-        return wrapForward(replyToServer, bytes.toByteArray());
+        return wrapMessage(replyToServer, bytes.toByteArray());
     }
 
     public static byte[] encodeItemAnnouncement(String origin, String uuid, String name,
@@ -196,7 +197,7 @@ public final class CrossServerCodec {
             out.writeUTF(template);
             out.writeUTF(snapshot);
         }
-        return wrapForward(MODE_ALL, bytes.toByteArray());
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
     }
 
     public static byte[] encodeAnnouncement(String origin, String componentsJson) throws IOException {
@@ -207,7 +208,7 @@ public final class CrossServerCodec {
             out.writeUTF(origin);
             out.writeUTF(componentsJson);
         }
-        return wrapForward(MODE_ALL, bytes.toByteArray());
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
     }
 
     public static byte[] encodeHorn(String origin, String uuid, String name, String message) throws IOException {
@@ -220,7 +221,7 @@ public final class CrossServerCodec {
             out.writeUTF(name);
             out.writeUTF(message);
         }
-        return wrapForward(MODE_ALL, bytes.toByteArray());
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
     }
 
     public static byte[] encodeMute(String uuid, String name, long expires, String reason, String operator)
@@ -235,7 +236,7 @@ public final class CrossServerCodec {
             out.writeUTF(reason);
             out.writeUTF(operator);
         }
-        return wrapForward(MODE_ALL, bytes.toByteArray());
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
     }
 
     public static byte[] encodeUnmute(String uuid) throws IOException {
@@ -245,7 +246,7 @@ public final class CrossServerCodec {
             out.writeUTF(TYPE_UNMUTE);
             out.writeUTF(uuid);
         }
-        return wrapForward(MODE_ALL, bytes.toByteArray());
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
     }
 
     public static byte[] encodePresence(String server, java.util.List<String> names) throws IOException {
@@ -258,7 +259,7 @@ public final class CrossServerCodec {
             out.writeShort(names.size());
             for (String name : names) out.writeUTF(name);
         }
-        return wrapForward(MODE_ALL, bytes.toByteArray());
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
     }
 
     public static byte[] encodePresenceQuit(String server, String name) throws IOException {
@@ -269,7 +270,7 @@ public final class CrossServerCodec {
             out.writeUTF(server);
             out.writeUTF(name);
         }
-        return wrapForward(MODE_ALL, bytes.toByteArray());
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
     }
 
     public static byte[] encodePresenceRequest(String server) throws IOException {
@@ -279,7 +280,22 @@ public final class CrossServerCodec {
             out.writeUTF(TYPE_PRESENCE_REQUEST);
             out.writeUTF(server);
         }
-        return wrapForward(MODE_ALL, bytes.toByteArray());
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
+    }
+
+    /** 消息标识位于签名覆盖范围内；同一发送包经不同链路投递时标识保持一致。 */
+    private static byte[] wrapMessage(String mode, byte[] payload) throws IOException {
+        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(payload))) {
+            String version = in.readUTF();
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (DataOutputStream out = new DataOutputStream(bytes)) {
+                out.writeUTF(PROTOCOL);
+                out.writeUTF("MESSAGE_ID");
+                out.writeUTF(java.util.UUID.randomUUID().toString());
+                out.write(in.readAllBytes());
+            }
+            return wrapForward(mode, bytes.toByteArray());
+        }
     }
 
     /** 包上 BungeeCord "Forward" 外层，交给任一在线玩家连接发给代理 */
@@ -350,14 +366,21 @@ public final class CrossServerCodec {
      *
      * @return 不是本插件的消息（或格式非法/版本不符）返回 null
      */
+    public record Received(String messageId, Inbound message) { }
+
     public static Inbound decodeInbound(byte[] packet) {
+        Received received = decodeReceived(packet);
+        return received == null ? null : received.message();
+    }
+
+    public static Received decodeReceived(byte[] packet) {
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet))) {
             String first = in.readUTF();
             String channel = "Forwarded".equals(first) ? in.readUTF() : first;
             if (!TAG.equals(channel)) {
                 return null;
             }
-            Inbound result = decodeTagged(in);
+            Received result = decodeTagged(in);
             if (result == null) protocolFailures.incrementAndGet();
             return result;
         } catch (IOException | RuntimeException e) {
@@ -367,7 +390,7 @@ public final class CrossServerCodec {
     }
 
     /** 读完标签之后的部分；返回 null 表示「是我们标签但解不出来」（密钥不符/版本不符/半截包）。 */
-    private static Inbound decodeTagged(DataInputStream in) {
+    private static Received decodeTagged(DataInputStream in) {
         try {
             int length = in.readUnsignedShort();
             byte[] payload = in.readNBytes(length);
@@ -381,12 +404,23 @@ public final class CrossServerCodec {
         }
     }
 
-    private static Inbound decodePayload(byte[] payload) throws IOException {
+    private static Received decodePayload(byte[] payload) throws IOException {
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(payload))) {
-            if (!PROTOCOL.equals(in.readUTF())) {
+            String version = in.readUTF();
+            String messageId = "";
+            String type;
+            if (PROTOCOL.equals(version)) {
+                messageId = in.readUTF();
+                if (!"MESSAGE_ID".equals(messageId)) return null;
+                messageId = in.readUTF();
+                java.util.UUID.fromString(messageId);
+                type = in.readUTF();
+            } else if (LEGACY_PROTOCOL.equals(version)) {
+                // Protocol 9 already had a type discriminator; the type follows the version.
+                type = in.readUTF();
+            } else {
                 return null;
             }
-            String type = in.readUTF();
             Inbound decoded = switch (type) {
                 case TYPE_CHAT -> new Inbound.ChatMessage(
                         in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
@@ -410,7 +444,7 @@ public final class CrossServerCodec {
                 case TYPE_PRESENCE_REQUEST -> new Inbound.PresenceRequest(in.readUTF());
                 default -> null;
             };
-            return in.available() == 0 ? decoded : null;
+            return in.available() == 0 && decoded != null ? new Received(messageId, decoded) : null;
         }
     }
 

@@ -10,6 +10,11 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -38,13 +43,16 @@ import java.util.function.Consumer;
  * <p>
  * 载荷是 {@link CrossServerCodec#stripForward} 产出的帧，接收侧直接走
  * {@link CrossServerCodec#decodeInbound}，协议与代理链路完全一致，无协议号变更。
- * 线程安全：{@code publish} 可从主线程调用；{@code listener} 在订阅线程回调，
- * 回调方负责切回需要的线程。
+ * 线程安全：{@code publish} 只进入有界单线程队列，不在调用线程执行网络 IO；
+ * 返回的 Future 表示 Redis 应答结果。发布按入队顺序执行，队列满时返回 false。
+ * {@code listener} 在订阅线程回调，回调方负责切回需要的线程。
  */
-public final class RedisBus implements AutoCloseable {
+public final class RedisBus implements AutoCloseable, MessageTransport {
 
     /** 连接/应答超时：与子服同机房的 Redis 通常 <5ms，超时即视为链路异常 */
     private static final int IO_TIMEOUT_MS = 1000;
+    /** 同步 RESP 发布线程的读超时，防止 Redis 半开连接永久占用串行执行器。 */
+    private static final int PUBLISH_TIMEOUT_MS = 1500;
     /** 订阅稳态读超时（到时发 PING 探活） */
     private static final int SUBSCRIBE_IDLE_TIMEOUT_MS = 60_000;
     /** PING 探活等待回包上限 */
@@ -70,6 +78,13 @@ public final class RedisBus implements AutoCloseable {
     private final Settings settings;
     private final Consumer<byte[]> listener;
     private final Logger log;
+    private final ThreadPoolExecutor publisher = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(256), action -> {
+                Thread thread = new Thread(action, "LiuChat-redis-pub");
+                thread.setDaemon(true);
+                return thread;
+            });
+    private final java.util.Set<CompletableFuture<Boolean>> publications = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private volatile boolean running;
     private volatile Socket subscriberSocket;
@@ -79,7 +94,7 @@ public final class RedisBus implements AutoCloseable {
 
     /** 发布连接及其锁（发布 = 写命令 + 读应答，必须独占） */
     private final Object pubLock = new Object();
-    private Socket pubSocket;
+    private volatile Socket pubSocket;
     private DataInputStream pubIn;
     private DataOutputStream pubOut;
     /** 上次发布失败的时刻（nanoTime）；{@link #NO_COOLDOWN} = 无冷却 */
@@ -94,10 +109,18 @@ public final class RedisBus implements AutoCloseable {
     /** 启动订阅线程（异步连接，不阻塞调用方）。幂等。 */
     public void start() {
         if (running) return;
-        running = true;
+        synchronized (pubLock) {
+            if (running) return;
+            publisherThreadReset();
+            running = true;
+        }
         subscriberThread = new Thread(this::subscribeLoop, "LiuChat-redis-sub");
         subscriberThread.setDaemon(true);
         subscriberThread.start();
+    }
+
+    private void publisherThreadReset() {
+        if (publisher.isShutdown()) throw new IllegalStateException("RedisBus cannot be restarted after close");
     }
 
     /** 订阅线程当前是否处于已订阅状态（供日志/诊断）。 */
@@ -109,9 +132,30 @@ public final class RedisBus implements AutoCloseable {
     /**
      * 发布一帧（{@link CrossServerCodec#stripForward} 产出的接收形态）。
      *
-     * @return true = Redis 已确认收下；false = 不可用/失败，调用方应回落代理转发
+     * @return 异步结果：true = Redis 已确认收下；false = 不可用/失败，应回落代理转发
      */
-    public boolean publish(byte[] frame) {
+    @Override
+    public CompletableFuture<Boolean> publish(byte[] frame) {
+        if (!running || frame == null) return CompletableFuture.completedFuture(false);
+        byte[] snapshot = frame.clone();
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        publications.add(result);
+        result.whenComplete((sent, error) -> publications.remove(result));
+        try {
+            publisher.execute(() -> {
+                try {
+                    result.complete(publishBlocking(snapshot));
+                } catch (RuntimeException error) {
+                    result.completeExceptionally(error);
+                }
+            });
+        } catch (RejectedExecutionException error) {
+            result.complete(false);
+        }
+        return result;
+    }
+
+    private boolean publishBlocking(byte[] frame) {
         if (!running || frame == null) return false;
         long failedAt = failedAtNanos;
         if (failedAt != NO_COOLDOWN && System.nanoTime() - failedAt < PUBLISH_COOLDOWN_MS * 1_000_000L) {
@@ -125,10 +169,11 @@ public final class RedisBus implements AutoCloseable {
                 pubOut.flush();
                 Object reply = readReply(pubIn);
                 if (reply instanceof Long receivers && receivers > 0) {
+                    failedAtNanos = NO_COOLDOWN;
                     return true;
                 }
-                // :0 = 连本服自己的订阅都不在（订阅连接断了而发布连接还活着）→ 不可信，回落代理。
-                // 本服订阅在线时 PUBLISH 至少会计入自己，正常部署不会走到这里。
+                // :0 = 无订阅者：关闭连接并冷却，避免重复使用看似正常但无消费者的链路。
+                closePublisher();
                 failedAtNanos = System.nanoTime();
             } catch (IOException e) {
                 closePublisher();
@@ -146,6 +191,13 @@ public final class RedisBus implements AutoCloseable {
     @Override
     public void close() {
         running = false;
+        publisher.shutdownNow();
+        // 中断发布连接的阻塞读，再取得锁清理流，避免停服等待网络超时。
+        Socket publishing = pubSocket;
+        if (publishing != null) {
+            try { publishing.close(); } catch (IOException ignored) { }
+        }
+        publications.forEach(result -> result.complete(false));
         synchronized (pubLock) {
             closePublisher();
         }
@@ -175,9 +227,9 @@ public final class RedisBus implements AutoCloseable {
         while (running) {
             try (Socket socket = connect()) {
                 subscriberSocket = socket;
+                socket.setSoTimeout(IO_TIMEOUT_MS); // 认证/订阅确认都不允许无限期阻塞
                 DataInputStream in = new DataInputStream(socket.getInputStream());
                 DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-                socket.setSoTimeout(IO_TIMEOUT_MS); // 认证/订阅确认都不允许无限期阻塞
                 authenticate(in, out);
                 out.write(command("SUBSCRIBE", settings.channel()));
                 out.flush();
@@ -302,9 +354,9 @@ public final class RedisBus implements AutoCloseable {
         DataInputStream in = null;
         DataOutputStream out = null;
         try {
+            socket.setSoTimeout(PUBLISH_TIMEOUT_MS);
             in = new DataInputStream(socket.getInputStream());
             out = new DataOutputStream(socket.getOutputStream());
-            socket.setSoTimeout(IO_TIMEOUT_MS);
             if (!settings.password().isEmpty()) {
                 out.write(command("AUTH", settings.password()));
                 out.flush();
