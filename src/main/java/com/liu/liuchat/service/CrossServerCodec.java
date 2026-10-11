@@ -24,6 +24,7 @@ import javax.crypto.spec.SecretKeySpec;
  * payload 协议 10: UTF 协议版本 | UTF UUID（message ID） | UTF 类型 | 类型字段...
  *   TELL     跨服私聊:   UTF msgId | UTF 发送端子服 | UTF 发送者 | UTF 目标 | UTF 消息文本 | UTF uuid | UTF world | UTF 占位符快照 | UTF 昵称 | [UTF 物品快照]
  *   TELL_ACK 私聊回执:   UTF msgId | UTF 应答子服
+ *   DIRECT   私密投递:   UTF 发送端子服 | UTF 目标玩家 | UTF 富文本 JSON
  *   PRESENCE 在线名单: UTF 子服 | ushort 人数 | UTF 玩家名...
  *   PRESENCE_QUIT 下线通知: UTF 子服 | UTF 玩家名
  *   PRESENCE_REQUEST 名单请求: UTF 子服
@@ -48,6 +49,7 @@ public final class CrossServerCodec {
     public static final String TYPE_CHAT = "CHAT";
     public static final String TYPE_TELL = "TELL";
     public static final String TYPE_TELL_ACK = "TELL_ACK";
+    public static final String TYPE_DIRECT = "DIRECT";
     public static final String TYPE_ITEM_ANNOUNCEMENT = "ITEM_ANNOUNCEMENT";
     public static final String TYPE_ANNOUNCEMENT = "ANNOUNCEMENT";
     public static final String TYPE_HORN = "HORN";
@@ -168,6 +170,23 @@ public final class CrossServerCodec {
             out.writeUTF(placeholders);
             out.writeUTF(nick);
             if (!itemData.isEmpty()) out.writeUTF(itemData);
+        }
+        return wrapMessage(MODE_ALL, bytes.toByteArray());
+    }
+
+    /**
+     * 私密投递包（mode=ALL）：只有目标玩家所在子服会投递，其它服忽略。
+     * 供其它插件（如经济插件）把预格式化的富文本提示直达某个玩家，
+     * 不参与忽略列表、禁言等聊天规则判断。
+     */
+    public static byte[] encodeDirect(String origin, String targetName, String componentsJson) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(bytes)) {
+            out.writeUTF(PROTOCOL);
+            out.writeUTF(TYPE_DIRECT);
+            out.writeUTF(origin);
+            out.writeUTF(targetName);
+            out.writeUTF(componentsJson);
         }
         return wrapMessage(MODE_ALL, bytes.toByteArray());
     }
@@ -426,6 +445,7 @@ public final class CrossServerCodec {
                         in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
                 case TYPE_TELL -> decodeTell(in);
                 case TYPE_TELL_ACK -> new Inbound.TellAck(in.readUTF(), in.readUTF());
+                case TYPE_DIRECT -> new Inbound.DirectMessage(in.readUTF(), in.readUTF(), in.readUTF());
                 case TYPE_ITEM_ANNOUNCEMENT -> new Inbound.ItemAnnouncement(
                         in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
                 case TYPE_ANNOUNCEMENT -> new Inbound.Announcement(in.readUTF(), in.readUTF());
@@ -467,7 +487,7 @@ public final class CrossServerCodec {
      * uuid 由发送端填入（后续屏蔽列表等跨服判断可用），回执路由只依赖子服名。
      */
     public sealed interface Inbound
-            permits Inbound.ChatMessage, Inbound.TellMessage, Inbound.TellAck,
+            permits Inbound.ChatMessage, Inbound.TellMessage, Inbound.TellAck, Inbound.DirectMessage,
                     Inbound.ItemAnnouncement, Inbound.Announcement, Inbound.Horn, Inbound.Mute, Inbound.Unmute,
                     Inbound.Presence, Inbound.PresenceQuit, Inbound.PresenceRequest {
 
@@ -486,6 +506,8 @@ public final class CrossServerCodec {
 
         /** 私聊回执：发送端子服凭 msgId 标记送达；ackServer 仅日志用 */
         record TellAck(String msgId, String ackServer) implements Inbound { }
+        /** 私密投递：目标服按 targetName 本地匹配在线玩家，命中即投递富文本 */
+        record DirectMessage(String origin, String targetName, String componentsJson) implements Inbound { }
         record ItemAnnouncement(String origin, String uuid, String name, String template, String snapshot)
                 implements Inbound { }
         record Announcement(String origin, String componentsJson) implements Inbound { }

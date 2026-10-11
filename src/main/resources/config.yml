@@ -24,6 +24,10 @@ format: "&8[${server}] &e${player}&8» &f${message}"
 # 控制台看到的格式，变量同上
 console-format: "&8[${server}] &7[控制台] &e${player}&8» &f${message}"
 
+# 控制台 / 命令方块以 /msg、/tell、/horn 发送时显示的发送者名称
+console:
+  name: "控制台"
+
 # ------------------------------------------------------------
 # 跨服聊天（群组服）
 # 两种传输（cross-server.transport）：

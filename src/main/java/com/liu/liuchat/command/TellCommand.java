@@ -47,7 +47,7 @@ public final class TellCommand implements ChatCommand {
 
     @Override
     public boolean playerOnly() {
-        return true;
+        return false;
     }
 
     @Override
@@ -56,7 +56,13 @@ public final class TellCommand implements ChatCommand {
             messages.send(sender, "tell.usage");
             return;
         }
-        sendTo((Player) sender, args[0], String.join(" ", Arrays.copyOfRange(args, 1, args.length)));
+        String text = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+        if (sender instanceof Player from) {
+            sendTo(from, args[0], text);
+        } else {
+            // 控制台 / 命令方块：用虚拟身份发送，不走玩家颜色权限与本地过滤
+            tellService.sendFromConsole(sender, args[0], text);
+        }
     }
 
     public void sendTo(Player from, String targetName, String text) {

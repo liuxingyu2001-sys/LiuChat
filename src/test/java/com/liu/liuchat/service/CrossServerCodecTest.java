@@ -146,6 +146,17 @@ class CrossServerCodecTest {
         assertEquals("game", ack.ackServer());
     }
 
+    @Test
+    void directMessageRoundTrip() throws IOException {
+        String json = "[{\"text\":\"你收到 100 金币\"}]";
+        byte[] outbound = CrossServerCodec.encodeDirect("lobby", "Bob", json);
+        var decoded = CrossServerCodec.decodeInbound(proxyHop(outbound, expectedMode("ALL")));
+        var direct = assertInstanceOf(CrossServerCodec.Inbound.DirectMessage.class, decoded);
+        assertEquals("lobby", direct.origin());
+        assertEquals("Bob", direct.targetName());
+        assertEquals(json, direct.componentsJson());
+    }
+
     // ---------------- 兼容与拒收 ----------------
 
     @Test

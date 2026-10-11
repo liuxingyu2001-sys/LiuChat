@@ -101,6 +101,12 @@ public final class ConfigManager {
         return config.getString("console-format", "&8[${server}] &7[控制台] &e${player}&8» &f${message}");
     }
 
+    /** 控制台 / 命令方块以 /msg、/horn 发送时使用的显示名。 */
+    public String consoleName() {
+        String name = config.getString("console.name", "");
+        return name == null || name.isBlank() ? "控制台" : name.strip();
+    }
+
     public boolean aiEnabled() { return config.getBoolean("ai.enable", false); }
     public String aiUrl() { return config.getString("ai.url", ""); }
     public String aiKey() { return config.getString("ai.api-key", ""); }

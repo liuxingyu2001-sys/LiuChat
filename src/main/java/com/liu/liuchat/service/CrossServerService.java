@@ -166,15 +166,39 @@ public final class CrossServerService implements PluginMessageListener, Listener
         } catch (Exception e) { warnOnce(e); }
     }
 
+    /**
+     * 私密投递：把预格式化富文本只发给目标玩家所在子服（供经济插件等外部调用）。
+     * 未开启跨服时返回 false，由调用方自行回退（如本服公告）。
+     */
+    public boolean publishDirect(Player carrier, String targetName, String componentsJson) {
+        if (!enabled) return false;
+        try {
+            send(CrossServerCodec.encodeDirect(config.server(), targetName, componentsJson), carrier);
+            return true;
+        } catch (Exception e) {
+            warnOnce(e);
+            return false;
+        }
+    }
+
     public void validateHorn(Player player, String message) throws java.io.IOException {
-        CrossServerCodec.encodeHorn(config.server(), player.getUniqueId().toString(), player.getName(), message);
+        validateHorn(player.getUniqueId().toString(), player.getName(), message);
+    }
+
+    /** 控制台等无实体来源的喇叭长度预校验（与玩家路径同一编码，超长时抛 IOException）。 */
+    public void validateHorn(String uuid, String name, String message) throws java.io.IOException {
+        CrossServerCodec.encodeHorn(config.server(), uuid, name, message);
     }
 
     public void publishHorn(Player player, String message) {
+        publishHorn(player.getUniqueId().toString(), player.getName(), message, player);
+    }
+
+    /** 控制台/命令方块等无实体来源的喇叭：carrier 为 null 时代理链路自动借任一在线玩家转发。 */
+    public void publishHorn(String uuid, String name, String message, Player carrier) {
         if (!enabled) return;
         try {
-            send(CrossServerCodec.encodeHorn(config.server(), player.getUniqueId().toString(),
-                    player.getName(), message), player);
+            send(CrossServerCodec.encodeHorn(config.server(), uuid, name, message), carrier);
         } catch (Exception e) { warnOnce(e); }
     }
 
@@ -330,12 +354,20 @@ public final class CrossServerService implements PluginMessageListener, Listener
     /** 跨服私聊：广播给其他子服，只有目标所在服会投递并回执 */
     public java.util.concurrent.CompletableFuture<Boolean> publishTell(Player via, String msgId, String senderName, String targetName, String message,
                                String placeholders, String nick, String itemData) {
+        return publishTell(via.getUniqueId().toString(), via.getWorld().getName(), via, msgId, senderName,
+                targetName, message, placeholders, nick, itemData);
+    }
+
+    /** 跨服私聊（控制台等无实体来源）：uuid/world 可为空，carrier 为 null 时代理链路借任一在线玩家转发。 */
+    public java.util.concurrent.CompletableFuture<Boolean> publishTell(String uuid, String world, Player carrier,
+                               String msgId, String senderName, String targetName, String message,
+                               String placeholders, String nick, String itemData) {
         if (!enabled) {
             return java.util.concurrent.CompletableFuture.completedFuture(false);
         }
         try {
             return send(CrossServerCodec.encodeTell(msgId, config.server(), senderName, targetName, message,
-                    via.getUniqueId().toString(), via.getWorld().getName(), placeholders, nick, itemData), via);
+                    uuid, world, placeholders, nick, itemData), carrier);
         } catch (Exception e) {
             warnOnce(e);
             return java.util.concurrent.CompletableFuture.completedFuture(false);
@@ -445,6 +477,21 @@ public final class CrossServerService implements PluginMessageListener, Listener
                 if (tellService != null) {
                     tellService.onAck(ack.msgId());
                 }
+            }
+            case CrossServerCodec.Inbound.DirectMessage direct -> {
+                if (direct.origin().equals(config.server())) return;
+                org.bukkit.entity.Player target = Bukkit.getPlayerExact(direct.targetName());
+                if (target == null) return;
+                net.md_5.bungee.api.chat.BaseComponent[] components;
+                try {
+                    components = net.md_5.bungee.chat.ComponentSerializer.parse(direct.componentsJson());
+                } catch (RuntimeException e) {
+                    warnOnce(e);
+                    return;
+                }
+                Schedulers.runFor(plugin, target, () -> {
+                    if (target.isOnline()) target.spigot().sendMessage(components);
+                });
             }
             case CrossServerCodec.Inbound.Presence presence -> {
                 if (!presence.server().equals(config.server()))

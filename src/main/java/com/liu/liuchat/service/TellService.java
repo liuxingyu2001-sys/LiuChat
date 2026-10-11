@@ -127,6 +127,42 @@ public final class TellService {
     }
 
     /**
+     * 控制台 / 命令方块发出的私聊。没有发送者实体，用配置的控制台名与固定 UUID；
+     * 目标在本服直接投递，否则走跨服链路（Redis 传输无需在线玩家载体）。
+     */
+    public void sendFromConsole(org.bukkit.command.CommandSender sender, String targetName, String text) {
+        String name = config == null ? "控制台" : config.consoleName();
+        String uuid = com.liu.liuchat.util.ConsoleIdentity.ID.toString();
+        String message = com.liu.liuchat.util.ColorParser.parse(text);
+        Player target = Bukkit.getPlayerExact(targetName);
+        if (target != null) {
+            if (ignores != null && ignores.ignores(target, uuid, name)) {
+                messages.send(sender, "tell.offline", "${player}", target.getName());
+                return;
+            }
+            privateMessage(target, false, config.server(), name, uuid, "", target.getName(), null,
+                    message, null, "", name);
+            messages.send(sender, "tell.to-tell", "${player}", target.getName(), "${message}", message);
+            if (logs != null) {
+                logs.local("TELL", name, target.getName(), message);
+                if (config != null) logs.recordPrivate(uuid, name, target.getName(), message);
+            }
+            return;
+        }
+        if (!crossServer.isEnabled()) {
+            messages.send(sender, "tell.offline", "${player}", targetName);
+            return;
+        }
+        String msgId = UUID.randomUUID().toString();
+        crossServer.publishTell(uuid, "", null, msgId, name, targetName, message, "", name, "");
+        messages.send(sender, "tell.to-tell", "${player}", targetName, "${message}", message);
+        if (logs != null) {
+            logs.local("TELL", name, targetName, message);
+            if (config != null) logs.recordPrivate(uuid, name, targetName, message);
+        }
+    }
+
+    /**
      * 本服收到 TELL：目标恰好在线则投递并回执；
      * 不在本服则什么都不做（等目标所在那个服处理）。
      */

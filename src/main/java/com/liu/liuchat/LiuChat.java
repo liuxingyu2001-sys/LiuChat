@@ -198,7 +198,7 @@ public final class LiuChat extends JavaPlugin {
         ChatCommand unmute = new UnmuteCommand(messageManager, muteService, crossServer);
         router.register(mute);
         router.register(unmute);
-        ChatCommand horn = new HornCommand(messageManager, chatService, crossServer, muteService, database);
+        ChatCommand horn = new HornCommand(messageManager, configManager, chatService, crossServer, muteService, database);
         router.register(horn);
         ChatCommand ignore = new IgnoreCommand("ignore", messageManager, ignores);
         router.register(ignore);
@@ -300,6 +300,49 @@ public final class LiuChat extends JavaPlugin {
         }
         chatService.broadcastAnnouncement(components);
         crossServer.publishAnnouncement(carrier, components);
+    }
+
+    /**
+     * 私密投递：把预格式化的富文本只发给指定玩家（本服或跨服在线），供经济插件等外部调用。
+     * <p>
+     * 目标在本服则立即投递；否则经跨服链路（Redis 或代理）转发到目标所在子服。
+     * 与公告不同，私密投递不广播给其他人，也不参与忽略列表等聊天规则判断。
+     * 必须在全局/主线程调用。
+     *
+     * @param carrier    跨服转发用的在线玩家载体（可为 null，Redis 传输不需要）
+     * @param targetName 目标玩家名（精确匹配）
+     * @return true = 本服已投递或已交给跨服链路；false = 跨服未开启或转发失败
+     */
+    public boolean deliverPrivate(Player carrier, String targetName,
+                                  net.md_5.bungee.api.chat.BaseComponent... components) {
+        if (!isEnabled() || targetName == null || targetName.isBlank()
+                || components == null || components.length == 0) {
+            throw new IllegalArgumentException("LiuChat 私密投递需要目标玩家与消息内容");
+        }
+        if (!com.liu.liuchat.util.Schedulers.isGlobalThread()) {
+            if (com.liu.liuchat.util.Schedulers.isFolia()) {
+                com.liu.liuchat.util.Schedulers.run(this, () -> deliverPrivate(carrier, targetName, components));
+                return true;
+            }
+            throw new IllegalStateException("私密投递必须在服务器主线程调用");
+        }
+        org.bukkit.entity.Player target = org.bukkit.Bukkit.getPlayerExact(targetName);
+        if (target != null) {
+            com.liu.liuchat.util.Schedulers.runFor(this, target, () -> {
+                if (target.isOnline()) target.spigot().sendMessage(components);
+            });
+            return true;
+        }
+        if (crossServer == null || !crossServer.isEnabled()) {
+            return false;
+        }
+        try {
+            return crossServer.publishDirect(carrier, targetName,
+                    net.md_5.bungee.chat.ComponentSerializer.toString(components));
+        } catch (RuntimeException e) {
+            getLogger().log(java.util.logging.Level.WARNING, "私密投递转发失败", e);
+            return false;
+        }
     }
 
     /** Broadcast a template with %item% replaced by a snapshot of the supplied item. Global/main thread only. */

@@ -24,6 +24,8 @@
 
 `/liuc dialog chatcolor` 打开聊天颜色与渐变设置 Dialog。
 
+控制台 / 命令方块可直接执行 `/msg`、`/tell` 与 `/horn`：私聊显示名取自 `config.yml` 的 `console.name`（固定全零 UUID 标识来源），目标在本服直接投递、否则跨服投递；喇叭不需要余额、不受禁言限制。
+
 - `/reply`（`/r`）回复最近一次成功收发私聊的玩家；跨服发出消息在收到回执后才更新，未送达、被屏蔽或审核拦截的私聊不会改变最近联系人。记录只在本次插件运行期间有效，不随玩家切服迁移或重启保留；跨服收到私聊的玩家可直接回复发送者。
 
 `/liuc`（无参数或未知子命令）打印帮助，帮助行按命令的真实入口显示：在 plugin.yml 里直挂成顶层的 `/mute` `/unmute` `/msg` `/tell` `/reply` `/ignore` `/ignorelist` `/horn` `/nick` `/chatcolor` 显示为顶层命令，其余显示 `/liuc xxx`（模板 `help.cmd` 的 `${command}` 由代码拼）。老语言文件 `help.*.desc` 里重复写的用法命令名（`/liuc mute <玩家>`、`/mute <玩家>`）会被自动去掉，只留参数，不用手改已有 `messages.yml`。

@@ -1,11 +1,14 @@
 package com.liu.liuchat.command;
 
+import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.model.MuteData;
 import com.liu.liuchat.service.ChatService;
 import com.liu.liuchat.service.CrossServerService;
 import com.liu.liuchat.service.MuteService;
 import com.liu.liuchat.storage.Database;
+import com.liu.liuchat.util.ColorParser;
+import com.liu.liuchat.util.ConsoleIdentity;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
@@ -15,14 +18,16 @@ import java.util.List;
 
 public final class HornCommand implements ChatCommand {
     private final MessageManager messages;
+    private final ConfigManager config;
     private final ChatService chat;
     private final CrossServerService cross;
     private final MuteService mutes;
     private final Database database;
 
-    public HornCommand(MessageManager messages, ChatService chat, CrossServerService cross,
+    public HornCommand(MessageManager messages, ConfigManager config, ChatService chat, CrossServerService cross,
                        MuteService mutes, Database database) {
         this.messages = messages;
+        this.config = config;
         this.chat = chat;
         this.cross = cross;
         this.mutes = mutes;
@@ -38,23 +43,28 @@ public final class HornCommand implements ChatCommand {
             give(sender, args);
             return;
         }
-        if (!(sender instanceof Player player)) {
-            messages.send(sender, "player-only");
-            return;
-        }
         if (args.length == 1 && args[0].equalsIgnoreCase("balance")) {
+            if (!(sender instanceof Player player)) {
+                messages.send(sender, "player-only");
+                return;
+            }
             int balance = database.hornBalance(player.getUniqueId().toString());
             if (balance < 0) messages.send(player, "horn.storage");
             else messages.send(player, "horn.balance", "${count}", String.valueOf(balance));
             return;
         }
         if (args.length == 0 || String.join(" ", args).isBlank()) {
-            messages.send(player, "horn.usage");
+            messages.send(sender, "horn.usage");
             return;
         }
         String text = String.join(" ", args);
-        String message = com.liu.liuchat.util.ColorParser.playerText(text,
-                player.hasPermission("liuchat.color"));
+        if (sender instanceof Player player) playerHorn(player, text);
+        else consoleHorn(sender, text);
+    }
+
+    /** 玩家喇叭：颜色受权限限制，需要禁言检查与喇叭余额。 */
+    private void playerHorn(Player player, String text) {
+        String message = ColorParser.playerText(text, player.hasPermission("liuchat.color"));
         if (cross.isEnabled()) {
             try {
                 cross.validateHorn(player, message);
@@ -76,6 +86,23 @@ public final class HornCommand implements ChatCommand {
         }
         chat.horn(player, message);
         cross.publishHorn(player, message);
+    }
+
+    /** 控制台 / 命令方块喇叭：不需要余额与禁言检查，颜色任意解析。 */
+    private void consoleHorn(CommandSender sender, String text) {
+        String name = config.consoleName();
+        String uuid = ConsoleIdentity.ID.toString();
+        String message = ColorParser.parse(text);
+        if (cross.isEnabled()) {
+            try {
+                cross.validateHorn(uuid, name, message);
+            } catch (java.io.IOException e) {
+                messages.send(sender, "horn.too-long");
+                return;
+            }
+        }
+        chat.hornRemote(config.server(), uuid, name, message);
+        cross.publishHorn(uuid, name, message, null);
     }
 
     private void give(CommandSender sender, String[] args) {
