@@ -62,6 +62,8 @@ public final class ReloadCommand implements ChatCommand {
         presentation.reload();
         dialog.reload();
         npcBridge.reload();
+        // 菜单被删或 DialogMenu 后装：重载时补回内置菜单（存在则不覆盖）
+        com.liu.liuchat.hook.DialogMenuBridge.install(com.liu.liuchat.LiuChat.instance());
         // 会话本身保留在内存，只同步落盘开关，重启才重新读文件
         sessions.setPersist(config.aiAssistantHistoryPersist());
         try {

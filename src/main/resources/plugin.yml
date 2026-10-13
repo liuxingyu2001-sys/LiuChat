@@ -11,6 +11,9 @@ softdepend:
   - PlaceholderAPI
   - CraftEngine
   - CustomNameplates
+  - DialogMenu
+  - ArcMenu
+  - ProtocolLib
   - Citizens
   - CMI
   - SoulSpace

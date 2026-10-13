@@ -4,7 +4,7 @@
 
   <groupId>com.liuxingyu</groupId>
   <artifactId>LiuChat</artifactId>
-  <version>0.7.2</version>
+  <version>0.7.3</version>
   <packaging>jar</packaging>
 
   <name>LiuChat</name>
@@ -56,6 +56,21 @@
       <groupId>net.momirealms</groupId>
       <artifactId>custom-nameplates</artifactId>
       <version>3.0.33</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- 可选接入：ArcMenu 聊天工作区（api 模块 jar 随仓库提交在 libs/repo，MIT，同 SoulSpace 做法）；
+         运行期缺 ArcMenu 或 ProtocolLib、或在 Folia 上则不注册 -->
+    <dependency>
+      <groupId>com.fentai</groupId>
+      <artifactId>arcmenu-api</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- arcmenu-api 是 Kotlin 编译的，仅编译期需要；不打进 jar，运行期由 ArcMenu 提供 -->
+    <dependency>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-stdlib</artifactId>
+      <version>2.4.10</version>
       <scope>provided</scope>
     </dependency>
     <!-- 可选接入：灵魂空间戒指预览（SoulSpace-api 由本地仓库提供，运行时未安装 SoulSpace 则戒指按普通物品展示） -->

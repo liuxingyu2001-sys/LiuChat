@@ -60,6 +60,17 @@ public final class ChatListener implements Listener {
         this.audit = audit;
     }
 
+    /** 剩余发言冷却秒数（0 = 可以发言）；供 %liuchat_cooldown% 读取，只读内存不打库。 */
+    public int cooldownLeft(Player player, long now) {
+        int cooldown = config.cooldownSeconds(player);
+        if (cooldown <= 0) {
+            return 0;
+        }
+        long last = lastChatAt.getOrDefault(player.getUniqueId(), 0L);
+        long waitMs = last + cooldown * 1000L - now;
+        return waitMs <= 0 ? 0 : (int) ((waitMs + 999) / 1000);
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onChat(AsyncPlayerChatEvent event) {
         // Cancel before handing off: Bukkit/PAPI/plugin messaging must run on the server thread.
@@ -102,7 +113,6 @@ public final class ChatListener implements Listener {
                 return;
             }
         }
-
         // 3. 重复/相似发言；物品展示（[i]/[i12]/[盔甲]/[副手]）跳过（每次展示的物品可能不同，同文案不算刷屏）
         if (repeats.spam(uuid, text, now, config.repeatTime(), config.repeatSimilarity(),
                 config.repeatMinLength(), chatService.isItemShow(text))) {

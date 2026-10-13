@@ -11,6 +11,7 @@ import com.liu.liuchat.command.AssistantDialog;
 import com.liu.liuchat.command.HornCommand;
 import com.liu.liuchat.command.IgnoreCommand;
 import com.liu.liuchat.command.MuteCommand;
+import com.liu.liuchat.command.MenuCommand;
 import com.liu.liuchat.command.ProfileCommand;
 import com.liu.liuchat.command.ReloadCommand;
 import com.liu.liuchat.command.ReplyCommand;
@@ -19,6 +20,10 @@ import com.liu.liuchat.command.UnmuteCommand;
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.hook.PapiHook;
+import com.liu.liuchat.hook.DialogMenuBridge;
+import com.liu.liuchat.hook.ArcMenuBridge;
+import com.liu.liuchat.hook.ChatWorkspace;
+import com.liu.liuchat.hook.LiuChatWorkspaceDeps;
 import com.liu.liuchat.listener.ChatListener;
 import com.liu.liuchat.listener.CommandAliasListener;
 import com.liu.liuchat.listener.NpcAssistantBridge;
@@ -71,6 +76,8 @@ public final class LiuChat extends JavaPlugin {
 
     private com.liu.liuchat.service.ReminderService reminders;
     private java.nio.file.Path skillsRoot;
+    /** ArcMenu 聊天工作区（软依赖）；未安装、无 ProtocolLib 或 Folia 上为 null */
+    private ChatWorkspace chatWorkspace;
 
     public java.nio.file.Path getSkillsRoot() {
         return skillsRoot == null ? getConfigRoot().toPath().resolve("skills") : skillsRoot;
@@ -210,6 +217,8 @@ public final class LiuChat extends JavaPlugin {
         router.register(nick);
         router.register(chatColor);
         router.register(dialog);
+        MenuCommand menuCommand = new MenuCommand(this, messageManager);
+        router.register(menuCommand);
         TellCommand tell = new TellCommand(this, messageManager, tellService, configManager, crossServer);
         router.register(tell);
         ChatCommand reply = new ReplyCommand(messageManager, tellService, tell);
@@ -242,6 +251,19 @@ public final class LiuChat extends JavaPlugin {
         chatListener.setPublicChatAi(publicChatAi);
         getServer().getPluginManager().registerEvents(chatListener, this);
 
+        // 6. ArcMenu 聊天工作区（软依赖；未安装 / 缺 ProtocolLib / Folia 上直接不注册）
+        if (ArcMenuBridge.available()) {
+            try {
+                chatWorkspace = ArcMenuBridge.register(this,
+                        new LiuChatWorkspaceDeps(muteService, profiles, ignores, tellService, database, chatListener));
+                menuCommand.setWorkspace(chatWorkspace);
+                getLogger().info("已注册 ArcMenu 聊天工作区 liuchat:chat（/liuc menu 打开）");
+            } catch (Throwable t) {
+                chatWorkspace = null;
+                getLogger().log(java.util.logging.Level.WARNING, "ArcMenu 聊天工作区注册失败", t);
+            }
+        }
+
         // 6. 定时与数据库对账（跨服共享禁言的同步入口）
         int syncInterval = configManager.syncInterval();
         if (syncInterval > 0 && database.isReady()) {
@@ -250,7 +272,10 @@ public final class LiuChat extends JavaPlugin {
         }
 
         // 7. PlaceholderAPI 挂钩（没装则自动跳过）
-        PapiHook.init(this, configManager, muteService, profiles);
+        PapiHook.init(this, configManager, muteService, profiles, ignores, tellService,
+                database, chatListener);
+        // 8. DialogMenu 软依赖：内置菜单只在缺失时写入，未安装则静默跳过
+        DialogMenuBridge.install(this);
         reminders = new com.liu.liuchat.service.ReminderService(this, configManager);
         reminders.start();
         sharedConfig.watch(configManager.autoReloadConfig(), this::reloadChatConfiguration);
@@ -365,6 +390,14 @@ public final class LiuChat extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (chatWorkspace != null) {
+            try {
+                chatWorkspace.close();
+            } catch (RuntimeException e) {
+                getLogger().log(java.util.logging.Level.FINE, "注销 ArcMenu 工作区失败", e);
+            }
+            chatWorkspace = null;
+        }
         if (chatService != null) chatService.closeHornDisplay();
         if (reminders != null) reminders.close();
         if (sharedConfig != null) sharedConfig.close();

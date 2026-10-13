@@ -22,7 +22,7 @@ com.liu.liuchat
 │   ├── SqliteDatabase / MysqlDatabase（方言在子类）+ DatabaseFactory
 ├── config/                 ConfigManager / MessageManager
 ├── model/MuteData          数据记录
-├── hook/                   PapiHook + LiuChatExpansion（类隔离）
+├── hook/                   PapiHook / DialogMenuBridge / ArcMenuBridge / ChatWorkspace（可选插件类隔离）
 └── util/
     ├── TextUtil            颜色 / 时长解析 / 相似度
     └── Schedulers          Paper / Folia 调度器兼容层（全局/异步/实体区域）
@@ -51,4 +51,5 @@ com.liu.liuchat
   `Schedulers.runFor` / `forEachPlayer`，投递到该实体所在的区域线程；聊天事件等任意线程
   回调统一经兼容层回到区域线程。运行环境由 `Schedulers.isFolia()` 自动探测，Paper 上
   仍走原生 Bukkit 调度器，行为不变
+- **界面**：`/liuc menu` 优先打开 DialogMenu 内置菜单，其次 ArcMenu 聊天工作区（`liuchat:chat`，需 ProtocolLib），都未安装则提示；三者均为软依赖
 - maven 资源过滤只作用于 `plugin.yml`，配置里的 `${player}` 等占位符不会被 maven 碰

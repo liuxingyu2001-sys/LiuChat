@@ -10,7 +10,7 @@
 | **全服喇叭** | `/horn` 或 `/lb`，支持聊天、Title、ActionBar、BossBar 与音效；禁言或超长喊话不扣余额，跨服模式会预检代理包长度；**控制台可直接使用**（无需余额与禁言检查） |
 | 快捷触发 | `shortcut.yml` 正则替换，支持 hover、点击命令/建议/复制/URL |
 | 屏蔽与资料 | `/liuc ignore`、`unignore`、`ignorelist`、`nick`；MySQL 共享持久化 |
-| 扩展 | PAPI（含 CustomNameplates 的 PAPI 占位符）、Paper Dialog 可配置布局、独立开关的 AI 聊天审核与私聊助手（按助手共享多轮会话、答案缓存、输出上限）、每日聊天日志 |
+| 扩展 | PAPI（含 CustomNameplates 的 PAPI 占位符）、Paper Dialog 可配置布局、聊天菜单界面（`/liuc menu`：DialogMenu 内置菜单，或 ArcMenu 聊天工作区 `liuchat:chat`，未安装则自动降级）、独立开关的 AI 聊天审核与私聊助手（按助手共享多轮会话、答案缓存、输出上限）、每日聊天日志 |
 | **跨服聊天** | 两种传输：proxy（默认，经代理转发到其他子服）/ redis（`cross-server.transport: redis`，Redis pub/sub 直连，空服也能收发、不依赖在线玩家载体，发布失败自动回落代理）；收端按自己的 format 渲染、`${server}` 显示发送端子服；无代理/单服开着无副作用 |
 | **顶层私聊命令** | 直接注册 `/msg`（别名 `/w` `/whisper`）与 `/tell`，全部带 tab 补全；跨服在线名单由子服同步供玩家名补全；**控制台可作为发送者** |
 | **定向私密投递** | 公开 API `LiuChat#deliverPrivate(玩家, 目标名, BaseComponent...)`：把预格式化富文本只发给指定玩家（本服或跨服），不参与忽略/禁言判断；经济插件转账提示等场景使用 |
@@ -21,4 +21,4 @@
 | 聊天冷却 | 按权限节点分级（`liuchat.cooldown.<键>`），`liuchat.cooldown.bypass` 免除 |
 | 重复/相似发言检测 | `repeat-check` 时间窗口 + Levenshtein 相似度：完全相同不受 `min-length` 限制，相似度比较要求长度达标；**含物品展示 token（`[i]`/`[i12]`/`[盔甲]` 等）的消息整条跳过**（每次展示的物品可能不同，同文案不算刷屏） |
 | 颜色权限 | `liuchat.color` 控制玩家消息里的其他 `&` 颜色代码与安全的样式标签；所有玩家可在公聊、私聊和喇叭中使用 `&f`、`&r` 重置颜色（本服/跨服同一套裁决） |
-| PAPI 变量 | `%liuchat_nick%`（未设置则原名）、`%liuchat_nick_raw%`（未设置则空）、`%liuchat_server%` `%liuchat_world%` `%liuchat_muted%` `%liuchat_muted_time%` `%liuchat_muted_reason%` |
+| PAPI 变量 | `%liuchat_nick%`（未设置则原名）、`%liuchat_nick_raw%`（未设置则空）、`%liuchat_server%` `%liuchat_world%` `%liuchat_muted%` `%liuchat_muted_time%` `%liuchat_muted_reason%`；面板/菜单用的 `%liuchat_ignore_count%`（屏蔽数）、`%liuchat_recent_contact%`（最近私聊对象，无则 `-`）、`%liuchat_horn_balance%`（喇叭余额，5 秒缓存，不可用为 `-`）、`%liuchat_cooldown%`（剩余冷却秒数）、`%liuchat_ai%`（AI 是否可用） |

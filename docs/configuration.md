@@ -80,6 +80,22 @@ chat-log:
 
 聊天颜色通过 `/liuc dialog chatcolor` 打开，支持单色和渐变色。单色模式使用第一组红、绿、蓝滑块；渐变模式另外使用结束色的红、绿、蓝三组滑块。红 R、绿 G、蓝 B 分别代表组成颜色的三种原色通道，数值范围都是 0-255。保存后会写入聊天资料，并支持 `<gradient:#1afff0:#2ea4ff>` 格式。也可以用 `/liuc chatcolor <&a|&#RRGGBB|off>` 直接设置，与 Dialog 同一存储格式；输入只允许颜色码（`&a`、`&#RRGGBB`、`&x` 形式、`<gradient:...>` 等），含正文或其他 MiniMessage 标签会被判为格式无效并拒绝，`off` 清除颜色。
 
+## DialogMenu 菜单
+
+安装 [DialogMenu](https://github.com/Usasi103/DialogMenu) 后，LiuChat 会自动把内置菜单写到 `plugins/DialogMenu/menus/liuchat.yml`（首次启用、`/liuc reload` 或 `/liuc menu` 时补齐，**已存在的菜单不会被覆盖**），用 `/liuc menu [页面]` 或 `/dmenu open liuchat` 打开。菜单含两页：`chat`（昵称/冷却/屏蔽数状态、聊天颜色、屏蔽列表、AI 提问、命令帮助按钮）与 `help`（常用命令速查、喇叭余额、最近私聊对象）。
+
+按钮动作只是执行 LiuChat 已有命令（`liuchat dialog chatcolor`、`liuc ignorelist`、`liuchat dialog ai`、`liuc` 等），业务权限仍由 LiuChat 校验；因此未安装 DialogMenu 时只会提示 `menu.unavailable`，其余功能不受影响。状态文字用 `%liuchat_...%` 占位符，需安装 PlaceholderAPI，未装时 DialogMenu 把空值或未解析 token 显示为“未接入”——所以 `%liuchat_recent_contact%`、`%liuchat_horn_balance%` 在没有数据时返回 `-` 而不是空串。
+
+菜单需要 DialogMenu 的配套资源包才能看到完整控件样式；菜单文件可以自由编辑，删掉后会自动重新补一份默认的。相关变量见 [功能一览](features.md) 的 PAPI 变量行。
+
+## ArcMenu 聊天工作区
+
+未装 DialogMenu 时，`/liuc menu` 会尝试打开 ArcMenu 应用 `liuchat:chat`；ArcMenu 的 YAML 菜单也能用 `open-app: liuchat:chat` 反向跳进来。界面是一行一个 TextDisplay 的三页工作区：**状态**（昵称、禁言、发言冷却、喇叭余额）、**屏蔽列表**（选中即执行 `/liuc unignore`）、**最近联系人**（提示用 `/r` 回复），顶部三行导航切换页面，末行关闭；鼠标模式支持滚轮选中、右键触发。
+
+启用条件：**ArcMenu 与 ProtocolLib 都已安装，且不是 Folia**。ArcMenu 使用 Bukkit 调度器与摄像机控制，其规划书明确「暂不承诺 Folia」，所以 LiuChat 在 Folia 上直接不注册，`/liuc menu` 退回 DialogMenu 或提示不可用。界面里的数据全部来自 LiuChat 自己的服务（与 `/liuc ignorelist`、`/r` 同一份状态），不新增存储、不改业务规则；实体、返回栈与清理由 ArcMenu 会话托管。
+
+编译期依赖 `com.fentai:arcmenu-api`（MIT），jar 随仓库提交在 `libs/repo`，与 SoulSpace-api 同一做法；运行期未安装 ArcMenu 时不会加载任何相关类（`ArcMenuBridge` 不含 API 类型引用，实现类延迟加载）。ArcMenu 当前是 0.1.0-SNAPSHOT 预览版，其 API 与配置格式仍可能调整，升级时需一并核对 `hook/ArcMenuWorkspace.java`。
+
 ## 私聊格式
 
-私聊独立格式配置在 `chat.yml` 的 `private.to.format`（发送者回显）和 `private.from.format`（接收者显示），每个节点与公共聊天一样支持 `text`、`hover`、`click`、`clickSuggest`、`url` 和图片。`${player}`/`${nick}` 表示发送者，`${target}` 表示接收者，`${message}` 为正文；`private.enable: false` 恢复 `messages.yml` 的旧文本样式。跨服私聊发送者的昵称、UUID、世界与占位符快照随消息发送，接收服无需发送者在线。跨服在线名单在加入、退出时同步，并每分钟刷新；失联子服的名单约 150 秒后过期，供 `/tell`、`/msg` 等命令补全。**本次跨服协议升级至 10，所有子服须一起更新**。新版本可以接收协议 9，但旧版无法接收协议 10。新协议携带签名覆盖的唯一消息 ID，Redis 应答丢失后代理回落产生的重复包在接收端去重（最多 8192 条、有效期 2 分钟）；连续发送相同内容不会误判。私聊重复请求仅补发回执，不再次显示或记日志。缓存过期、容量淘汰或重启后不保证去重，断线期间的 Pub/Sub 消息不补发。
+私聊独立格式配置在 `chat.yml` 的 `private.to.format`（发送者回显）和 `private.from.format`（接收者显示），每个节点与公共聊天一样支持 `text`、`hover`、`click`、`clickSuggest`、`url` 和图片。`${player}`/`${nick}` 表示发送者，`${target}` 表示接收者，`${message}` 为正文；`private.enable: false` 恢复 `messages.yml` 的旧文本样式。跨服私聊发送者的昵称、UUID、世界与占位符快照随消息发送，接收服无需发送者在线。跨服在线名单在加入、退出时同步，并每分钟刷新；失联子服的名单约 150 秒后过期，供 `/tell`、`/msg` 等命令补全。**当前跨服协议为 10，所有子服须一起更新**。新版本可以接收协议 9，但旧版无法接收协议 10。新协议携带签名覆盖的唯一消息 ID，Redis 应答丢失后代理回落产生的重复包在接收端去重（最多 8192 条、有效期 2 分钟）；连续发送相同内容不会误判。私聊重复请求仅补发回执，不再次显示或记日志。缓存过期、容量淘汰或重启后不保证去重，断线期间的 Pub/Sub 消息不补发。

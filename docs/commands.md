@@ -20,9 +20,17 @@
 /liuc audit <1-24>                 审查最近 N 小时聊天  权限: liuchat.audit
 /liuc dialog ai                    AI 聊天助手 Dialog
 /liuc dialog chatcolor              聊天颜色与渐变 Dialog
+/liuc menu [页面]                   打开聊天菜单界面（DialogMenu，或 ArcMenu 工作区）
 ```
 
 `/liuc dialog chatcolor` 打开聊天颜色与渐变设置 Dialog。
+
+`/liuc menu` 依次尝试两个界面：
+
+1. **DialogMenu**：内置菜单 `liuchat` —— 首次启用（或 `/liuc reload`、再次执行本命令）时把 `dialogmenu/liuchat.yml` 复制到 `plugins/DialogMenu/menus/liuchat.yml`，**只在缺失时写入，不覆盖你改过的菜单**；按钮只是执行本表中的命令，权限仍由 LiuChat 校验，tab 补全可选页 ID（`chat`、`help`）。
+2. **ArcMenu 聊天工作区**：未装 DialogMenu 时，若 ArcMenu + ProtocolLib 都在且非 Folia，则打开 `liuchat:chat` 应用（状态 / 屏蔽列表 / 最近联系人，滚轮选中、右键触发）。ArcMenu 的 YAML 菜单也可用 `open-app: liuchat:chat` 反向跳进来。
+
+两者都没有时提示 `menu.unavailable`。
 
 控制台 / 命令方块可直接执行 `/msg`、`/tell` 与 `/horn`：私聊显示名取自 `config.yml` 的 `console.name`（固定全零 UUID 标识来源），目标在本服直接投递、否则跨服投递；喇叭不需要余额、不受禁言限制。
 

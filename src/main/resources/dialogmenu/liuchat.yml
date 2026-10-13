@@ -1,0 +1,90 @@
+# LiuChat 聊天菜单（DialogMenu 配置）
+# 由 LiuChat 在启用时写入 plugins/DialogMenu/menus/liuchat.yml，只在缺失时复制，不会覆盖你改过的内容。
+# 打开：/liuc menu 或 /dmenu open liuchat；改完执行 /dmenu check 再 /dmenu reload。
+# 按钮动作只调用 LiuChat 已有命令，业务权限仍由 LiuChat 自己校验。
+# 状态文字用 %liuchat_...% 占位符（需安装 PlaceholderAPI；未装时 DialogMenu 显示“未接入”）。
+Version: 1
+Type: settings
+Title: {zh_cn: "聊天菜单", en_us: "Chat Menu"}
+DefaultPage: "chat"
+Language: "zh_cn"
+Theme: "dark"
+MainMenu: ["close"]
+
+Pages:
+  chat:
+    Title: {zh_cn: "聊天", en_us: "Chat"}
+    Keywords: ["聊天", "颜色", "屏蔽", "AI", "chat", "color"]
+    Layout: ["我的信息", "发言状态", "快捷操作", "聊天颜色", "屏蔽列表", "AI 提问", "命令帮助"]
+    Icons:
+      我的信息:
+        Type: "text"
+        Name: {zh_cn: "玩家：{player}　昵称：%liuchat_nick%", en_us: "Player: {player}  Nick: %liuchat_nick%"}
+      发言状态:
+        Type: "text"
+        Name: {zh_cn: "发言冷却：%liuchat_cooldown% 秒　屏蔽：%liuchat_ignore_count% 人", en_us: "Cooldown: %liuchat_cooldown%s  Ignored: %liuchat_ignore_count%"}
+      快捷操作:
+        Type: "heading"
+        Name: {zh_cn: "快捷操作", en_us: "Quick actions"}
+      聊天颜色:
+        Type: "button"
+        Name: {zh_cn: "选择聊天颜色", en_us: "Chat color"}
+        Description: {zh_cn: "打开颜色选择对话框，支持单色与渐变", en_us: "Open the color picker (solid and gradient)"}
+        RequiresPlugin: "LiuChat"
+        Actions:
+          - close
+          - "command: liuchat dialog chatcolor"
+      屏蔽列表:
+        Type: "button"
+        Name: {zh_cn: "查看屏蔽列表", en_us: "Ignored players"}
+        Description: {zh_cn: "列出你屏蔽的玩家", en_us: "List players you ignored"}
+        RequiresPlugin: "LiuChat"
+        Actions:
+          - close
+          - "command: liuc ignorelist"
+      AI 提问:
+        Type: "button"
+        Name: {zh_cn: "向聊天助手提问", en_us: "Ask the assistant"}
+        Description: {zh_cn: "打开 AI 助手对话框（需管理员启用 AI）", en_us: "Open the AI assistant dialog"}
+        RequiresPlugin: "LiuChat"
+        Actions:
+          - close
+          - "command: liuchat dialog ai"
+      命令帮助:
+        Type: "button"
+        Name: {zh_cn: "查看命令帮助", en_us: "Command help"}
+        RequiresPlugin: "LiuChat"
+        Actions:
+          - close
+          - "command: liuc"
+
+  help:
+    Title: {zh_cn: "帮助与状态", en_us: "Help and status"}
+    Keywords: ["帮助", "命令", "喇叭", "私聊", "help", "command"]
+    Layout: ["常用命令", "状态标题", "喇叭余额", "最近私聊", "帮助按钮"]
+    Icons:
+      常用命令:
+        Type: "text"
+        Name: {zh_cn: "私聊 /msg <玩家> <消息>　回复 /r <消息>", en_us: "Tell /msg <player> <msg>  Reply /r <msg>"}
+        Description:
+          - {zh_cn: "屏蔽 /ignore <玩家>　取消 /unignore <玩家>", en_us: "Ignore /ignore <player>  Unignore /unignore <player>"}
+          - {zh_cn: "昵称 /liuc nick <昵称>　颜色 /liuc chatcolor <颜色|off>", en_us: "Nick /liuc nick <name>  Color /liuc chatcolor <color|off>"}
+          - {zh_cn: "喇叭 /horn <消息>　禁言 /mute <玩家> <时长>　完整列表输入 /liuc", en_us: "Horn /horn <msg>  Mute /mute <player> <duration>  Run /liuc for all"}
+      状态标题:
+        Type: "heading"
+        Name: {zh_cn: "我的状态", en_us: "My status"}
+      喇叭余额:
+        Type: "text"
+        Name: {zh_cn: "喇叭余额：%liuchat_horn_balance%", en_us: "Horn balance: %liuchat_horn_balance%"}
+        Description: {zh_cn: "查询 /horn balance", en_us: "Check with /horn balance"}
+      最近私聊:
+        Type: "text"
+        Name: {zh_cn: "最近私聊：%liuchat_recent_contact%", en_us: "Last tell: %liuchat_recent_contact%"}
+        Description: {zh_cn: "回复 /r <消息>", en_us: "Reply with /r <msg>"}
+      帮助按钮:
+        Type: "button"
+        Name: {zh_cn: "打开命令帮助", en_us: "Open command help"}
+        RequiresPlugin: "LiuChat"
+        Actions:
+          - close
+          - "command: liuc"
