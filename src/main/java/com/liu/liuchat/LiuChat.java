@@ -59,6 +59,9 @@ import org.bukkit.plugin.java.JavaPlugin;
  */
 public final class LiuChat extends JavaPlugin {
 
+    private com.liu.liuchat.service.ChannelService channels;
+    public com.liu.liuchat.api.ChannelApi getChannelApi() { return channels; }
+
     private static LiuChat instance;
 
     private ConfigManager configManager;
@@ -99,6 +102,7 @@ public final class LiuChat extends JavaPlugin {
         } catch (Exception e) {
             throw new IllegalStateException("Invalid reminders.yml", e);
         }
+        if (channels != null) channels.reload();
         reloadCommand.reload();
         // 跨服密钥与 enable 开关随 reload 生效（原实现要重启，密钥不一致时会静默丢包）
         if (crossServer != null) crossServer.reload();
@@ -138,6 +142,10 @@ public final class LiuChat extends JavaPlugin {
         ChatPresentation presentation = new ChatPresentation(this, configManager, items);
         items.setSpaceSettings(presentation);
         chatService = new ChatService(this, configManager, presentation, items);
+        channels = new com.liu.liuchat.service.ChannelService(this);
+        chatService.setChannels(channels);
+        getServer().getServicesManager().register(com.liu.liuchat.api.ChannelApi.class, channels, this,
+                org.bukkit.plugin.ServicePriority.Normal);
         chatLogs = new ChatLogService(this, configManager);
         chatService.setChatLogService(chatLogs);
 
@@ -164,6 +172,7 @@ public final class LiuChat extends JavaPlugin {
 
         // 4. 命令：/lc 子命令 + 顶层直注册的 /msg /tell /mute /unmute
         CommandRouter router = new CommandRouter(messageManager);
+        router.register(new com.liu.liuchat.command.ChannelCommand(channels));
         AiClient aiClient = new AiClient();
         HourlyChatAudit audit = new HourlyChatAudit(this, configManager, messageManager, chatLogs, aiClient);
         audit.start();
@@ -249,6 +258,8 @@ public final class LiuChat extends JavaPlugin {
         ChatListener chatListener = new ChatListener(this, configManager, messageManager, muteService,
                 chatService, crossServer, audit);
         chatListener.setPublicChatAi(publicChatAi);
+        chatListener.setChannels(channels);
+        channels.setSender(chatListener::sendChannel);
         getServer().getPluginManager().registerEvents(chatListener, this);
 
         // 6. ArcMenu 聊天工作区（软依赖；未安装 / 缺 ProtocolLib / Folia 上直接不注册）
@@ -390,6 +401,8 @@ public final class LiuChat extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (channels != null) channels.close();
+        getServer().getServicesManager().unregisterAll(this);
         if (chatWorkspace != null) {
             try {
                 chatWorkspace.close();

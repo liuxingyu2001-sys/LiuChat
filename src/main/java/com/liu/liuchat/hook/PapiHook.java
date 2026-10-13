@@ -35,8 +35,10 @@ public final class PapiHook {
             return;
         }
         try {
-            new LiuChatExpansion(config, muteService, profiles, ignores, tellService,
-                    database, chatListener, plugin).register();
+            LiuChatExpansion expansion = new LiuChatExpansion(config, muteService, profiles, ignores, tellService,
+                    database, chatListener, plugin);
+            if (plugin instanceof com.liu.liuchat.LiuChat chat) expansion.setChannels(chat.getChannelApi());
+            expansion.register();
         } catch (Throwable t) {
             plugin.getLogger().log(Level.WARNING, "PlaceholderAPI 挂载失败", t);
         }

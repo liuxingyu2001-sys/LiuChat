@@ -40,6 +40,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class LiuChatExpansion extends PlaceholderExpansion {
 
+    private com.liu.liuchat.api.ChannelApi channels;
+    public void setChannels(com.liu.liuchat.api.ChannelApi channels) { this.channels = channels; }
+
     private final ConfigManager config;
     private final MuteService muteService;
     private final PlayerProfileService profiles;
@@ -94,6 +97,18 @@ public final class LiuChatExpansion extends PlaceholderExpansion {
         }
         String key = params.toLowerCase(Locale.ROOT);
         return switch (key) {
+            case "channel", "channel_id" -> channels == null ? "-" : channels.current(player.getUniqueId()).id();
+            case "channel_name" -> channels == null ? "-" : channels.current(player.getUniqueId()).displayName();
+            case "channel_scope" -> channels == null ? "-" : channels.current(player.getUniqueId()).scope().name();
+            case "channel_count" -> channels == null ? "0" : String.valueOf(channels.channels().size());
+            case "channel_subscriptions" -> channels == null ? "-" : String.join(",", new java.util.TreeSet<>(channels.subscriptions(player.getUniqueId())));
+            case "channel_can_send" -> String.valueOf(channels != null
+                    && (channels.current(player.getUniqueId()).sendPermission().isBlank()
+                    || player.hasPermission(channels.current(player.getUniqueId()).sendPermission()))
+                    && (channels.current(player.getUniqueId()).receivePermission().isBlank()
+                    || player.hasPermission(channels.current(player.getUniqueId()).receivePermission()))
+                    && (channels.current(player.getUniqueId()).scope() != com.liu.liuchat.api.ChatChannel.Scope.MEMBERS
+                    || channels.subscriptions(player.getUniqueId()).contains(channels.current(player.getUniqueId()).id())));
             case "server" -> config.server();
             case "world" -> player.getWorld().getName();
             case "nick" -> nick(profiles.get(player).nick(), player.getName());

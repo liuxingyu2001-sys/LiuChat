@@ -1,0 +1,23 @@
+# GLOBAL 使用现有富文本格式和跨服链路；其他范围仅在本服投递。
+# MEMBERS 需要先 join；订阅与当前频道为会话内状态，退出恢复默认。
+default: global
+channels:
+  global:
+    name: 全服
+    scope: GLOBAL
+  server:
+    name: 本服
+    scope: SERVER
+    format: '&7[${channel_name}] &f${player}&7: ${message}'
+  world:
+    name: 世界
+    scope: WORLD
+  nearby:
+    name: 附近
+    scope: NEARBY
+    radius: 100
+  staff:
+    name: 管理
+    scope: MEMBERS
+    send-permission: liuchat.channel.staff
+    receive-permission: liuchat.channel.staff

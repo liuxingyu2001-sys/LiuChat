@@ -66,6 +66,12 @@ commands:
     usage: /nick <昵称或MiniMessage>
 
 permissions:
+  liuchat.channel:
+    description: 使用频道命令
+    default: true
+  liuchat.channel.staff:
+    description: 收发管理频道消息
+    default: op
   liuchat.audit:
     description: 手动审核聊天历史
     default: op

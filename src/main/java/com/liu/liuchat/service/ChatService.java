@@ -45,6 +45,9 @@ public final class ChatService {
 
     public void setPublicChatAi(PublicChatAiService ai) { this.publicAi = ai; }
 
+    private com.liu.liuchat.service.ChannelService channels;
+    public void setChannels(com.liu.liuchat.service.ChannelService channels) { this.channels = channels; }
+
     public record Dispatch(String message, String itemData, String placeholders, String nick) { }
 
     /** 物品展示消息：每次展示的物品都可能不同，重复检测要整条跳过。 */
@@ -81,6 +84,35 @@ public final class ChatService {
         deliver(config.server(), player.getUniqueId().toString(), player.getName(),
                 player.getWorld().getName(), player, message, itemData, placeholders, nick);
         return new Dispatch(message, itemData, placeholders, nick);
+    }
+
+    /** Local channel delivery. Recipient world/location/permissions are read on their owning region. */
+    public void broadcastChannel(Player sender, String message, com.liu.liuchat.api.ChatChannel channel) {
+        var world = sender.getWorld().getUID();
+        var origin = sender.getLocation();
+        String uuid = sender.getUniqueId().toString();
+        String name = sender.getName();
+        String nick = profiles == null ? name : profiles.get(sender).nick();
+        if (nick == null || nick.isBlank()) nick = name;
+        String template = PapiHook.setPlaceholders(sender, TimePlaceholders.apply(channel.format(), java.time.ZonedDateTime.now()));
+        String line = ChannelFormat.apply(template, java.util.Map.of("channel_name", channel.displayName(),
+                "channel", channel.id(), "server", config.server(), "world", sender.getWorld().getName(),
+                "player", name, "nick", nick, "message", message));
+        Component rendered = LegacyComponentSerializer.legacySection().deserialize(TextUtil.color(line));
+        Schedulers.forEachPlayer(plugin, viewer -> {
+            if (!channel.receivePermission().isBlank() && !viewer.hasPermission(channel.receivePermission())) return;
+            if (channel.scope() == com.liu.liuchat.api.ChatChannel.Scope.MEMBERS
+                    && !channels.subscriptions(viewer.getUniqueId()).contains(channel.id())) return;
+            if ((channel.scope() == com.liu.liuchat.api.ChatChannel.Scope.WORLD
+                    || channel.scope() == com.liu.liuchat.api.ChatChannel.Scope.NEARBY)
+                    && !viewer.getWorld().getUID().equals(world)) return;
+            if (channel.scope() == com.liu.liuchat.api.ChatChannel.Scope.NEARBY
+                    && viewer.getLocation().distanceSquared(origin) > channel.radius() * channel.radius()) return;
+            if (ignores != null && ignores.ignores(viewer, uuid, name)) return;
+            viewer.sendMessage(rendered);
+        });
+        Bukkit.getConsoleSender().sendMessage(TextUtil.color(line));
+        if (logs != null) logs.record("CHANNEL:" + channel.id(), config.server(), name, channel.id(), message);
     }
 
     /** Deliver a preformatted announcement without applying player chat templates or ignore rules. */

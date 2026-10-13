@@ -85,11 +85,33 @@ public final class ChatListener implements Listener {
         }
     }
 
+    private com.liu.liuchat.service.ChannelService channels;
+    public void setChannels(com.liu.liuchat.service.ChannelService channels) { this.channels = channels; }
+
     private void processChat(UUID uuid, String text) {
         Player player = Bukkit.getPlayer(uuid);
-        if (player == null) {
-            return;
+        if (player != null) {
+            var result = sendChannel(player, channels.current(uuid).id(), text);
+            if (result == com.liu.liuchat.api.ChannelApi.Result.NO_PERMISSION
+                    || result == com.liu.liuchat.api.ChannelApi.Result.NOT_MEMBER)
+                player.sendMessage("§c当前频道不可发言，请使用 /liuc channel global 切换频道。");
         }
+    }
+
+    public com.liu.liuchat.api.ChannelApi.Result sendChannel(Player player, String id, String text) {
+        var channel = channels.channel(id).orElse(null);
+        if (channel == null) return com.liu.liuchat.api.ChannelApi.Result.UNKNOWN_CHANNEL;
+        var access = channels.access(player, channel);
+        if (access != com.liu.liuchat.api.ChannelApi.Result.SENT) return access;
+        if (text == null || text.isBlank() || text.length() > 4096) return com.liu.liuchat.api.ChannelApi.Result.CANCELLED;
+        var channelEvent = new com.liu.liuchat.api.event.ChannelMessageEvent(player, channel, text);
+        Bukkit.getPluginManager().callEvent(channelEvent);
+        if (channelEvent.isCancelled()) return com.liu.liuchat.api.ChannelApi.Result.CANCELLED;
+        text = channelEvent.getMessage();
+        access = channels.access(player, channel);
+        if (access != com.liu.liuchat.api.ChannelApi.Result.SENT) return access;
+        if (text.isBlank() || text.length() > 4096) return com.liu.liuchat.api.ChannelApi.Result.CANCELLED;
+        UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
 
         // 1. 禁言
@@ -99,7 +121,7 @@ public final class ChatListener implements Listener {
             messages.send(player, "chat.muted",
                     "${time}", messages.muteTimeText(mute),
                     "${reason}", mute.reason() == null ? "" : mute.reason());
-            return;
+            return com.liu.liuchat.api.ChannelApi.Result.MUTED;
         }
 
         // 2. 冷却
@@ -110,14 +132,14 @@ public final class ChatListener implements Listener {
             if (waitMs > 0) {
                 long seconds = (waitMs + 999) / 1000;
                 messages.send(player, "chat.cooldown", "${time}", String.valueOf(seconds));
-                return;
+                return com.liu.liuchat.api.ChannelApi.Result.COOLDOWN;
             }
         }
         // 3. 重复/相似发言；物品展示（[i]/[i12]/[盔甲]/[副手]）跳过（每次展示的物品可能不同，同文案不算刷屏）
         if (repeats.spam(uuid, text, now, config.repeatTime(), config.repeatSimilarity(),
                 config.repeatMinLength(), chatService.isItemShow(text))) {
             messages.send(player, "chat.repeat");
-            return;
+            return com.liu.liuchat.api.ChannelApi.Result.REPEATED;
         }
 
         if (config.chatFilterEnabled() && ChatReviewPolicy.blocked(text, config.chatFilterMatchKeywords(),
@@ -125,22 +147,28 @@ public final class ChatListener implements Listener {
                 && !player.hasPermission("liuchat.moderation.bypass")) {
             String shown = com.liu.liuchat.util.ColorParser.playerText(text,
                     player.hasPermission("liuchat.color"));
-            chatService.sendOwnChat(player, shown);
+            if (channel.scope() == com.liu.liuchat.api.ChatChannel.Scope.GLOBAL) chatService.sendOwnChat(player, shown);
+            else player.sendMessage("§7[" + channel.displayName() + "] " + player.getName() + ": " + shown);
             if (player.hasPermission("liuchat.moderation.blocked-notice"))
                 messages.send(player, "ai.blocked-sender-notice");
             notifyModerators(player, text);
-            return;
+            return com.liu.liuchat.api.ChannelApi.Result.FILTERED;
         }
         lastChatAt.put(uuid, now);
 
         String message = com.liu.liuchat.util.ColorParser.playerText(text,
                 player.hasPermission("liuchat.color"));
 
+        if (channel.scope() != com.liu.liuchat.api.ChatChannel.Scope.GLOBAL) {
+            chatService.broadcastChannel(player, message, channel);
+            return com.liu.liuchat.api.ChannelApi.Result.SENT;
+        }
         ChatService.Dispatch dispatch = chatService.broadcast(player, message);
         audit.record(uuid.toString(), player.getName(), text);
         crossServer.publishChat(player, dispatch.message(), dispatch.itemData(),
                 dispatch.placeholders(), dispatch.nick());
         if (publicAi != null) publicAi.onLocalMessage(uuid.toString(), player.getName(), text);
+        return com.liu.liuchat.api.ChannelApi.Result.SENT;
     }
 
     private void notifyModerators(Player sender, String text) {
@@ -155,5 +183,6 @@ public final class ChatListener implements Listener {
         UUID uuid = event.getPlayer().getUniqueId();
         lastChatAt.remove(uuid);
         repeats.clear(uuid);
+        if (channels != null) channels.forget(uuid);
     }
 }

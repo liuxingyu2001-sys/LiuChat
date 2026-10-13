@@ -25,6 +25,8 @@
 
 `/liuc dialog chatcolor` 打开聊天颜色与渐变设置 Dialog。
 
+权限配置见 [频道与外部 API](channels.md)：`/liuc channel [list|join|leave|send|频道]` 管理本服频道与当前发言频道。
+
 `/liuc menu` 依次尝试两个界面：
 
 1. **DialogMenu**：内置菜单 `liuchat` —— 首次启用（或 `/liuc reload`、再次执行本命令）时把 `dialogmenu/liuchat.yml` 复制到 `plugins/DialogMenu/menus/liuchat.yml`，**只在缺失时写入，不覆盖你改过的菜单**；按钮只是执行本表中的命令，权限仍由 LiuChat 校验，tab 补全可选页 ID（`chat`、`help`）。

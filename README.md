@@ -19,6 +19,7 @@ Paper / Leaf / Folia 1.21+ 聊天插件（Java 21，零第三方框架依赖）�
 
 | 文档 | 内容 |
 |---|---|
+| [频道与外部 API](docs/channels.md) | 频道范围、权限、命令、PAPI 与 Java API/事件 |
 | [功能一览](docs/features.md) | 全部功能的详细说明 |
 | [命令](docs/commands.md) | 命令列表、权限、部署提示 |
 | [配置要点](docs/configuration.md) | 各配置文件、聊天颜色、私聊格式 |
