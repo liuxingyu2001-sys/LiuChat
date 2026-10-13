@@ -97,4 +97,8 @@ public void onChannelMessage(ChannelMessageEvent event) {
 }
 ```
 
+`com.liu.liuchat.api.event.ChannelDeliveredEvent`：非 GLOBAL 频道通过审核并提交本服投递后触发，只读，提供 `getPlayer()`、`getChannel()`、`getRendered()`（Adventure Component）。外部插件可用它转发跨服，不能用审核前的 ChannelMessageEvent 转发；不表示所有接收者已读取。
+
+`LiuChat.deliverChannelRemote(String channelId, String senderUuid, String senderName, Component rendered)`：可信插件使用的远端 MEMBERS 成品投递，不再审核正文；逐接收者检查本服频道订阅、接收权限、忽略列表，不触发 ChannelDeliveredEvent，避免回环。调用者负责确保来源消息已经审核及传输可信。LiuGuild 使用自己的 Redis 总线实现工会频道跨服。
+
 测试服务器保持关闭；世界/距离投递、权限变更与客户端显示尚需服务器联机验证。

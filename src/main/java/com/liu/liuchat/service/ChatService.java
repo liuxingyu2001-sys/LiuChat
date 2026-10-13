@@ -113,6 +113,20 @@ public final class ChatService {
         });
         Bukkit.getConsoleSender().sendMessage(TextUtil.color(line));
         if (logs != null) logs.record("CHANNEL:" + channel.id(), config.server(), name, channel.id(), message);
+        Bukkit.getPluginManager().callEvent(new com.liu.liuchat.api.event.ChannelDeliveredEvent(sender, channel, rendered));
+    }
+
+    /** Remote MEMBERS relay only; rechecks local subscription, receive permission and ignores. */
+    public boolean deliverChannelRemote(String channelId, String senderUuid, String senderName, Component rendered) {
+        var channel = channels.channel(channelId).orElse(null);
+        if (channel == null || channel.scope() != com.liu.liuchat.api.ChatChannel.Scope.MEMBERS) return false;
+        Schedulers.forEachPlayer(plugin, viewer -> {
+            if (!channel.receivePermission().isBlank() && !viewer.hasPermission(channel.receivePermission())) return;
+            if (!channels.subscriptions(viewer.getUniqueId()).contains(channel.id())) return;
+            if (ignores != null && ignores.ignores(viewer, senderUuid, senderName)) return;
+            viewer.sendMessage(rendered);
+        });
+        return true;
     }
 
     /** Deliver a preformatted announcement without applying player chat templates or ignore rules. */

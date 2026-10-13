@@ -62,6 +62,14 @@ public final class LiuChat extends JavaPlugin {
     private com.liu.liuchat.service.ChannelService channels;
     public com.liu.liuchat.api.ChannelApi getChannelApi() { return channels; }
 
+    /** Trusted plugin relay of a message already accepted by the origin's channel moderation.
+     * MEMBERS channels only. No public broadcast and no ChannelDeliveredEvent recursion.
+     */
+    public boolean deliverChannelRemote(String channelId, String senderUuid, String senderName,
+                                       net.kyori.adventure.text.Component rendered) {
+        return chatService != null && chatService.deliverChannelRemote(channelId, senderUuid, senderName, rendered);
+    }
+
     private static LiuChat instance;
 
     private ConfigManager configManager;
