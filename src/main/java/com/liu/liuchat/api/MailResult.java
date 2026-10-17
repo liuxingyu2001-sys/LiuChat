@@ -1,0 +1,25 @@
+package com.liu.liuchat.api;
+
+/** 邮件操作结果。 */
+public enum MailResult {
+    OK,
+    SELF,
+    CANCELLED,
+    DISABLED,
+    STORAGE_UNAVAILABLE,
+    SENDER_NOT_FOUND,
+    RECIPIENT_NOT_FOUND,
+    SUBJECT_TOO_LONG,
+    BODY_TOO_LONG,
+    ATTACHMENT_TOO_MANY,
+    ATTACHMENT_TOO_LARGE,
+    ATTACHMENT_INVALID,
+    MAILBOX_FULL,
+    COOLDOWN,
+    NOT_FOUND,
+    EXPIRED,
+    ALREADY_CLAIMED,
+    NO_ATTACHMENTS,
+    INVENTORY_FULL,
+    PLAYER_OFFLINE
+}

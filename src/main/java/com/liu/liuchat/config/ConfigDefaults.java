@@ -13,7 +13,7 @@ import java.util.logging.Level;
 /** Fills missing bundled options without overwriting any local values or custom sections. */
 public final class ConfigDefaults {
     /** 每服本地文件：不与共享配置同步。 */
-    private static final java.util.Set<String> LOCAL_RESOURCES = java.util.Set.of("chat.yml", "ai.yml", "qq.yml");
+    private static final java.util.Set<String> LOCAL_RESOURCES = java.util.Set.of("chat.yml", "ai.yml", "npc-assistants.yml", "qq.yml");
 
     private ConfigDefaults() { }
 

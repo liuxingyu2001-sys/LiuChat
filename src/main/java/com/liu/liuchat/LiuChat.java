@@ -62,6 +62,14 @@ public final class LiuChat extends JavaPlugin {
     private com.liu.liuchat.service.ChannelService channels;
     public com.liu.liuchat.api.ChannelApi getChannelApi() { return channels; }
 
+    private com.liu.liuchat.service.FriendService friendService;
+    private com.liu.liuchat.service.MailService mailService;
+    private com.liu.liuchat.service.PlayerDirectoryService playerDirectory;
+    private com.liu.liuchat.service.SocialMenuService socialMenu;
+
+    public com.liu.liuchat.api.FriendApi getFriendApi() { return friendService; }
+    public com.liu.liuchat.api.MailApi getMailApi() { return mailService; }
+
     /** Trusted plugin relay of a message already accepted by the origin's channel moderation.
      * MEMBERS channels only. No public broadcast and no ChannelDeliveredEvent recursion.
      */
@@ -182,6 +190,29 @@ public final class LiuChat extends JavaPlugin {
         tellService.setConfig(configManager);
         tellService.setChatLogService(chatLogs);
 
+        // 3.1 好友 / 邮件 / 玩家名目录（SQLite 单服，MySQL 跨服共享）
+        playerDirectory = new com.liu.liuchat.service.PlayerDirectoryService(this, database);
+        friendService = new com.liu.liuchat.service.FriendService(this, database, configManager,
+                messageManager, crossServer, playerDirectory);
+        mailService = new com.liu.liuchat.service.MailService(this, database, configManager,
+                messageManager, crossServer, playerDirectory);
+        socialMenu = new com.liu.liuchat.service.SocialMenuService(this, friendService, mailService,
+                playerDirectory, messageManager, configManager);
+        getServer().getServicesManager().register(com.liu.liuchat.api.FriendApi.class, friendService, this,
+                org.bukkit.plugin.ServicePriority.Normal);
+        getServer().getServicesManager().register(com.liu.liuchat.api.MailApi.class, mailService, this,
+                org.bukkit.plugin.ServicePriority.Normal);
+        try {
+            friendService.start();
+        } catch (RuntimeException e) {
+            getLogger().log(java.util.logging.Level.WARNING, "好友系统定时任务启动失败", e);
+        }
+        try {
+            mailService.start();
+        } catch (RuntimeException e) {
+            getLogger().log(java.util.logging.Level.WARNING, "邮件系统定时任务启动失败", e);
+        }
+
         // 4. 命令：/lc 子命令 + 顶层直注册的 /msg /tell /mute /unmute
         CommandRouter router = new CommandRouter(messageManager);
         router.register(new com.liu.liuchat.command.ChannelCommand(channels));
@@ -244,6 +275,8 @@ public final class LiuChat extends JavaPlugin {
         router.register(tell);
         ChatCommand reply = new ReplyCommand(messageManager, tellService, tell);
         router.register(reply);
+        router.register(new com.liu.liuchat.command.FriendCommand(socialMenu));
+        router.register(new com.liu.liuchat.command.MailCommand(socialMenu));
 
         PluginCommand mainCommand = requireCommand("liuchat");
         if (mainCommand == null) {
@@ -266,6 +299,10 @@ public final class LiuChat extends JavaPlugin {
         getServer().getPluginManager().registerEvents(items, this);
         getServer().getPluginManager().registerEvents(ignores, this);
         getServer().getPluginManager().registerEvents(profiles, this);
+        getServer().getPluginManager().registerEvents(playerDirectory, this);
+        getServer().getPluginManager().registerEvents(friendService, this);
+        getServer().getPluginManager().registerEvents(mailService, this);
+        getServer().getPluginManager().registerEvents(socialMenu, this);
         getServer().getPluginManager().registerEvents(new CommandAliasListener(configManager), this);
         ChatListener chatListener = new ChatListener(this, configManager, messageManager, muteService,
                 chatService, crossServer, audit);
@@ -426,6 +463,10 @@ public final class LiuChat extends JavaPlugin {
             qqBot.close();
             qqBot = null;
         }
+        if (socialMenu != null) socialMenu.closeAll();
+        if (mailService != null) mailService.close();
+        if (friendService != null) friendService.close();
+        if (playerDirectory != null) playerDirectory.close();
         if (channels != null) channels.close();
         getServer().getServicesManager().unregisterAll(this);
         if (chatWorkspace != null) {

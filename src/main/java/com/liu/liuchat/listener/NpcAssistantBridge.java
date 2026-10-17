@@ -14,7 +14,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -77,10 +79,29 @@ public final class NpcAssistantBridge implements Listener {
     }
 
     public void reload() {
+        migrateSharedConfig();
         var config = ConfigDefaults.load(plugin, "npc-assistants.yml");
         maxDistance = Math.max(1, Math.min(16, config.getDouble("max-distance", 6)));
         cancelOtherActions = config.getBoolean("cancel-other-actions", true);
         bindings = parseBindings(config);
+    }
+
+    /**
+     * npc-assistants.yml 曾放在共享目录；现改为每服本地。
+     * 首次升级且本地文件不存在时，把共享目录里的自定义绑定复制到本地一次，之后只读本地。
+     */
+    private void migrateSharedConfig() {
+        if (!(plugin instanceof com.liu.liuchat.LiuChat chat)) return;
+        File local = new File(plugin.getDataFolder(), "npc-assistants.yml");
+        File shared = new File(chat.getConfigRoot(), "npc-assistants.yml");
+        if (local.exists() || !shared.isFile() || shared.getAbsoluteFile().equals(local.getAbsoluteFile())) return;
+        try {
+            Files.createDirectories(local.getParentFile().toPath());
+            Files.copy(shared.toPath(), local.toPath());
+            plugin.getLogger().info("已把共享 npc-assistants.yml 迁移为每服本地配置: " + local.getAbsolutePath());
+        } catch (java.io.IOException error) {
+            plugin.getLogger().warning("迁移共享 npc-assistants.yml 失败，将使用内置默认值: " + error.getMessage());
+        }
     }
 
     static Map<Integer, Binding> parseBindings(YamlConfiguration config) {

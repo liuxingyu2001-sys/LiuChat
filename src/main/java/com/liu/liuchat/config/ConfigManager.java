@@ -311,6 +311,31 @@ public final class ConfigManager {
         return channel.isEmpty() ? "liuchat" : channel;
     }
 
+    // ---------------- 好友 / 邮件 ----------------
+
+    public boolean friendsEnabled() { return config.getBoolean("friends.enable", true); }
+    public int friendsMax() { return bounded("friends.max-friends", 100, 0, 10000); }
+    public int friendsMaxRequests() { return bounded("friends.max-requests", 50, 0, 1000); }
+    public int friendsRequestExpireHours() { return bounded("friends.request-expire-hours", 168, 0, 8760); }
+    public int friendsPageSize() { return bounded("friends.page-size", 45, 1, 45); }
+    public boolean friendsNotifyOnJoin() { return config.getBoolean("friends.notify-on-join", true); }
+
+    public boolean mailEnabled() { return config.getBoolean("mail.enable", true); }
+    public int mailExpireDays() { return bounded("mail.expire-days", 30, 0, 3650); }
+    public int mailMaxPerPlayer() { return bounded("mail.max-per-player", 100, 0, 10000); }
+    public int mailPageSize() { return bounded("mail.page-size", 45, 1, 45); }
+    public int mailMaxSubject() { return bounded("mail.max-subject-length", 64, 1, 128); }
+    public int mailMaxBody() { return bounded("mail.max-body-length", 2000, 1, 8000); }
+    public int mailMaxAttachments() { return bounded("mail.max-attachments", 3, 0, 9); }
+    public int mailMaxAttachmentBytes() { return bounded("mail.max-attachment-bytes", 16384, 256, 48000); }
+    public int mailSendCooldownSeconds() { return bounded("mail.send-cooldown-seconds", 5, 0, 3600); }
+    public boolean mailNotifyOnJoin() { return config.getBoolean("mail.notify-on-join", true); }
+    public boolean mailAllowSelf() { return config.getBoolean("mail.allow-self", false); }
+
+    private int bounded(String path, int fallback, int min, int max) {
+        return Math.max(min, Math.min(max, config.getInt(path, fallback)));
+    }
+
     // ---------------- 存储 ----------------
 
     public String storageType() {

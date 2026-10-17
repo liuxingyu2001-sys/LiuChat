@@ -42,3 +42,37 @@ LiuChat 的命令支持控制台 / 命令方块执行：
 
 - 跨服公告 / 物品公告 / 私密投递需要两端 LiuChat 协议一致（当前协议 10），且发送服有在线玩家（`transport: redis` 时空服也可发送）。
 - 跨服公告需要两端 LiuChat 均为协议 9 以上。
+
+## 好友 API
+
+```java
+FriendApi friends = Bukkit.getServicesManager().load(FriendApi.class);
+if (friends != null && friends.isEnabled()) {
+    friends.request(senderId, sender.getName(), targetId, targetName)
+           .thenAccept(result -> { /* FriendResult */ });
+}
+```
+
+`FriendApi` 提供好友列表、请求查询、发送/接受/拒绝/撤回/删除、关系查询与在线状态。
+方法返回 `CompletableFuture`，数据库与通知在专用线程执行；事件统一回主线程触发。
+详见 [好友系统](friends.md)。
+
+## 邮件 API
+
+```java
+MailApi mail = Bukkit.getServicesManager().load(MailApi.class);
+if (mail != null && mail.isEnabled()) {
+    mail.send(new MailDraft(senderId, senderName, recipientId, recipientName,
+            "主题", "正文", List.of(item))).thenAccept(result -> { /* MailResult */ });
+}
+```
+
+`MailApi` 提供发送、分页邮箱、详情、未读数、标记已读、领取附件与删除。
+附件使用 Paper 二进制 `ItemStack` 序列化并持久化，领取时切回玩家区域线程。
+详见 [邮件系统](mail.md)。
+
+## 玩家名目录
+
+好友/邮件命令按名字查找离线玩家时使用插件内部的 `player_identity` 表；
+玩家每次登录/退出都会更新，MySQL 模式下跨子服共享。外部 API 直接传 UUID 即可，
+不需要依赖该目录。新增玩家后建议通过在线玩家获取 UUID，或等待其至少登录一次。

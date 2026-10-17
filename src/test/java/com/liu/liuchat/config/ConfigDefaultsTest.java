@@ -87,6 +87,26 @@ class ConfigDefaultsTest {
         assertEquals("&7[AI] &b${player}&7: &7${message}", ai.getString("chat.format"));
     }
 
+    @Test void bundledSocialDefaultsExist() throws Exception {
+        try (var input = getClass().getResourceAsStream("/config.yml")) {
+            var defaults = YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(java.util.Objects.requireNonNull(input), java.nio.charset.StandardCharsets.UTF_8));
+            assertEquals(100, defaults.getInt("friends.max-friends"));
+            assertEquals(168, defaults.getInt("friends.request-expire-hours"));
+            assertEquals(30, defaults.getInt("mail.expire-days"));
+            assertEquals(3, defaults.getInt("mail.max-attachments"));
+            assertFalse(defaults.getBoolean("mail.allow-self"));
+        }
+        try (var input = getClass().getResourceAsStream("/messages.yml")) {
+            var messages = YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(java.util.Objects.requireNonNull(input), java.nio.charset.StandardCharsets.UTF_8));
+            assertTrue(messages.contains("friend.usage"));
+            assertTrue(messages.contains("mail.usage"));
+            assertTrue(messages.contains("help.friend.desc"));
+            assertTrue(messages.contains("help.mail.desc"));
+        }
+    }
+
     @Test void privateChatDefaultsHaveSeparateReplyActions() throws Exception {
         try (var input = getClass().getResourceAsStream("/chat.yml")) {
             var defaults = YamlConfiguration.loadConfiguration(

@@ -22,4 +22,4 @@ AI 助手独立于审核，可单独开启 `ai.assistant.enable`。在 `ai.assis
 
 `/liuc dialog ai` 是独立的 AI 对话 Dialog，标题取该助手的自定义显示名称。回答正文宽度由 `ai.yml` 中的 `ai.assistant.dialog-width` 控制，默认 520，范围 100-800。
 
-NPC 助手使用 Citizens 软依赖，不需要 CustomNameplates：在 `npc-assistants.yml` 中按 Citizens NPC ID 绑定助手名（例如 `npcs.'12'.assistant: bot`）；右键该 NPC 打开专用提问 Dialog，回答仅对点击者可见，但问答会进入该助手的共享会话供其他玩家续上。配置支持 `max-distance`、`cancel-other-actions`；未绑定的 NPC 不受影响。**本轮不做聊天气泡。** `npc-assistants.yml` 和技能在 `/liuc reload` 后重载。
+NPC 助手使用 Citizens 软依赖，不需要 CustomNameplates：`npc-assistants.yml` 为**每服本地配置**（NPC ID 各服不同，不随共享配置同步），按 Citizens NPC ID 绑定助手名（例如 `npcs.'12'.assistant: bot`）；右键该 NPC 打开专用提问 Dialog，回答仅对点击者可见，但问答会进入该助手的共享会话供其他玩家续上。配置支持 `max-distance`、`cancel-other-actions`；未绑定的 NPC 不受影响。**本轮不做聊天气泡。** `npc-assistants.yml` 和技能在 `/liuc reload` 后重载。

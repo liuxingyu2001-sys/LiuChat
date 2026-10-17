@@ -3,7 +3,7 @@ version: '${project.version}'
 main: com.liu.liuchat.LiuChat
 api-version: '1.21'
 authors: [liuxingyu2001]
-description: 聊天插件 —— 自定义格式 / 跨服聊天 / 禁言 / 冷却 / 重复检测 / 私聊 / QQ 官方机器人（零第三方框架依赖）
+description: 聊天插件 —— 自定义格式 / 跨服聊天 / 禁言 / 冷却 / 私聊 / 好友 / 邮件 / QQ 官方机器人（零第三方框架依赖）
 website: 'https://github.com/liuxingyu2001'
 folia-supported: true
 
@@ -68,6 +68,15 @@ commands:
 permissions:
   liuchat.channel:
     description: 使用频道命令
+    default: true
+  liuchat.friend:
+    description: 打开好友界面
+    default: true
+  liuchat.mail:
+    description: 打开邮箱界面
+    default: true
+  liuchat.mail.attach:
+    description: 发送邮件时附带主手物品
     default: true
   liuchat.channel.staff:
     description: 收发管理频道消息

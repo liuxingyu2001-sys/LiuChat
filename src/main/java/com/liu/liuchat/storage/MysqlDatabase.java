@@ -70,11 +70,27 @@ final class MysqlDatabase extends AbstractJdbcDatabase {
     }
 
     @Override
+    protected String upsertIdentitySql() {
+        return "INSERT INTO player_identity (uuid, name, name_key, last_seen) VALUES (?, ?, ?, ?) "
+                + "ON DUPLICATE KEY UPDATE name = VALUES(name), name_key = VALUES(name_key), "
+                + "last_seen = VALUES(last_seen)";
+    }
+
+    @Override
     protected void migrateProfileSchema(java.sql.Statement statement) {
         try {
             statement.executeUpdate("ALTER TABLE chat_profile MODIFY COLUMN nick TEXT");
         } catch (java.sql.SQLException ignored) {
             // Existing TEXT columns and SQLite-style schemas need no migration.
+        }
+    }
+
+    @Override
+    protected void migrateSocialSchema(java.sql.Statement statement) {
+        try {
+            statement.executeUpdate("ALTER TABLE mail MODIFY COLUMN attachments MEDIUMTEXT");
+        } catch (java.sql.SQLException ignored) {
+            // 新表已经是 MEDIUMTEXT，或旧表不存在
         }
     }
 

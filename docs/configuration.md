@@ -8,6 +8,38 @@ CustomNameplates API 支持：在 `chat.yml` 独立的玩家节点设置 `text: 
 
 CMI 同名指令由 `commands.prefer-liuchat: true` 将 `/msg`、`/tell`、`/w`、`/whisper`、`/horn` 转到 `liuchat:` 命名空间；不自动修改服务器 `commands.yml`。`/pm` 不由 LiuChat 注册或重定向。
 
+
+## 好友与邮件
+
+好友/邮件数据写入 `storage`（SQLite 单服 / MySQL 跨服共享）。以下段落位于共享 `config.yml`，`/liuc reload` 生效：
+
+```yaml
+friends:
+  enable: true
+  max-friends: 100        # 0 = 不限制
+  max-requests: 50
+  request-expire-hours: 168 # 0 = 永不过期
+  page-size: 45
+  notify-on-join: true
+
+mail:
+  enable: true
+  expire-days: 30         # 0 = 永不过期
+  max-per-player: 100     # 0 = 不限制
+  page-size: 45
+  max-subject-length: 64
+  max-body-length: 2000
+  max-attachments: 3
+  max-attachment-bytes: 16384
+  send-cooldown-seconds: 5
+  notify-on-join: true
+  allow-self: false
+```
+
+启动时自动创建 `friend_link`、`friend_request`、`player_identity`、`mail` 表；已有数据库无需手动迁移。
+好友/邮件的物品附件使用 Paper 二进制 ItemStack 序列化，不通过 YAML 反序列化。详见
+[好友系统](friends.md) 与 [邮件系统](mail.md)。
+
 ## 共享配置
 
 在每台服务器本地的 `plugins/LiuChat/config.yml` 设置：
@@ -21,7 +53,7 @@ settings:
 
 目录选择优先级为显式路径、已存在的 `/mc/shared/liuchat-config`、插件本地目录。显式路径不存在时尝试创建，失败会记录警告并回退本地；未指定路径时不会主动创建默认共享目录。路径修改需要重启。共享目录为空时仅复制缺失的内置默认文件，不会迁移或覆盖本地自定义配置，请将需要保留的配置预先放入共享目录。
 
-共享文件包括 `config.yml`、`messages.yml`、`shortcut.yml`、`dialogs.yml`、`npc-assistants.yml`、`reminders.yml` 和 `skills/`。聊天本地屏蔽词属于全服策略，放在共享 `config.yml` 的 `chat-filter` 段。以下文件始终从各子服本地 `plugins/LiuChat/` 读取，不共享，共享目录里的同名文件不会读取、覆盖本地文件或触发重载：`chat.yml`（聊天格式）、`ai.yml`（AI 键/模型/助手/审核/公屏 AI）、`qq.yml`（QQ 官方机器人凭证与桥接目标）。开启自动重载时仍监听这些本地文件。`settings.shared-config-path` 与 `settings.shared-skills-path` 从本地配置读取，修改需重启；`server` 也始终保留本地值，各子服必须使用不同标识。单独指定的 skills 目录同样参与自动监听。
+共享文件包括 `config.yml`、`messages.yml`、`shortcut.yml`、`dialogs.yml`、`reminders.yml` 和 `skills/`。聊天本地屏蔽词属于全服策略，放在共享 `config.yml` 的 `chat-filter` 段。以下文件始终从各子服本地 `plugins/LiuChat/` 读取，不共享，共享目录里的同名文件不会读取、覆盖本地文件或触发重载：`chat.yml`（聊天格式）、`ai.yml`（AI 键/模型/助手/审核/公屏 AI）、`npc-assistants.yml`（Citizens NPC 绑定，NPC ID 每服不同）、`qq.yml`（QQ 官方机器人凭证与桥接目标）。开启自动重载时仍监听这些本地文件。`settings.shared-config-path` 与 `settings.shared-skills-path` 从本地配置读取，修改需重启；`server` 也始终保留本地值，各子服必须使用不同标识。单独指定的 skills 目录同样参与自动监听。
 
 共享配置目录中的 `reminders.yml` 用于定时消息提醒。提醒可使用 `interval-seconds` 或 `times`（二选一），`times` 为指定时刻，`timezone` 控制时区，`days` 使用数字 `1` 到 `7` 分别表示周一到周日，空列表表示每天。共享配置下各子服按同一计划各自本地投递一次，不通过代理转发，因此不会重复；`servers` 可限制子服。
 

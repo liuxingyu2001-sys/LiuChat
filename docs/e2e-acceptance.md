@@ -73,12 +73,11 @@ config.yml          # 业务配置；server 等本地字段由各后端覆盖
 messages.yml
 shortcut.yml
 dialogs.yml
-npc-assistants.yml
 reminders.yml
 skills/
 ```
 
-各后端的 `chat.yml` 与 `ai.yml` 保存在本地 `plugins/LiuChat/`，分别用于子服独立聊天格式与 AI 配置，不参与共享。共享目录里的同名文件不会生效。
+各后端的 `chat.yml`、`ai.yml`、`npc-assistants.yml` 与 `qq.yml` 保存在本地 `plugins/LiuChat/`，分别用于子服独立聊天格式、AI、Citizens NPC 绑定与 QQ 机器人配置，不参与共享。共享目录里的同名文件不会生效。
 
 开始前使用独立测试实例和全新测试目录，保存旧测试证据，确认后端只加载一个 LiuChat 主 jar。不要直接清空生产实例、生产密钥、玩家聊天或数据库。
 
@@ -191,3 +190,23 @@ P01-P22：PASS / FAIL / N/A
 ```
 
 人工验收通过后，才可以在路线图中将“实际代理 + 双后端 + 客户端端到端验收”标记为完成。开发机上只有 Maven 测试或构建通过时，该项必须保持未完成。
+
+## 好友 / 邮件验收
+
+在真实的双后端 MySQL 环境（`storage.type: mysql`，两端同一库）额外执行：
+
+1. **好友流程**：A 在 backend-a 执行 `/liuc friend add B`；B 在 backend-b 应收到请求通知，
+   执行 `/liuc friend accept A` 后两端 `/liuc friend list` 均显示对方。A 下线后 B 列表应显示离线；
+   A 重新登录时 B 应收到上线通知（`friends.notify-on-join: true`）。
+2. **离线上限**：把 `friends.max-friends` 临时设为 1，确认第三名玩家的请求/接受返回好友上限；
+   恢复配置后 `/liuc reload`。
+3. **邮件与附件**：A 主手持有物品，执行 `/liuc mail` → 写邮件，填写 B/主题/正文并勾选附带主手；
+   B 在 backend-b 打开 `/liuc mail`，左键阅读未读邮件，点击“领取附件”后物品进入背包，再次领取返回“已领取”。
+4. **背包满**：B 背包填满后领取，应返回 `INVENTORY_FULL`，邮件不被标记领取；清理背包后再次领取成功。
+5. **离线收件**：B 不在线时 A 通过界面发送邮件；B 重新登录应收到未读数量提示，打开 `/liuc mail` 可见。
+6. **过期**：把 `mail.expire-days` 设为 1 并修改数据库邮件 `expires_at` 为过去时间，
+   确认列表/详情不可见，且过期清理任务删除记录。
+7. **API**：测试插件通过 `Bukkit.getServicesManager().load(FriendApi.class)` 与 `MailApi.class`
+   调用发送/查询，确认返回 `CompletableFuture` 完成且服务端主线程无数据库阻塞告警；
+   监听 `FriendAddedEvent`/`MailReceivedEvent` 能收到事件。
+8. **停服**：执行 `/stop`，确认无未落盘写入告警；重启后好友关系、邮件和附件仍存在。

@@ -88,3 +88,25 @@ Pages:
         Actions:
           - close
           - "command: liuc"
+
+  social:
+    Title: {zh_cn: "好友与邮件", en_us: "Friends & Mail"}
+    Keywords: ["好友", "邮件", "friend", "mail"]
+    Layout: ["好友", "邮件"]
+    Icons:
+      好友:
+        Type: "button"
+        Name: {zh_cn: "好友", en_us: "Friends"}
+        Description: {zh_cn: "打开好友列表、请求与添加界面", en_us: "Open friends, requests and add dialog"}
+        RequiresPlugin: "LiuChat"
+        Actions:
+          - close
+          - "command: liuc friend"
+      邮件:
+        Type: "button"
+        Name: {zh_cn: "邮件", en_us: "Mail"}
+        Description: {zh_cn: "打开邮箱，阅读/领取/写邮件", en_us: "Open mailbox"}
+        RequiresPlugin: "LiuChat"
+        Actions:
+          - close
+          - "command: liuc mail"

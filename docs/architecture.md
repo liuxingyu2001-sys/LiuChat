@@ -16,10 +16,15 @@ com.liu.liuchat
 │   ├── MessageTransport    异步传输结果接口；FallbackTransport 统一 Redis → 代理回落
 │   ├── PendingRequests     请求确认/失败/超时管理，完成后取消定时任务，关闭时清理
 │   ├── TellService         私聊：本服直达 + 跨服回执（送达确认/超时离线提示）
-│   └── MuteService         禁言缓存（uuid + 名字索引）+ 对账式全量刷新（跨服同步）
+│   ├── MuteService         禁言缓存（uuid + 名字索引）+ 对账式全量刷新（跨服同步）
+│   ├── PlayerDirectory     名字 → UUID 目录（离线好友/邮件解析，MySQL 跨服共享）
+│   ├── FriendService       双向好友/请求、上限/过期、上线通知、FriendApi
+│   ├── MailService         邮件/附件、分页/已读/领取/过期、MailApi
+│   └── SocialMenuService   好友/邮件箱子界面 + Paper Dialog（命令只打开界面）
 ├── storage/                Database 接口 + AbstractJdbcDatabase
 │   ├── DbExecutor          单线程任务队列：写异步落库（主线程不等往返）、读带读己之写屏障
 │   ├── SqliteDatabase / MysqlDatabase（方言在子类）+ DatabaseFactory
+├── api/                    ChannelApi / FriendApi / MailApi + 可取消事件
 ├── config/                 ConfigManager / MessageManager
 ├── model/MuteData          数据记录
 ├── hook/                   PapiHook / DialogMenuBridge / ArcMenuBridge / ChatWorkspace（可选插件类隔离）
@@ -53,6 +58,8 @@ com.liu.liuchat
   回调统一经兼容层回到区域线程。运行环境由 `Schedulers.isFolia()` 自动探测，Paper 上
   仍走原生 Bukkit 调度器，行为不变
 - **界面**：`/liuc menu` 优先打开 DialogMenu 内置菜单，其次 ArcMenu 聊天工作区（`liuchat:chat`，需 ProtocolLib），都未安装则提示；三者均为软依赖
+- **好友/邮件**：关系/请求/邮件写入统一存储（SQLite/MySQL），服务用独立守护线程执行数据库与通知，
+  事件统一切回全局线程；邮件附件用 Paper 二进制 ItemStack + Base64，领取时检查背包并回到玩家区域线程
 - **QQ 官方机器人**：`hook/qq` 使用 JDK 自带 `HttpClient` / `WebSocket`，WebSocket、心跳、token 与发送都在独立守护线程；
   入站事件切回全局线程后按固定格式广播（受忽略列表约束），出站玩家公聊经有界队列限速发送。
   QQ 消息跨服时把发送服的格式与来源放进 CHAT 的 placeholders 快照，接收服原样渲染，

@@ -11,7 +11,7 @@ Paper / Leaf / Folia 1.21+ 聊天插件（Java 21，零第三方框架依赖）�
 
 ## 功能一览
 
-聊天格式化（hover/click 节点）、物品与头像快照（`[i]` 与多件展示 `[i12]`/`[i1-9]`/`[盔甲]`/`[副手]`、潜影盒/收纳袋预览）、灵魂空间戒指只读预览、公屏 AI 聊天、@ 提及、全服喇叭（控制台可用）、快捷触发、屏蔽与昵称、跨服聊天与跨服私聊（回执式送达确认，控制台可用）、定向私密投递 API、禁言与 MySQL 跨服共享禁言、聊天冷却、重复检测、颜色权限、PAPI 变量（含菜单用的屏蔽数/最近私聊/喇叭余额/冷却）、AI 聊天审核与多助手问答、每日聊天日志、聊天菜单界面（`/liuc menu`：DialogMenu 内置菜单，或 ArcMenu 聊天工作区，均为软依赖）、QQ 官方机器人 WebSocket 双向聊天桥接（群聊/私聊/频道，断线重连与被动回复）。
+聊天格式化（hover/click 节点）、物品与头像快照（`[i]` 与多件展示 `[i12]`/`[i1-9]`/`[盔甲]`/`[副手]`、潜影盒/收纳袋预览）、灵魂空间戒指只读预览、公屏 AI 聊天、@ 提及、全服喇叭（控制台可用）、快捷触发、屏蔽与昵称、跨服聊天与跨服私聊（回执式送达确认，控制台可用）、定向私密投递 API、禁言与 MySQL 跨服共享禁言、聊天冷却、重复检测、颜色权限、PAPI 变量（含菜单用的屏蔽数/最近私聊/喇叭余额/冷却）、AI 聊天审核与多助手问答、每日聊天日志、聊天菜单界面（`/liuc menu`：DialogMenu 内置菜单，或 ArcMenu 聊天工作区，均为软依赖）、QQ 官方机器人 WebSocket 双向聊天桥接（群聊/私聊/频道，断线重连与被动回复）、好友系统与离线邮件系统（箱子/Paper Dialog 图形操作、物品附件、跨服共享与公开 API/事件）。
 
 详见 [docs/features.md](docs/features.md)。
 
@@ -24,9 +24,11 @@ Paper / Leaf / Folia 1.21+ 聊天插件（Java 21，零第三方框架依赖）�
 | [命令](docs/commands.md) | 命令列表、权限、部署提示 |
 | [配置要点](docs/configuration.md) | 各配置文件、聊天颜色、私聊格式 |
 | [AI 功能](docs/ai.md) | 聊天审核、AI 助手、会话与省 token |
+| [好友系统](docs/friends.md) | 双向好友、请求/上限、上线通知与 API |
+| [邮件系统](docs/mail.md) | 离线邮件、物品附件、领取/过期与 API |
 | [QQ 官方机器人](docs/qq.md) | WebSocket 双向聊天桥接、intents、目标 ID 与排查 |
 | [跨服](docs/cross-server.md) | 跨服私聊链路、Velocity 兼容性、部署清单 |
-| [插件 API](docs/api.md) | `broadcastAnnouncement` / `broadcastItemAnnouncement` / `deliverPrivate` |
+| [插件 API](docs/api.md) | 公告/私密投递、`FriendApi`、`MailApi` |
 | [架构](docs/architecture.md) | 包结构与关键设计 |
 | [路线图](docs/roadmap.md) | 开发计划 |
 | [端到端验收](docs/e2e-acceptance.md) | 实际代理、双后端、客户端验收矩阵与发布门禁 |

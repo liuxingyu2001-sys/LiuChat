@@ -13,8 +13,13 @@ final class SqliteDatabase extends AbstractJdbcDatabase {
     private final File dbFile;
 
     SqliteDatabase(JavaPlugin plugin) {
-        super(plugin);
-        this.dbFile = new File(plugin.getDataFolder(), "liuchat.db");
+        this(new File(plugin.getDataFolder(), "liuchat.db"), plugin.getLogger());
+    }
+
+    /** 测试用：直接指定数据库文件，不依赖 Bukkit。 */
+    SqliteDatabase(File dbFile, java.util.logging.Logger logger) {
+        super(logger, () -> true);
+        this.dbFile = dbFile;
     }
 
     @Override
@@ -53,6 +58,13 @@ final class SqliteDatabase extends AbstractJdbcDatabase {
     protected String upsertHornSql() {
         return "INSERT INTO horn_balance (owner, credits) VALUES (?, ?) "
                 + "ON CONFLICT(owner) DO UPDATE SET credits = credits + excluded.credits";
+    }
+
+    @Override
+    protected String upsertIdentitySql() {
+        return "INSERT INTO player_identity (uuid, name, name_key, last_seen) VALUES (?, ?, ?, ?) "
+                + "ON CONFLICT(uuid) DO UPDATE SET name = excluded.name, "
+                + "name_key = excluded.name_key, last_seen = excluded.last_seen";
     }
 
     @Override

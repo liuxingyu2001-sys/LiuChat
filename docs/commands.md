@@ -1,4 +1,4 @@
-# 命令（全部支持 tab 补全）
+# 命令（好友/邮件只用图形界面；其余支持 tab 补全）
 
 ```
 /liuc                              查看帮助
@@ -21,6 +21,8 @@
 /liuc dialog ai                    AI 聊天助手 Dialog
 /liuc dialog chatcolor              聊天颜色与渐变 Dialog
 /liuc menu [页面]                   打开聊天菜单界面（DialogMenu，或 ArcMenu 工作区）
+/liuc friend                       打开好友界面（列表/请求/添加）  权限: liuchat.friend
+/liuc mail                         打开邮箱界面（阅读/领取/写邮件）  权限: liuchat.mail / liuchat.mail.attach
 ```
 
 `/liuc dialog chatcolor` 打开聊天颜色与渐变设置 Dialog。

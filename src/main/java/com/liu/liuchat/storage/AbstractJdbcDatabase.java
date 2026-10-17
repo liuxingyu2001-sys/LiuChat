@@ -1,12 +1,17 @@
 package com.liu.liuchat.storage;
 
+import com.liu.liuchat.model.FriendRequestRow;
+import com.liu.liuchat.model.FriendRow;
+import com.liu.liuchat.model.MailRow;
 import com.liu.liuchat.model.MuteData;
+import com.liu.liuchat.model.PlayerIdentity;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,14 +32,22 @@ import java.util.logging.Level;
  */
 abstract class AbstractJdbcDatabase implements Database {
 
-    protected final JavaPlugin plugin;
+    protected final java.util.logging.Logger logger;
+    private final java.util.function.BooleanSupplier enabled;
     private volatile Connection connection;
     private volatile boolean ready;
     private final DbExecutor executor = new DbExecutor("LiuChat-db-writer");
     private final AtomicBoolean closed = new AtomicBoolean();
 
     protected AbstractJdbcDatabase(JavaPlugin plugin) {
-        this.plugin = plugin;
+        this(plugin.getLogger(), plugin::isEnabled);
+    }
+
+    /** 测试/嵌入式场景可只提供日志与启用状态，不依赖 JavaPlugin。 */
+    protected AbstractJdbcDatabase(java.util.logging.Logger logger,
+                                   java.util.function.BooleanSupplier enabled) {
+        this.logger = logger;
+        this.enabled = enabled == null ? () -> true : enabled;
     }
 
     /** jdbc 连接串 */
@@ -68,11 +81,13 @@ abstract class AbstractJdbcDatabase implements Database {
                         + "nick TEXT, color TEXT)");
                 migrateProfileSchema(statement);
                 statement.executeUpdate("CREATE TABLE IF NOT EXISTS horn_balance (owner VARCHAR(36) PRIMARY KEY, credits INT NOT NULL DEFAULT 0)");
+                createSocialSchema(statement);
+                migrateSocialSchema(statement);
             }
             ready = true;
         } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE,
-                    "数据库初始化失败（" + describe() + "），禁言数据仅保存在内存（重启丢失）", e);
+            logger.log(Level.SEVERE,
+                    "数据库初始化失败（" + describe() + "），相关数据暂不可用（重启丢失）", e);
         }
         return ready;
     }
@@ -103,7 +118,7 @@ abstract class AbstractJdbcDatabase implements Database {
      * @return true = 刚刚完成了重连（本次操作仍未生效）
      */
     protected synchronized boolean tryReconnect() {
-        if (!plugin.isEnabled()) return false;   // 关服过程中不要重建连接
+        if (!enabled.getAsBoolean()) return false;   // 关服过程中不要重建连接
         boolean healthy;
         try {
             healthy = connection != null && connection.isValid(2);
@@ -119,16 +134,16 @@ abstract class AbstractJdbcDatabase implements Database {
         connection = null;
         ready = false;
         if (!init()) return false;
-        plugin.getLogger().info("数据库连接已自动重连（" + describe() + "）");
+        logger.info("数据库连接已自动重连（" + describe() + "）");
         return true;
     }
 
     /** 统一的失败出口：能自愈就自愈并降级告警，否则按原样报严重错误。 */
     private void fail(String what, Exception e) {
         if (tryReconnect()) {
-            plugin.getLogger().log(Level.WARNING, what + "（连接已自动重连，本次操作未生效，下一次会重试）", e);
+            logger.log(Level.WARNING, what + "（连接已自动重连，本次操作未生效，下一次会重试）", e);
         } else {
-            plugin.getLogger().log(Level.SEVERE, what, e);
+            logger.log(Level.SEVERE, what, e);
         }
     }
 
@@ -341,6 +356,556 @@ abstract class AbstractJdbcDatabase implements Database {
     }
 
     protected abstract String upsertHornSql();
+    protected abstract String upsertIdentitySql();
+
+    // ---------------- 好友/邮件建表 ----------------
+
+    private void createSocialSchema(Statement statement) throws SQLException {
+        statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS player_identity (
+                    uuid      VARCHAR(36) PRIMARY KEY,
+                    name      VARCHAR(32) NOT NULL,
+                    name_key  VARCHAR(32) NOT NULL,
+                    last_seen BIGINT NOT NULL
+                )""");
+        statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS friend_link (
+                    low_uuid   VARCHAR(36) NOT NULL,
+                    high_uuid  VARCHAR(36) NOT NULL,
+                    low_name   VARCHAR(32) NOT NULL,
+                    high_name  VARCHAR(32) NOT NULL,
+                    created_at BIGINT NOT NULL,
+                    PRIMARY KEY (low_uuid, high_uuid)
+                )""");
+        statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS friend_request (
+                    sender_uuid VARCHAR(36) NOT NULL,
+                    sender_name VARCHAR(32) NOT NULL,
+                    target_uuid VARCHAR(36) NOT NULL,
+                    target_name VARCHAR(32) NOT NULL,
+                    created_at  BIGINT NOT NULL,
+                    expires_at  BIGINT NOT NULL,
+                    PRIMARY KEY (sender_uuid, target_uuid)
+                )""");
+        statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS mail (
+                    id             VARCHAR(36) PRIMARY KEY,
+                    sender_uuid    VARCHAR(36) NOT NULL,
+                    sender_name    VARCHAR(32) NOT NULL,
+                    recipient_uuid VARCHAR(36) NOT NULL,
+                    recipient_name VARCHAR(32) NOT NULL,
+                    subject        VARCHAR(128) NOT NULL,
+                    body           TEXT NOT NULL,
+                    attachments    MEDIUMTEXT,
+                    created_at     BIGINT NOT NULL,
+                    expires_at     BIGINT NOT NULL,
+                    is_read        INT NOT NULL DEFAULT 0,
+                    claimed        INT NOT NULL DEFAULT 0
+                )""");
+        tryIndex(statement, "CREATE INDEX friend_link_high ON friend_link(high_uuid)");
+        tryIndex(statement, "CREATE INDEX friend_request_target ON friend_request(target_uuid)");
+        tryIndex(statement, "CREATE INDEX player_identity_name ON player_identity(name_key)");
+        tryIndex(statement, "CREATE INDEX mail_recipient ON mail(recipient_uuid, created_at)");
+    }
+
+    /** 旧库升级钩子：方言相关的列类型迁移。 */
+    protected void migrateSocialSchema(Statement statement) {
+    }
+
+    private static void tryIndex(Statement statement, String sql) {
+        try {
+            statement.executeUpdate(sql);
+        } catch (SQLException ignored) {
+            // 索引已存在（SQLite/MySQL 对重复索引的报错不同，统一忽略）
+        }
+    }
+
+    // ---------------- 玩家名目录 ----------------
+
+    @Override
+    public void saveIdentity(PlayerIdentity identity) {
+        if (identity == null) return;
+        executor.write(() -> {
+            if (!ready) return;
+            try (PreparedStatement ps = connection.prepareStatement(upsertIdentitySql())) {
+                ps.setString(1, identity.uuid());
+                ps.setString(2, identity.name());
+                ps.setString(3, identity.name().toLowerCase(java.util.Locale.ROOT));
+                ps.setLong(4, identity.lastSeen());
+                ps.executeUpdate();
+            } catch (Exception e) {
+                fail("保存玩家名目录失败", e);
+            }
+        });
+    }
+
+    @Override
+    public PlayerIdentity loadIdentityByName(String nameKey) {
+        if (!ready || nameKey == null) return null;
+        return executor.read(() -> {
+            if (!ready) return null;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT uuid, name, last_seen FROM player_identity WHERE name_key = ? "
+                            + "ORDER BY last_seen DESC LIMIT 1")) {
+                ps.setString(1, nameKey.toLowerCase(java.util.Locale.ROOT));
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? new PlayerIdentity(rs.getString(1), rs.getString(2), rs.getLong(3)) : null;
+                }
+            } catch (Exception e) {
+                fail("读取玩家名目录失败", e);
+                return null;
+            }
+        });
+    }
+
+    @Override
+    public PlayerIdentity loadIdentityByUuid(String uuid) {
+        if (!ready || uuid == null) return null;
+        return executor.read(() -> {
+            if (!ready) return null;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT uuid, name, last_seen FROM player_identity WHERE uuid = ?")) {
+                ps.setString(1, uuid);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? new PlayerIdentity(rs.getString(1), rs.getString(2), rs.getLong(3)) : null;
+                }
+            } catch (Exception e) {
+                fail("读取玩家名目录失败", e);
+                return null;
+            }
+        });
+    }
+
+    // ---------------- 好友 ----------------
+
+    @Override
+    public List<FriendRow> loadFriends(String uuid) {
+        if (!ready || uuid == null) return new ArrayList<>();
+        return executor.read(() -> {
+            List<FriendRow> friends = new ArrayList<>();
+            if (!ready) return friends;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT low_uuid, low_name, high_uuid, high_name, created_at FROM friend_link "
+                            + "WHERE low_uuid = ? OR high_uuid = ?")) {
+                ps.setString(1, uuid);
+                ps.setString(2, uuid);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        String low = rs.getString(1);
+                        String high = rs.getString(3);
+                        if (uuid.equals(low)) friends.add(new FriendRow(high, rs.getString(4), rs.getLong(5)));
+                        else friends.add(new FriendRow(low, rs.getString(2), rs.getLong(5)));
+                    }
+                }
+            } catch (Exception e) {
+                fail("读取好友列表失败", e);
+                return null;
+            }
+            return friends;
+        });
+    }
+
+    @Override
+    public boolean areFriends(String first, String second) {
+        if (!ready || first == null || second == null) return false;
+        String[] pair = canonical(first, second);
+        return executor.read(() -> {
+            if (!ready) return false;
+            return friendExists(pair[0], pair[1]);
+        });
+    }
+
+    private boolean friendExists(String low, String high) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT 1 FROM friend_link WHERE low_uuid = ? AND high_uuid = ?")) {
+            ps.setString(1, low);
+            ps.setString(2, high);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (Exception e) {
+            fail("查询好友关系失败", e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean addFriend(String lowUuid, String lowName, String highUuid, String highName, long since) {
+        if (!ready || lowUuid == null || highUuid == null || lowUuid.equals(highUuid)) return false;
+        return executor.read(() -> {
+            if (!ready) return false;
+            if (friendExists(lowUuid, highUuid)) return false;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO friend_link (low_uuid, high_uuid, low_name, high_name, created_at) "
+                            + "VALUES (?, ?, ?, ?, ?)")) {
+                ps.setString(1, lowUuid);
+                ps.setString(2, highUuid);
+                ps.setString(3, lowName);
+                ps.setString(4, highName);
+                ps.setLong(5, since);
+                return ps.executeUpdate() == 1;
+            } catch (SQLException error) {
+                if (isDuplicate(error)) return false; // 另一台子服同时写入：按已存在处理
+                fail("保存好友关系失败", error);
+                return false;
+            } catch (Exception e) {
+                fail("保存好友关系失败", e);
+                return false;
+            }
+        });
+    }
+
+    @Override
+    public boolean removeFriend(String first, String second) {
+        if (!ready || first == null || second == null) return false;
+        String[] pair = canonical(first, second);
+        return executor.read(() -> {
+            if (!ready) return false;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM friend_link WHERE low_uuid = ? AND high_uuid = ?")) {
+                ps.setString(1, pair[0]);
+                ps.setString(2, pair[1]);
+                return ps.executeUpdate() == 1;
+            } catch (Exception e) {
+                fail("删除好友关系失败", e);
+                return false;
+            }
+        });
+    }
+
+    @Override
+    public List<FriendRequestRow> loadIncomingRequests(String uuid, long now) {
+        if (!ready || uuid == null) return new ArrayList<>();
+        return executor.read(() -> loadRequests("SELECT sender_uuid, sender_name, target_uuid, target_name, "
+                + "created_at, expires_at FROM friend_request WHERE target_uuid = ? AND expires_at > ? "
+                + "ORDER BY created_at DESC", uuid, now));
+    }
+
+    @Override
+    public List<FriendRequestRow> loadOutgoingRequests(String uuid, long now) {
+        if (!ready || uuid == null) return new ArrayList<>();
+        return executor.read(() -> loadRequests("SELECT sender_uuid, sender_name, target_uuid, target_name, "
+                + "created_at, expires_at FROM friend_request WHERE sender_uuid = ? AND expires_at > ? "
+                + "ORDER BY created_at DESC", uuid, now));
+    }
+
+    private List<FriendRequestRow> loadRequests(String sql, String uuid, long now) {
+        List<FriendRequestRow> requests = new ArrayList<>();
+        if (!ready) return requests;
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, uuid);
+            ps.setLong(2, now);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    requests.add(new FriendRequestRow(rs.getString(1), rs.getString(2),
+                            rs.getString(3), rs.getString(4), rs.getLong(5), rs.getLong(6)));
+                }
+            }
+        } catch (Exception e) {
+            fail("读取好友请求失败", e);
+            return null;
+        }
+        return requests;
+    }
+
+    @Override
+    public FriendRequestRow loadFriendRequest(String senderUuid, String targetUuid) {
+        if (!ready || senderUuid == null || targetUuid == null) return null;
+        return executor.read(() -> {
+            if (!ready) return null;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT sender_uuid, sender_name, target_uuid, target_name, created_at, expires_at "
+                            + "FROM friend_request WHERE sender_uuid = ? AND target_uuid = ?")) {
+                ps.setString(1, senderUuid);
+                ps.setString(2, targetUuid);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? new FriendRequestRow(rs.getString(1), rs.getString(2),
+                            rs.getString(3), rs.getString(4), rs.getLong(5), rs.getLong(6)) : null;
+                }
+            } catch (Exception e) {
+                fail("读取好友请求失败", e);
+                return null;
+            }
+        });
+    }
+
+    @Override
+    public boolean addFriendRequest(FriendRequestRow request) {
+        if (!ready || request == null) return false;
+        String[] pair = canonical(request.senderUuid(), request.targetUuid());
+        return executor.read(() -> {
+            if (!ready) return false;
+            if (friendExists(pair[0], pair[1])) return false;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO friend_request (sender_uuid, sender_name, target_uuid, target_name, "
+                            + "created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)")) {
+                ps.setString(1, request.senderUuid());
+                ps.setString(2, request.senderName());
+                ps.setString(3, request.targetUuid());
+                ps.setString(4, request.targetName());
+                ps.setLong(5, request.createdAt());
+                ps.setLong(6, request.expiresAt());
+                return ps.executeUpdate() == 1;
+            } catch (SQLException error) {
+                if (isDuplicate(error)) return false;
+                fail("保存好友请求失败", error);
+                return false;
+            } catch (Exception e) {
+                fail("保存好友请求失败", e);
+                return false;
+            }
+        });
+    }
+
+    @Override
+    public boolean removeFriendRequest(String senderUuid, String targetUuid) {
+        if (!ready || senderUuid == null || targetUuid == null) return false;
+        return executor.read(() -> {
+            if (!ready) return false;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM friend_request WHERE sender_uuid = ? AND target_uuid = ?")) {
+                ps.setString(1, senderUuid);
+                ps.setString(2, targetUuid);
+                return ps.executeUpdate() >= 1;
+            } catch (Exception e) {
+                fail("删除好友请求失败", e);
+                return false;
+            }
+        });
+    }
+
+    @Override
+    public int removeFriendRequestsBetween(String first, String second) {
+        if (!ready || first == null || second == null) return 0;
+        return executor.read(() -> {
+            if (!ready) return 0;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM friend_request WHERE (sender_uuid = ? AND target_uuid = ?) "
+                            + "OR (sender_uuid = ? AND target_uuid = ?)")) {
+                ps.setString(1, first);
+                ps.setString(2, second);
+                ps.setString(3, second);
+                ps.setString(4, first);
+                return ps.executeUpdate();
+            } catch (Exception e) {
+                fail("清理好友请求失败", e);
+                return 0;
+            }
+        });
+    }
+
+    @Override
+    public int removeExpiredFriendRequests(long now) {
+        if (!ready) return 0;
+        return executor.read(() -> {
+            if (!ready) return 0;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM friend_request WHERE expires_at > 0 AND expires_at <= ?")) {
+                ps.setLong(1, now);
+                return ps.executeUpdate();
+            } catch (Exception e) {
+                fail("清理过期好友请求失败", e);
+                return 0;
+            }
+        });
+    }
+
+    // ---------------- 邮件 ----------------
+
+    @Override
+    public boolean saveMail(MailRow mail) {
+        if (mail == null) return false;
+        return executor.read(() -> {
+            if (!ready) return false;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO mail (id, sender_uuid, sender_name, recipient_uuid, recipient_name, "
+                            + "subject, body, attachments, created_at, expires_at, is_read, claimed) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                ps.setString(1, mail.id());
+                ps.setString(2, mail.senderUuid());
+                ps.setString(3, mail.senderName());
+                ps.setString(4, mail.recipientUuid());
+                ps.setString(5, mail.recipientName());
+                ps.setString(6, mail.subject());
+                ps.setString(7, mail.body());
+                ps.setString(8, String.join("\n", mail.attachments()));
+                ps.setLong(9, mail.createdAt());
+                ps.setLong(10, mail.expiresAt());
+                ps.setInt(11, mail.read() ? 1 : 0);
+                ps.setInt(12, mail.claimed() ? 1 : 0);
+                return ps.executeUpdate() == 1;
+            } catch (Exception e) {
+                fail("保存邮件失败", e);
+                return false;
+            }
+        });
+    }
+
+    @Override
+    public MailRow loadMail(String id) {
+        if (!ready || id == null) return null;
+        return executor.read(() -> {
+            if (!ready) return null;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT id, sender_uuid, sender_name, recipient_uuid, recipient_name, subject, body, "
+                            + "attachments, created_at, expires_at, is_read, claimed FROM mail WHERE id = ?")) {
+                ps.setString(1, id);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? mapMail(rs) : null;
+                }
+            } catch (Exception e) {
+                fail("读取邮件失败", e);
+                return null;
+            }
+        });
+    }
+
+    @Override
+    public MailRow loadMailByPrefix(String recipientUuid, String prefix) {
+        if (!ready || recipientUuid == null || prefix == null || prefix.length() < 4) return null;
+        return executor.read(() -> {
+            if (!ready) return null;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT id, sender_uuid, sender_name, recipient_uuid, recipient_name, subject, body, "
+                            + "attachments, created_at, expires_at, is_read, claimed FROM mail "
+                            + "WHERE recipient_uuid = ? AND id LIKE ? AND (expires_at = 0 OR expires_at > ?) "
+                            + "ORDER BY created_at DESC LIMIT 1")) {
+                ps.setString(1, recipientUuid);
+                ps.setString(2, prefix + "%");
+                ps.setLong(3, System.currentTimeMillis());
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? mapMail(rs) : null;
+                }
+            } catch (Exception e) {
+                fail("读取邮件失败", e);
+                return null;
+            }
+        });
+    }
+
+    @Override
+    public List<MailRow> loadMail(String recipientUuid, long now, int offset, int limit) {
+        if (!ready || recipientUuid == null) return new ArrayList<>();
+        return executor.read(() -> {
+            List<MailRow> mails = new ArrayList<>();
+            if (!ready) return mails;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT id, sender_uuid, sender_name, recipient_uuid, recipient_name, subject, body, "
+                            + "attachments, created_at, expires_at, is_read, claimed FROM mail "
+                            + "WHERE recipient_uuid = ? AND (expires_at = 0 OR expires_at > ?) "
+                            + "ORDER BY created_at DESC LIMIT ? OFFSET ?")) {
+                ps.setString(1, recipientUuid);
+                ps.setLong(2, now);
+                ps.setInt(3, Math.max(1, Math.min(100, limit)));
+                ps.setInt(4, Math.max(0, offset));
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) mails.add(mapMail(rs));
+                }
+            } catch (Exception e) {
+                fail("读取邮箱失败", e);
+                return null;
+            }
+            return mails;
+        });
+    }
+
+    @Override
+    public int countMail(String recipientUuid, long now) {
+        if (!ready || recipientUuid == null) return 0;
+        return executor.read(() -> countSql("SELECT COUNT(*) FROM mail WHERE recipient_uuid = ? "
+                + "AND (expires_at = 0 OR expires_at > ?)", recipientUuid, now));
+    }
+
+    @Override
+    public int countUnread(String recipientUuid, long now) {
+        if (!ready || recipientUuid == null) return 0;
+        return executor.read(() -> countSql("SELECT COUNT(*) FROM mail WHERE recipient_uuid = ? "
+                + "AND is_read = 0 AND (expires_at = 0 OR expires_at > ?)", recipientUuid, now));
+    }
+
+    private int countSql(String sql, String recipientUuid, long now) {
+        if (!ready) return 0;
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, recipientUuid);
+            ps.setLong(2, now);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        } catch (Exception e) {
+            fail("统计邮件失败", e);
+            return 0;
+        }
+    }
+
+    @Override
+    public boolean markMailRead(String id, String recipientUuid) {
+        return updateMail("UPDATE mail SET is_read = 1 WHERE id = ? AND recipient_uuid = ?", id, recipientUuid);
+    }
+
+    @Override
+    public boolean markMailClaimed(String id, String recipientUuid) {
+        return updateMail("UPDATE mail SET claimed = 1 WHERE id = ? AND recipient_uuid = ? AND claimed = 0",
+                id, recipientUuid);
+    }
+
+    @Override
+    public boolean deleteMail(String id, String recipientUuid) {
+        return updateMail("DELETE FROM mail WHERE id = ? AND recipient_uuid = ?", id, recipientUuid);
+    }
+
+    private boolean updateMail(String sql, String id, String recipientUuid) {
+        if (!ready || id == null || recipientUuid == null) return false;
+        return executor.read(() -> {
+            if (!ready) return false;
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setString(1, id);
+                ps.setString(2, recipientUuid);
+                return ps.executeUpdate() >= 1;
+            } catch (Exception e) {
+                fail("更新邮件失败", e);
+                return false;
+            }
+        });
+    }
+
+    @Override
+    public int deleteExpiredMail(long now) {
+        if (!ready) return 0;
+        return executor.read(() -> {
+            if (!ready) return 0;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM mail WHERE expires_at > 0 AND expires_at <= ?")) {
+                ps.setLong(1, now);
+                return ps.executeUpdate();
+            } catch (Exception e) {
+                fail("清理过期邮件失败", e);
+                return 0;
+            }
+        });
+    }
+
+    private static MailRow mapMail(ResultSet rs) throws SQLException {
+        String attachments = rs.getString(8);
+        List<String> parts = new ArrayList<>();
+        if (attachments != null && !attachments.isBlank()) {
+            for (String part : attachments.split("\n")) {
+                if (!part.isBlank()) parts.add(part);
+            }
+        }
+        return new MailRow(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                rs.getString(5), rs.getString(6), rs.getString(7), parts,
+                rs.getLong(9), rs.getLong(10), rs.getInt(11) != 0, rs.getInt(12) != 0);
+    }
+
+    private static String[] canonical(String first, String second) {
+        return first.compareTo(second) <= 0 ? new String[]{first, second} : new String[]{second, first};
+    }
+
+    private static boolean isDuplicate(SQLException error) {
+        String state = error.getSQLState();
+        return state != null && state.startsWith("23")
+                || error.getErrorCode() == 1062 || error.getErrorCode() == 19;
+    }
 
     @Override
     public void close() {
@@ -350,7 +915,7 @@ abstract class AbstractJdbcDatabase implements Database {
         // 先排空写队列（停服前把异步落库刷完），再按 ready → connection 顺序关闭，
         // 让并发读先在 ready 检查上短路，避免触碰已关闭的连接
         if (!executor.close(10)) {
-            plugin.getLogger().warning("数据库队列未在 10 秒内排空，可能有未落盘的写入");
+            logger.warning("数据库队列未在 10 秒内排空，可能有未落盘的写入");
         }
         ready = false;
         Connection open = connection;
