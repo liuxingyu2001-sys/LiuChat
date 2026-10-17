@@ -351,6 +351,17 @@ public final class CrossServerService implements PluginMessageListener, Listener
         sendViaAny(() -> CrossServerCodec.encodeChat(server, uuid, name, message, itemData, placeholders, nick));
     }
 
+    /**
+     * 外部聊天（QQ 机器人等）跨服广播：把发送服的固定格式与来源一起放进
+     * placeholders 快照，接收服按同一格式渲染，不受各服 chat.yml 差异影响。
+     */
+    public void publishExternalChat(String server, String uuid, String name, String format,
+                                    String message, String source, String target) {
+        if (!enabled) return;
+        sendViaAny(() -> CrossServerCodec.encodeChat(server, uuid, name, message, "",
+                ExternalChatSnapshot.encode(format, source, target, uuid), name));
+    }
+
     /** 跨服私聊：广播给其他子服，只有目标所在服会投递并回执 */
     public java.util.concurrent.CompletableFuture<Boolean> publishTell(Player via, String msgId, String senderName, String targetName, String message,
                                String placeholders, String nick, String itemData) {

@@ -23,6 +23,7 @@ com.liu.liuchat
 ├── config/                 ConfigManager / MessageManager
 ├── model/MuteData          数据记录
 ├── hook/                   PapiHook / DialogMenuBridge / ArcMenuBridge / ChatWorkspace（可选插件类隔离）
+│   └── qq/                 QQ 官方机器人 WebSocket 桥接（qq.yml；ZERO 第三方依赖）
 └── util/
     ├── TextUtil            颜色 / 时长解析 / 相似度
     └── Schedulers          Paper / Folia 调度器兼容层（全局/异步/实体区域）
@@ -52,4 +53,8 @@ com.liu.liuchat
   回调统一经兼容层回到区域线程。运行环境由 `Schedulers.isFolia()` 自动探测，Paper 上
   仍走原生 Bukkit 调度器，行为不变
 - **界面**：`/liuc menu` 优先打开 DialogMenu 内置菜单，其次 ArcMenu 聊天工作区（`liuchat:chat`，需 ProtocolLib），都未安装则提示；三者均为软依赖
+- **QQ 官方机器人**：`hook/qq` 使用 JDK 自带 `HttpClient` / `WebSocket`，WebSocket、心跳、token 与发送都在独立守护线程；
+  入站事件切回全局线程后按固定格式广播（受忽略列表约束），出站玩家公聊经有界队列限速发送。
+  QQ 消息跨服时把发送服的格式与来源放进 CHAT 的 placeholders 快照，接收服原样渲染，
+  不套用各服自己的 `chat.yml`；启用与否只由本地 `qq.yml` 决定
 - maven 资源过滤只作用于 `plugin.yml`，配置里的 `${player}` 等占位符不会被 maven 碰

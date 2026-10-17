@@ -75,8 +75,10 @@ class SharedConfigTest {
     @Test void keepsAiAndChatOutOfSharedFiles() {
         assertTrue(SharedConfig.LOCAL_FILES.contains("ai.yml"));
         assertTrue(SharedConfig.LOCAL_FILES.contains("chat.yml"));
+        assertTrue(SharedConfig.LOCAL_FILES.contains("qq.yml"));
         assertFalse(SharedConfig.CONFIG_FILES.contains("ai.yml"));
         assertFalse(SharedConfig.CONFIG_FILES.contains("chat.yml"));
+        assertFalse(SharedConfig.CONFIG_FILES.contains("qq.yml"));
     }
 
     @Test void automaticReloadDefaultsToDisabled() throws Exception {

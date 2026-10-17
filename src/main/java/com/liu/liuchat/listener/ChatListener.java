@@ -45,8 +45,12 @@ public final class ChatListener implements Listener {
     private final RepeatCheck repeats = new RepeatCheck();
     /** 公屏 AI 聊天（可选）：玩家发言交给它判定是否点名了 AI */
     private PublicChatAiService publicAi;
+    /** QQ 官方机器人桥接（可选）：本服公屏同步到 QQ */
+    private com.liu.liuchat.hook.qq.QqBotHook qqBot;
 
     public void setPublicChatAi(PublicChatAiService ai) { this.publicAi = ai; }
+
+    public void setQqBot(com.liu.liuchat.hook.qq.QqBotHook qqBot) { this.qqBot = qqBot; }
 
     public ChatListener(JavaPlugin plugin, ConfigManager config, MessageManager messages,
                         MuteService muteService, ChatService chatService,
@@ -167,6 +171,7 @@ public final class ChatListener implements Listener {
         audit.record(uuid.toString(), player.getName(), text);
         crossServer.publishChat(player, dispatch.message(), dispatch.itemData(),
                 dispatch.placeholders(), dispatch.nick());
+        if (qqBot != null) qqBot.publishPlayerChat(player, dispatch.message());
         if (publicAi != null) publicAi.onLocalMessage(uuid.toString(), player.getName(), text);
         return com.liu.liuchat.api.ChannelApi.Result.SENT;
     }

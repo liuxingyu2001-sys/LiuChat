@@ -24,7 +24,7 @@ public final class SharedConfig implements AutoCloseable {
     static final List<String> CONFIG_FILES = List.of("config.yml", "messages.yml",
             "shortcut.yml", "dialogs.yml", "npc-assistants.yml", "reminders.yml", "channels.yml");
     /** 每服本地业务配置：不共享，但参与自动重载监听与重载前校验。 */
-    static final List<String> LOCAL_FILES = List.of("chat.yml", "ai.yml");
+    static final List<String> LOCAL_FILES = List.of("chat.yml", "ai.yml", "qq.yml");
     private volatile com.liu.liuchat.util.Schedulers.Handle task;
     private volatile boolean closed;
     private final AtomicBoolean reloading = new AtomicBoolean();

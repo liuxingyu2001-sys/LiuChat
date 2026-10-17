@@ -159,6 +159,12 @@ public final class ChatService {
 
     public void broadcastRemote(String originServer, String uuid, String playerName,
                                 String message, String itemData, String placeholders, String nick) {
+        ExternalChatSnapshot.Appearance external = ExternalChatSnapshot.decode(placeholders, uuid);
+        if (external != null) {
+            broadcastExternal(uuid, playerName, external.format(), message,
+                    external.source(), external.target(), true);
+            return;
+        }
         AiChatSnapshot.Appearance appearance = AiChatSnapshot.decode(placeholders, playerName, uuid);
         if (appearance == null && publicAi != null && publicAi.isAiSender(uuid, playerName)) {
             appearance = new AiChatSnapshot.Appearance(config.aiChatFormat(), publicAi.aiHeadUuid());
@@ -181,6 +187,22 @@ public final class ChatService {
                 PublicChatAiService.formatComponents(format, playerName, message, headUuid,
                         text -> presentation.markMentions(text).text()),
                 PublicChatAiService.formatLine(format, playerName, message), message);
+    }
+
+    /**
+     * 外部聊天（QQ 机器人等）落地：固定格式渲染、不走聊天模板；仍受忽略列表约束。
+     * 该消息是虚拟身份，不会有 @ 提示音。
+     */
+    public void broadcastExternal(String uuid, String playerName, String format, String message,
+                                  String source, String target, boolean log) {
+        BaseComponent[] line = ExternalChatText.components(format, playerName, message, source, target);
+        net.kyori.adventure.text.Component rendered = PaperChatComponents.convert(line, items);
+        Schedulers.forEachPlayer(plugin, online -> {
+            if (ignores != null && ignores.ignores(online, uuid, playerName)) return;
+            online.sendMessage(rendered);
+        });
+        Bukkit.getConsoleSender().sendMessage(ExternalChatText.line(format, playerName, message, source, target));
+        if (log && logs != null) logs.record("EXTERNAL", config.server(), playerName, "*", message);
     }
 
     public void broadcastPlain(String uuid, String playerName, BaseComponent[] line,

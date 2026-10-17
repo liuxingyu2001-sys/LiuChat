@@ -1,0 +1,83 @@
+# ============================================================
+#  LiuChat QQ 官方机器人配置
+#  每台子服独立读取，不随共享配置同步；修改后执行 /liuc reload 生效
+#
+#  使用 QQ 开放平台机器人（官方 WebSocket 网关，不是 OneBot/NapCat）：
+#    https://q.qq.com/  ->  创建机器人  ->  获取 AppID / AppSecret
+#  同一个机器人只应在一台子服启用，避免多台服同时连接导致事件被随机分发。
+# ============================================================
+
+enable: false
+
+# QQ 开放平台机器人凭证
+app-id: ''
+app-secret: ''
+
+# true = 使用沙箱环境（sandbox.api.sgroup.qq.com），正式上线后改为 false
+sandbox: false
+
+connection:
+  # 自定义 WebSocket 网关；留空自动请求 /gateway（正式/沙箱按 sandbox 选择）
+  gateway: ''
+  # 断线重连初始间隔与上限（秒），失败后按 2 倍退避
+  reconnect-seconds: 5
+  reconnect-max-seconds: 60
+  # HTTP 请求与 WebSocket 连接超时（秒）
+  timeout-seconds: 15
+
+# 订阅的事件类型（QQ 机器人 intents）：
+#   group         = 群聊 @机器人（GROUP_AT_MESSAGE_CREATE）
+#   c2c           = 私聊消息（C2C_MESSAGE_CREATE）
+#   guild         = 公域频道 @机器人（AT_MESSAGE_CREATE，PUBLIC_GUILD_MESSAGES）
+#   guild-private = 私域频道 @机器人（AT_MESSAGE_CREATE，GUILD_MESSAGES）
+#   direct        = 频道私信（DIRECT_MESSAGE_CREATE）
+#   all           = 群聊 + 私聊 + 公域频道 + 频道私信（私域频道请显式写 guild-private）
+# 默认只订阅群聊 @ 与私聊。
+intents: [group, c2c]
+# 额外 intents 位（十进制或 0x 十六进制），一般留 0；用于订阅上面没有预设的事件
+intents-bits: 0
+
+# ---------------- QQ -> 游戏 ----------------
+receive:
+  enable: true
+  # 只接收这些会话；留空 = 接收机器人收到的全部会话。
+  # 填群 openid、用户 openid 或频道 ID（对应事件的 target）。
+  channels: []
+  # 进游戏后的固定格式。支持 ${sender}（QQ 昵称或短 ID）、${message}、
+  # ${source}（群聊/私聊/频道/私信）、${target}（会话 ID）。
+  # 消息正文最后插入：正文里的 & 与 ${...} 原样显示，§ 颜色码会被清掉。
+  format: '&8[&9QQ&8] &b${sender}&8» &f${message}'
+  # 拿不到 QQ 昵称时（群聊/私聊通常如此）使用的显示名前缀
+  fallback-name: 'QQ用户'
+  # 单条 QQ 消息进游戏的最大长度
+  max-length: 300
+  # 是否把 QQ 消息同步到其他子服（需要跨服开启；格式由接收服沿用发送服配置）
+  cross-server: false
+  # 是否写入聊天日志（类型 EXTERNAL）
+  log: true
+  # 第一次收到某个会话时在控制台打印 target ID，方便复制到 send.targets
+  log-targets: true
+
+# ---------------- 游戏 -> QQ ----------------
+send:
+  # 默认关闭：QQ 官方机器人主动推送通常需要额外权限。
+  # 开启后优先在 passive-window-seconds 内回复最近一条 QQ 消息（官方允许的被动回复），
+  # 超出窗口才作为主动消息发送，可能被平台拒绝，具体看机器人权限。
+  enable: false
+  # 发送目标，可写多条：
+  #   - group:<群 openid>
+  #   - c2c:<用户 openid>
+  #   - channel:<频道 ID>
+  #   - direct:<私信频道 ID>
+  # 不带前缀时按 group 处理。
+  targets: []
+  # 公屏消息格式，支持 ${server} ${player} ${message}；正文中的颜色码会被去掉
+  format: '[${server}] ${player}: ${message}'
+  # 两条消息最小间隔（毫秒），防止触发平台频率限制
+  interval-ms: 1000
+  # 单条发到 QQ 的最大长度
+  max-length: 2000
+  # 是否在被动回复窗口内附带最近一条 QQ 消息的 msg_id
+  passive-reply: true
+  # 被动回复窗口（秒），官方群聊被动回复窗口通常为 5 分钟
+  passive-window-seconds: 240

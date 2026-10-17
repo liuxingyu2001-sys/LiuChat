@@ -87,6 +87,8 @@ public final class LiuChat extends JavaPlugin {
 
     private com.liu.liuchat.service.ReminderService reminders;
     private java.nio.file.Path skillsRoot;
+    /** QQ 官方机器人 WebSocket 桥接（qq.yml 未启用时为 null 或未连接） */
+    private com.liu.liuchat.hook.qq.QqBotHook qqBot;
     /** ArcMenu 聊天工作区（软依赖）；未安装、无 ProtocolLib 或 Folia 上为 null */
     private ChatWorkspace chatWorkspace;
 
@@ -114,6 +116,8 @@ public final class LiuChat extends JavaPlugin {
         reloadCommand.reload();
         // 跨服密钥与 enable 开关随 reload 生效（原实现要重启，密钥不一致时会静默丢包）
         if (crossServer != null) crossServer.reload();
+        // QQ 机器人：只改格式/目标不断线，凭证或网关变化才重建 WebSocket
+        if (qqBot != null) qqBot.reload();
         reminders.reload();
         sharedConfig.watch(configManager.autoReloadConfig(), this::reloadChatConfiguration);
     }
@@ -270,6 +274,15 @@ public final class LiuChat extends JavaPlugin {
         channels.setSender(chatListener::sendChannel);
         getServer().getPluginManager().registerEvents(chatListener, this);
 
+        // 5.1 QQ 官方机器人（qq.yml，每服本地；未启用时只加载配置）
+        qqBot = new com.liu.liuchat.hook.qq.QqBotHook(this, chatService, crossServer, configManager);
+        chatListener.setQqBot(qqBot);
+        try {
+            qqBot.start();
+        } catch (RuntimeException e) {
+            getLogger().log(java.util.logging.Level.WARNING, "QQ 机器人初始化失败，本次启动跳过", e);
+        }
+
         // 6. ArcMenu 聊天工作区（软依赖；未安装 / 缺 ProtocolLib / Folia 上直接不注册）
         if (ArcMenuBridge.available()) {
             try {
@@ -409,6 +422,10 @@ public final class LiuChat extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (qqBot != null) {
+            qqBot.close();
+            qqBot = null;
+        }
         if (channels != null) channels.close();
         getServer().getServicesManager().unregisterAll(this);
         if (chatWorkspace != null) {
