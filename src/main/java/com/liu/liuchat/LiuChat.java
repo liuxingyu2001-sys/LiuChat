@@ -275,8 +275,10 @@ public final class LiuChat extends JavaPlugin {
         router.register(tell);
         ChatCommand reply = new ReplyCommand(messageManager, tellService, tell);
         router.register(reply);
-        router.register(new com.liu.liuchat.command.FriendCommand(socialMenu));
-        router.register(new com.liu.liuchat.command.MailCommand(socialMenu));
+        ChatCommand friend = new com.liu.liuchat.command.FriendCommand(socialMenu);
+        ChatCommand mail = new com.liu.liuchat.command.MailCommand(socialMenu);
+        router.register(friend);
+        router.register(mail);
 
         PluginCommand mainCommand = requireCommand("liuchat");
         if (mainCommand == null) {
@@ -294,6 +296,8 @@ public final class LiuChat extends JavaPlugin {
         if (!bindDirect("chatcolor", chatColor, router)) return;
         if (!bindDirect("mute", mute, router)) return;
         if (!bindDirect("unmute", unmute, router)) return;
+        if (!bindDirect("friend", friend, router)) return;
+        if (!bindDirect("mail", mail, router)) return;
 
         // 5. 事件监听（跨服服务是 PluginMessageListener，注册发生在其构造器里）
         getServer().getPluginManager().registerEvents(items, this);

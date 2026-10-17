@@ -64,6 +64,14 @@ commands:
   nick:
     description: 设置聊天昵称
     usage: /nick <昵称或MiniMessage>
+  friend:
+    description: 打开好友界面
+    aliases: ['好友']
+    usage: /friend
+  mail:
+    description: 打开邮箱界面
+    aliases: ['邮件']
+    usage: /mail
 
 permissions:
   liuchat.channel:

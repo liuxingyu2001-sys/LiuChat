@@ -6,7 +6,9 @@
 ## 界面操作
 
 ```text
-/liuc friend                 打开好友界面
+/friend                      打开好友界面（主指令）
+/好友                        中文别名
+/liuc friend                 子命令入口，效果相同
 ```
 
 权限：`liuchat.friend`（默认所有玩家可用）。命令只负责打开界面，所有操作都在箱子或 Paper Dialog 中完成：
