@@ -20,7 +20,12 @@ public final class MailCommand implements ChatCommand {
 
     @Override
     public void execute(CommandSender sender, String[] args) {
-        menu.openMailList((Player) sender);
+        Player player = (Player) sender;
+        if (args.length > 0 && args[0].equalsIgnoreCase("compose")) {
+            menu.openCompose(player);
+        } else {
+            menu.openMailList(player);
+        }
     }
 
     @Override

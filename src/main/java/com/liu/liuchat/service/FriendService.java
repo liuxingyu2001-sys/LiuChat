@@ -166,7 +166,7 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
             FriendResult accepted = addFriends(sender, senderName, target, targetName);
             database.removeFriendRequestsBetween(sender.toString(), target.toString());
             if (accepted == FriendResult.OK) {
-                notifier.send(targetName, "friend.accepted-notify", "${player}", senderName);
+                notifier.sendClickable(targetName, "friend.accepted-notify", "/liuc friend", "${player}", senderName);
                 return FriendResult.ACCEPTED_MUTUAL;
             }
             return accepted;
@@ -182,7 +182,7 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
             return database.areFriends(sender.toString(), target.toString())
                     ? FriendResult.ALREADY_FRIENDS : FriendResult.REQUEST_EXISTS;
         }
-        notifier.send(targetName, "friend.request-received", "${player}", senderName);
+        notifier.sendClickable(targetName, "friend.request-received", "/liuc friend requests", "${player}", senderName);
         return FriendResult.REQUEST_SENT;
     }
 
@@ -215,8 +215,8 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
                 display(requesterName, requester));
         database.removeFriendRequestsBetween(player.toString(), requester.toString());
         if (result == FriendResult.OK) {
-            notifier.send(display(requesterName, requester), "friend.accepted-notify", "${player}",
-                    display(playerName, player));
+            notifier.sendClickable(display(requesterName, requester), "friend.accepted-notify", "/liuc friend",
+                    "${player}", display(playerName, player));
         }
         return result;
     }
@@ -309,7 +309,7 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
         if (!database.removeFriendRequest(requester.toString(), player.toString())) {
             return FriendResult.REQUEST_NOT_FOUND;
         }
-        notifier.send(requesterName, "friend.denied-notify", "${player}", playerName);
+        notifier.sendClickable(requesterName, "friend.denied-notify", "/liuc friend", "${player}", playerName);
         return FriendResult.OK;
     }
 
@@ -317,7 +317,7 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
         if (!database.removeFriendRequest(sender.toString(), target.toString())) {
             return FriendResult.REQUEST_NOT_FOUND;
         }
-        notifier.send(targetName, "friend.cancel-notify", "${player}", senderName);
+        notifier.sendClickable(targetName, "friend.cancel-notify", "/liuc friend", "${player}", senderName);
         return FriendResult.OK;
     }
 
@@ -330,7 +330,7 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
         }
         database.removeFriendRequestsBetween(player.toString(), friend.toString());
         SocialEvents.fire(plugin, new FriendRemovedEvent(player, playerName, friend, friendName));
-        notifier.send(friendName, "friend.removed-notify", "${player}", playerName);
+        notifier.sendClickable(friendName, "friend.removed-notify", "/liuc friend", "${player}", playerName);
         return FriendResult.OK;
     }
 
@@ -420,13 +420,14 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
                 .thenAccept(rows -> {
                     if (rows == null) return;
                     for (FriendRow row : rows) {
-                        notifier.send(row.name(), "friend.join-notify", "${player}", player.getName());
+                        notifier.sendClickable(row.name(), "friend.join-notify", "/liuc friend", "${player}", player.getName());
                     }
                 });
         CompletableFuture.supplyAsync(() -> database.loadIncomingRequests(uuid.toString(),
                 System.currentTimeMillis()), worker).thenAccept(rows -> {
             if (rows != null && !rows.isEmpty()) {
-                notifier.send(player.getName(), "friend.join-requests", "${count}", String.valueOf(rows.size()));
+                notifier.sendClickable(player.getName(), "friend.join-requests", "/liuc friend requests",
+                        "${count}", String.valueOf(rows.size()));
             }
         });
     }

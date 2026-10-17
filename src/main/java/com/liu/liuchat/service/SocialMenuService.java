@@ -152,7 +152,7 @@ public final class SocialMenuService implements Listener {
         }));
     }
 
-    private void openFriendRequests(Player player, int page) {
+    public void openFriendRequests(Player player, int page) {
         friends.incomingRequests(player.getUniqueId()).thenAccept(requests -> main(player, () -> {
             MenuHolder holder = new MenuHolder("好友请求");
             Inventory inventory = Bukkit.createInventory(holder, FRIEND_ROWS, title("好友请求"));
@@ -189,7 +189,7 @@ public final class SocialMenuService implements Listener {
         }));
     }
 
-    private void openFriendSent(Player player, int page) {
+    public void openFriendSent(Player player, int page) {
         friends.outgoingRequests(player.getUniqueId()).thenAccept(requests -> main(player, () -> {
             MenuHolder holder = new MenuHolder("已发送请求");
             Inventory inventory = Bukkit.createInventory(holder, FRIEND_ROWS, title("已发送的请求"));
@@ -219,7 +219,7 @@ public final class SocialMenuService implements Listener {
         }));
     }
 
-    private void openAddFriendDialog(Player player) {
+    public void openAddFriendDialog(Player player) {
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(text("添加好友"))
                         .inputs(List.of(DialogInput.text("name", text("玩家名"))
@@ -370,7 +370,7 @@ public final class SocialMenuService implements Listener {
                 () -> openMailDetail(player, mailId)));
     }
 
-    private void openCompose(Player player) {
+    public void openCompose(Player player) {
         openCompose(player, "");
     }
 
@@ -407,7 +407,23 @@ public final class SocialMenuService implements Listener {
         String subject = view.getText("subject");
         String body = view.getText("body");
         boolean attach = Boolean.TRUE.equals(view.getBoolean("attach"));
-        List<ItemStack> attachments = List.of();
+        directory.find(recipient.strip()).thenAccept(target -> {
+            if (target.isEmpty()) {
+                messages.send(player, "mail.player-not-found", "${player}", recipient);
+                return;
+            }
+            PlayerIdentity identity = target.get();
+            main(player, () -> beginSend(player, identity, subject, body, attach));
+        });
+    }
+
+    /** 在主线程先扣除附件，再发送；失败则退回，避免“邮件已发出但物品还在”。 */
+    private void beginSend(Player player, PlayerIdentity identity, String subject, String body, boolean attach) {
+        if (identity.uuid().equals(player.getUniqueId().toString()) && !config.mailAllowSelf()) {
+            messages.send(player, "mail.self");
+            return;
+        }
+        ItemStack attached = null;
         if (attach) {
             if (!player.hasPermission("liuchat.mail.attach")) {
                 messages.send(player, "mail.attach-no-permission");
@@ -418,30 +434,67 @@ public final class SocialMenuService implements Listener {
                 messages.send(player, "mail.attach-empty");
                 return;
             }
-            attachments = List.of(hand.clone());
+            attached = hand.clone();
+            if (!consumeAttachment(player, attached)) {
+                messages.send(player, "mail.attach-changed");
+                return;
+            }
         }
-        final List<ItemStack> finalAttachments = attachments;
-        directory.find(recipient.strip()).thenAccept(target -> {
-            if (target.isEmpty()) {
-                messages.send(player, "mail.player-not-found", "${player}", recipient);
+        final ItemStack refund = attached;
+        MailDraft draft = new MailDraft(player.getUniqueId(), player.getName(),
+                UUID.fromString(identity.uuid()), identity.name(), subject, body,
+                attached == null ? List.of() : List.of(attached));
+        mail.send(draft).thenAccept(result -> {
+            if (result == MailResult.OK) {
+                String shown = subject == null || subject.isBlank() ? "无主题" : subject;
+                messages.send(player, "mail.sent", "${player}", identity.name(), "${subject}", shown);
+                main(player, () -> openMailList(player, 1));
+            } else {
+                refundAttachment(player, refund);
+                afterMail(player, result, "mail.send-ok", () -> openMailList(player, 1));
+            }
+        });
+    }
+
+    /** 从背包扣除与快照相同的一堆物品；数量不足时不做任何修改。 */
+    private static boolean consumeAttachment(Player player, ItemStack expected) {
+        if (expected == null || expected.getType().isAir()) return false;
+        ItemStack[] contents = player.getInventory().getContents();
+        int need = expected.getAmount();
+        int available = 0;
+        for (ItemStack stack : contents) {
+            if (stack != null && stack.isSimilar(expected)) available += stack.getAmount();
+        }
+        if (available < need) return false;
+        int remaining = need;
+        for (int i = 0; i < contents.length && remaining > 0; i++) {
+            ItemStack stack = contents[i];
+            if (stack == null || !stack.isSimilar(expected)) continue;
+            int take = Math.min(remaining, stack.getAmount());
+            int left = stack.getAmount() - take;
+            if (left <= 0) player.getInventory().setItem(i, null);
+            else {
+                stack.setAmount(left);
+                player.getInventory().setItem(i, stack);
+            }
+            remaining -= take;
+        }
+        return remaining == 0;
+    }
+
+    /** 邮件发送失败时退回已扣除的附件；背包满则掉落在玩家脚下。 */
+    private void refundAttachment(Player player, ItemStack item) {
+        if (item == null) return;
+        Schedulers.runFor(plugin, player, () -> {
+            if (!player.isOnline()) {
+                plugin.getLogger().warning("邮件发送失败，但玩家已离线，附件无法退回: " + player.getName()
+                        + " x" + item.getAmount() + " " + item.getType());
                 return;
             }
-            PlayerIdentity identity = target.get();
-            if (identity.uuid().equals(player.getUniqueId().toString()) && !config.mailAllowSelf()) {
-                messages.send(player, "mail.self");
-                return;
+            var leftover = player.getInventory().addItem(item.clone());
+            for (ItemStack drop : leftover.values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), drop);
             }
-            MailDraft draft = new MailDraft(player.getUniqueId(), player.getName(),
-                    UUID.fromString(identity.uuid()), identity.name(), subject, body, finalAttachments);
-            mail.send(draft).thenAccept(result -> {
-                if (result == MailResult.OK) {
-                    String shown = subject == null || subject.isBlank() ? "无主题" : subject;
-                    messages.send(player, "mail.sent", "${player}", identity.name(), "${subject}", shown);
-                    main(player, () -> openMailList(player, 1));
-                } else {
-                    afterMail(player, result, "mail.send-ok", () -> openMailList(player, 1));
-                }
-            });
         });
     }
 

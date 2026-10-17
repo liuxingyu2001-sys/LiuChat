@@ -150,7 +150,8 @@ public final class MailService implements MailApi, Listener, AutoCloseable {
         if (!database.saveMail(row)) return MailResult.STORAGE_UNAVAILABLE;
         Mail mail = toApi(row);
         SocialEvents.fire(plugin, new MailReceivedEvent(mail));
-        notifier.send(recipientName, "mail.received-notify", "${player}", senderName, "${subject}", subject);
+        notifier.sendClickable(recipientName, "mail.received-notify", "/liuc mail",
+                "${player}", senderName, "${subject}", subject);
         return MailResult.OK;
     }
 
@@ -382,7 +383,7 @@ public final class MailService implements MailApi, Listener, AutoCloseable {
         CompletableFuture.supplyAsync(() -> database.countUnread(uuid.toString(), System.currentTimeMillis()), worker)
                 .thenAccept(count -> {
                     if (count != null && count > 0) {
-                        notifier.send(name, "mail.join-unread", "${count}", String.valueOf(count));
+                        notifier.sendClickable(name, "mail.join-unread", "/liuc mail", "${count}", String.valueOf(count));
                     }
                 });
     }

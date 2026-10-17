@@ -3,6 +3,9 @@ package com.liu.liuchat.service;
 import com.liu.liuchat.LiuChat;
 import com.liu.liuchat.config.MessageManager;
 import com.liu.liuchat.util.Schedulers;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -29,6 +32,23 @@ public final class SocialNotifier {
         sendRaw(playerName, messages.prefix() + messages.get(key, placeholders));
     }
 
+    /** 可点击通知：点击执行 command（只应指向打开界面的命令）。 */
+    public void sendClickable(String playerName, String key, String command, String... placeholders) {
+        if (playerName == null || playerName.isBlank()) return;
+        if (command == null || command.isBlank()) {
+            send(playerName, key, placeholders);
+            return;
+        }
+        String line = messages.prefix() + messages.get(key, placeholders);
+        BaseComponent[] components = TextComponent.fromLegacyText(line);
+        for (BaseComponent component : components) {
+            component.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command));
+            component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                    TextComponent.fromLegacyText("§7点击打开界面")));
+        }
+        sendComponents(playerName, components);
+    }
+
     public void sendRaw(String playerName, String line) {
         if (playerName == null || playerName.isBlank() || line == null || line.isEmpty()) return;
         Player local = Bukkit.getPlayerExact(playerName);
@@ -44,6 +64,24 @@ public final class SocialNotifier {
                 chat.deliverPrivate(null, playerName, TextComponent.fromLegacyText(line));
             } catch (RuntimeException error) {
                 plugin.getLogger().log(java.util.logging.Level.FINE, "跨服社交通知发送失败", error);
+            }
+        });
+    }
+
+    private void sendComponents(String playerName, net.md_5.bungee.api.chat.BaseComponent[] components) {
+        Player local = Bukkit.getPlayerExact(playerName);
+        if (local != null) {
+            Schedulers.runFor(plugin, local, () -> local.spigot().sendMessage(components));
+            return;
+        }
+        if (crossServer == null || !crossServer.isEnabled()) return;
+        LiuChat chat = LiuChat.instance();
+        if (chat == null || !plugin.isEnabled()) return;
+        Schedulers.runGlobal(plugin, () -> {
+            try {
+                chat.deliverPrivate(null, playerName, components);
+            } catch (RuntimeException error) {
+                plugin.getLogger().log(java.util.logging.Level.FINE, "跨服可点击通知发送失败", error);
             }
         });
     }

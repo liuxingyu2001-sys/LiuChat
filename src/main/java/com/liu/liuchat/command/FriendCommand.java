@@ -20,7 +20,17 @@ public final class FriendCommand implements ChatCommand {
 
     @Override
     public void execute(CommandSender sender, String[] args) {
-        menu.openFriendMain((Player) sender);
+        Player player = (Player) sender;
+        if (args.length == 0) {
+            menu.openFriendMain(player);
+            return;
+        }
+        switch (args[0].toLowerCase(java.util.Locale.ROOT)) {
+            case "requests", "incoming" -> menu.openFriendRequests(player, 1);
+            case "sent", "outgoing" -> menu.openFriendSent(player, 1);
+            case "add" -> menu.openAddFriendDialog(player);
+            default -> menu.openFriendMain(player);
+        }
     }
 
     @Override
