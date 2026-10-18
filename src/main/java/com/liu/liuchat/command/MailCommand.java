@@ -1,6 +1,6 @@
 package com.liu.liuchat.command;
 
-import com.liu.liuchat.service.SocialMenuService;
+import com.liu.liuchat.service.SocialMenu;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -8,9 +8,9 @@ import java.util.List;
 
 /** /liuc mail —— 只打开邮箱界面，阅读/领取/写邮件都在箱子或对话框内完成。 */
 public final class MailCommand implements ChatCommand {
-    private final SocialMenuService menu;
+    private final SocialMenu menu;
 
-    public MailCommand(SocialMenuService menu) {
+    public MailCommand(SocialMenu menu) {
         this.menu = menu;
     }
 

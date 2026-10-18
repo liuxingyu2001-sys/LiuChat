@@ -20,7 +20,8 @@ com.liu.liuchat
 │   ├── PlayerDirectory     名字 → UUID 目录（离线好友/邮件解析，MySQL 跨服共享）
 │   ├── FriendService       双向好友/请求、上限/过期、上线通知、FriendApi
 │   ├── MailService         邮件/附件、分页/已读/领取/过期、MailApi
-│   └── SocialMenuService   好友/邮件箱子界面 + Paper Dialog（命令只打开界面）
+│   ├── SocialMenuService   旧版箱子界面 + Paper Dialog（Sparrow 初始化失败时回退）
+│   └── SparrowSocialMenuService Sparrow UI 好友/邮件窗口 + 铁砧输入 + 正文 Dialog
 ├── storage/                Database 接口 + AbstractJdbcDatabase
 │   ├── DbExecutor          单线程任务队列：写异步落库（主线程不等往返）、读带读己之写屏障
 │   ├── SqliteDatabase / MysqlDatabase（方言在子类）+ DatabaseFactory

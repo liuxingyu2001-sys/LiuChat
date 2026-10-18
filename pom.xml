@@ -4,11 +4,11 @@
 
   <groupId>com.liuxingyu</groupId>
   <artifactId>LiuChat</artifactId>
-  <version>0.7.9</version>
+  <version>0.8.0</version>
   <packaging>jar</packaging>
 
   <name>LiuChat</name>
-  <description>聊天插件 —— 自定义格式 / 禁言 / 冷却 / 重复检测 / 私聊（零第三方框架依赖）</description>
+  <description>聊天插件 —— 自定义格式 / 禁言 / 冷却 / 重复检测 / 私聊（内置 Sparrow UI）</description>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -37,6 +37,10 @@
       <id>momirealms</id>
       <url>https://repo.momirealms.net/releases/</url>
     </repository>
+    <repository>
+      <id>momirealms-snapshots</id>
+      <url>https://repo.momirealms.net/snapshots</url>
+    </repository>
   </repositories>
 
   <dependencies>
@@ -57,6 +61,13 @@
       <artifactId>custom-nameplates</artifactId>
       <version>3.0.33</version>
       <scope>provided</scope>
+    </dependency>
+    <!-- Sparrow UI：随插件打包并 relocate，服务端不需要单独安装 -->
+    <dependency>
+      <groupId>net.momirealms</groupId>
+      <artifactId>sparrow-ui</artifactId>
+      <version>beta.38</version>
+      <scope>compile</scope>
     </dependency>
     <!-- 可选接入：ArcMenu 聊天工作区（api 模块 jar 随仓库提交在 libs/repo，MIT，同 SoulSpace 做法）；
          运行期缺 ArcMenu 或 ProtocolLib、或在 Folia 上则不注册 -->
@@ -163,7 +174,44 @@
           <encoding>${project.build.sourceEncoding}</encoding>
         </configuration>
       </plugin>
-    <!-- Paper bundles Adventure; no shade needed. -->
+    <!-- Paper bundles Adventure; Sparrow UI 必须打包并 relocate -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.3</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <artifactSet>
+                <includes>
+                  <include>net.momirealms:sparrow-ui</include>
+                </includes>
+              </artifactSet>
+              <relocations>
+                <relocation>
+                  <pattern>net.momirealms.sparrow.ui</pattern>
+                  <shadedPattern>com.liu.liuchat.libs.sparrow.ui</shadedPattern>
+                </relocation>
+              </relocations>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>

@@ -1,6 +1,6 @@
 package com.liu.liuchat.command;
 
-import com.liu.liuchat.service.SocialMenuService;
+import com.liu.liuchat.service.SocialMenu;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -8,9 +8,9 @@ import java.util.List;
 
 /** /liuc friend —— 只打开好友界面，所有操作在箱子/对话框内完成。 */
 public final class FriendCommand implements ChatCommand {
-    private final SocialMenuService menu;
+    private final SocialMenu menu;
 
-    public FriendCommand(SocialMenuService menu) {
+    public FriendCommand(SocialMenu menu) {
         this.menu = menu;
     }
 

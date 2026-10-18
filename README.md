@@ -2,16 +2,16 @@
 
 [![Maven CI](https://github.com/liuxingyu2001/LiuChat/actions/workflows/maven.yml/badge.svg)](https://github.com/liuxingyu2001/LiuChat/actions/workflows/maven.yml)
 
-Paper / Leaf / Folia 1.21+ 聊天插件（Java 21，零第三方框架依赖）。当前使用 Paper 1.21.11 API 编译；1.21 早期小版本尚未验证，部分功能可能需要较新版本。
+Paper / Leaf / Folia 1.21+ 聊天插件（Java 21）。核心逻辑无外部框架依赖，好友/邮件界面内置 [Sparrow UI](https://github.com/Catnies/sparrow-ui)（Apache-2.0，已 relocate）。当前使用 Paper 1.21.11 API 编译；1.21 早期小版本尚未验证，部分功能可能需要较新版本。
 
-- **平台**：完整物品悬浮及 Dialogs 使用 Paper API；内置调度器兼容层，同一份 jar 在 Paper / Leaf 与 Folia 上均可运行（`folia-supported: true`）
+- **平台**：完整物品悬浮及 Dialogs 使用 Paper API；好友/邮件使用 Sparrow UI 的箱子窗口与铁砧输入；内置调度器兼容层，同一份 jar 在 Paper / Leaf 与 Folia 上均可运行（`folia-supported: true`）
 - **存储**：SQLite（单服）/ MySQL（跨服共享），驱动经 plugin.yml `libraries` 由 Paper 自动下载
 - **跨服**：BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持，当前协议 10）；可选 `cross-server.transport: redis` 改走 Redis pub/sub（手写 RESP 零依赖，空服可收发，失败自动回落代理）
 - **可选依赖**：PlaceholderAPI、CustomNameplates、CraftEngine、SoulSpace、Citizens、DialogMenu、ArcMenu + ProtocolLib；未安装时基础聊天可用
 
 ## 功能一览
 
-聊天格式化（hover/click 节点）、物品与头像快照（`[i]` 与多件展示 `[i12]`/`[i1-9]`/`[盔甲]`/`[副手]`、潜影盒/收纳袋预览）、灵魂空间戒指只读预览、公屏 AI 聊天、@ 提及、全服喇叭（控制台可用）、快捷触发、屏蔽与昵称、跨服聊天与跨服私聊（回执式送达确认，控制台可用）、定向私密投递 API、禁言与 MySQL 跨服共享禁言、聊天冷却、重复检测、颜色权限、PAPI 变量（含菜单用的屏蔽数/最近私聊/喇叭余额/冷却）、AI 聊天审核与多助手问答、每日聊天日志、聊天菜单界面（`/liuc menu`：DialogMenu 内置菜单，或 ArcMenu 聊天工作区，均为软依赖）、QQ 官方机器人 WebSocket 双向聊天桥接（群聊/私聊/频道，断线重连与被动回复）、好友系统与离线邮件系统（箱子/Paper Dialog 图形操作、物品附件、跨服共享与公开 API/事件）。
+聊天格式化（hover/click 节点）、物品与头像快照（`[i]` 与多件展示 `[i12]`/`[i1-9]`/`[盔甲]`/`[副手]`、潜影盒/收纳袋预览）、灵魂空间戒指只读预览、公屏 AI 聊天、@ 提及、全服喇叭（控制台可用）、快捷触发、屏蔽与昵称、跨服聊天与跨服私聊（回执式送达确认，控制台可用）、定向私密投递 API、禁言与 MySQL 跨服共享禁言、聊天冷却、重复检测、颜色权限、PAPI 变量（含菜单用的屏蔽数/最近私聊/喇叭余额/冷却）、AI 聊天审核与多助手问答、每日聊天日志、聊天菜单界面（`/liuc menu`：DialogMenu 内置菜单，或 ArcMenu 聊天工作区，均为软依赖）、QQ 官方机器人 WebSocket 双向聊天桥接（群聊/私聊/频道，断线重连与被动回复）、好友系统与离线邮件系统（Sparrow UI 主界面直接展示好友、铁砧输入、物品附件、跨服共享与公开 API/事件）。
 
 详见 [docs/features.md](docs/features.md)。
 

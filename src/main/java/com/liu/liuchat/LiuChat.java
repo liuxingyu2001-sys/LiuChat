@@ -65,7 +65,7 @@ public final class LiuChat extends JavaPlugin {
     private com.liu.liuchat.service.FriendService friendService;
     private com.liu.liuchat.service.MailService mailService;
     private com.liu.liuchat.service.PlayerDirectoryService playerDirectory;
-    private com.liu.liuchat.service.SocialMenuService socialMenu;
+    private com.liu.liuchat.service.SocialMenu socialMenu;
 
     public com.liu.liuchat.api.FriendApi getFriendApi() { return friendService; }
     public com.liu.liuchat.api.MailApi getMailApi() { return mailService; }
@@ -137,6 +137,7 @@ public final class LiuChat extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
+        boolean sparrowUi = com.liu.liuchat.service.SparrowUiSupport.init(this);
 
         // 1. 配置与语言文件
         var bootstrap = com.liu.liuchat.config.ConfigDefaults.load(this, getDataFolder(), "config.yml");
@@ -196,8 +197,11 @@ public final class LiuChat extends JavaPlugin {
                 messageManager, crossServer, playerDirectory);
         mailService = new com.liu.liuchat.service.MailService(this, database, configManager,
                 messageManager, crossServer, playerDirectory);
-        socialMenu = new com.liu.liuchat.service.SocialMenuService(this, friendService, mailService,
-                playerDirectory, messageManager, configManager);
+        socialMenu = sparrowUi
+                ? new com.liu.liuchat.service.SparrowSocialMenuService(this, friendService, mailService,
+                        playerDirectory, messageManager, configManager)
+                : new com.liu.liuchat.service.SocialMenuService(this, friendService, mailService,
+                        playerDirectory, messageManager, configManager);
         getServer().getServicesManager().register(com.liu.liuchat.api.FriendApi.class, friendService, this,
                 org.bukkit.plugin.ServicePriority.Normal);
         getServer().getServicesManager().register(com.liu.liuchat.api.MailApi.class, mailService, this,
@@ -306,7 +310,9 @@ public final class LiuChat extends JavaPlugin {
         getServer().getPluginManager().registerEvents(playerDirectory, this);
         getServer().getPluginManager().registerEvents(friendService, this);
         getServer().getPluginManager().registerEvents(mailService, this);
-        getServer().getPluginManager().registerEvents(socialMenu, this);
+        if (socialMenu instanceof org.bukkit.event.Listener listener) {
+            getServer().getPluginManager().registerEvents(listener, this);
+        }
         getServer().getPluginManager().registerEvents(new CommandAliasListener(configManager), this);
         ChatListener chatListener = new ChatListener(this, configManager, messageManager, muteService,
                 chatService, crossServer, audit);

@@ -56,7 +56,7 @@ import java.util.function.Consumer;
  * 好友/邮件的箱子界面。命令只负责打开界面，具体增删/领取/编写都通过点击或 Paper Dialog 完成。
  * 所有点击取消默认行为，避免从只读界面取走展示物品。
  */
-public final class SocialMenuService implements Listener {
+public final class SocialMenuService implements Listener, SocialMenu {
     private static final int FRIEND_ROWS = 54;
     private static final int MAIL_ROWS = 54;
     private static final int CONTENT = 45;
