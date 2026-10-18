@@ -21,6 +21,7 @@ friends:
   request-expire-hours: 168 # 0 = 永不过期
   page-size: 45
   notify-on-join: true
+  join-notify-cooldown-seconds: 300 # 跨服往返/重复上线的提醒冷却；读取共享 last_seen；0 = 每次都提醒
 
 mail:
   enable: true

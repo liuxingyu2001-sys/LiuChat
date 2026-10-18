@@ -49,6 +49,8 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
     });
     private Schedulers.Handle purgeTask;
     private volatile boolean closed;
+    /** 接收者 + 上线好友 -> 最近一次上线提醒时间，避免跨服往返重复提醒。 */
+    private final FriendJoinNotificationGate joinGate = new FriendJoinNotificationGate();
 
     public FriendService(JavaPlugin plugin, Database database, ConfigManager config, MessageManager messages,
                          CrossServerService crossServer, PlayerDirectoryService directory) {
@@ -416,20 +418,28 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
         if (!isEnabled() || !config.friendsNotifyOnJoin() || !database.isReady()) return;
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
-        CompletableFuture.supplyAsync(() -> database.loadFriends(uuid.toString()), worker)
+        long now = System.currentTimeMillis();
+        long cooldown = Math.max(0L, config.friendsJoinNotifyCooldownSeconds() * 1000L);
+        // 共享 last_seen：刚在别的子服切过来/重连时，不再向所有好友重复播报。
+        directory.previousSeen(uuid).thenAccept(previous -> {
+            if (previous > 0L && now - previous < cooldown) return;
+            CompletableFuture.supplyAsync(() -> database.loadFriends(uuid.toString()), worker)
+                    .thenAccept(rows -> {
+                        if (rows == null) return;
+                        for (FriendRow row : rows) {
+                            if (!joinGate.shouldNotify(row.uuid(), uuid.toString(), now, cooldown)) continue;
+                            notifier.sendClickable(row.name(), "friend.join-notify", "/liuc friend",
+                                    "${player}", player.getName());
+                        }
+                    });
+        });
+        CompletableFuture.supplyAsync(() -> database.loadIncomingRequests(uuid.toString(), now), worker)
                 .thenAccept(rows -> {
-                    if (rows == null) return;
-                    for (FriendRow row : rows) {
-                        notifier.sendClickable(row.name(), "friend.join-notify", "/liuc friend", "${player}", player.getName());
+                    if (rows != null && !rows.isEmpty()) {
+                        notifier.sendClickable(player.getName(), "friend.join-requests", "/liuc friend requests",
+                                "${count}", String.valueOf(rows.size()));
                     }
                 });
-        CompletableFuture.supplyAsync(() -> database.loadIncomingRequests(uuid.toString(),
-                System.currentTimeMillis()), worker).thenAccept(rows -> {
-            if (rows != null && !rows.isEmpty()) {
-                notifier.sendClickable(player.getName(), "friend.join-requests", "/liuc friend requests",
-                        "${count}", String.valueOf(rows.size()));
-            }
-        });
     }
 
     private void log(String message, Throwable error) {
@@ -441,6 +451,7 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
         if (closed) return;
         closed = true;
         if (purgeTask != null) purgeTask.cancel();
+        joinGate.clear();
         worker.shutdown();
         try {
             if (!worker.awaitTermination(5, TimeUnit.SECONDS)) worker.shutdownNow();

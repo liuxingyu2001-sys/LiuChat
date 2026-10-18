@@ -319,6 +319,10 @@ public final class ConfigManager {
     public int friendsRequestExpireHours() { return bounded("friends.request-expire-hours", 168, 0, 8760); }
     public int friendsPageSize() { return bounded("friends.page-size", 45, 1, 45); }
     public boolean friendsNotifyOnJoin() { return config.getBoolean("friends.notify-on-join", true); }
+    /** 同一好友在短时间内重复上线（跨服往返）时的通知冷却；0 = 不冷却。 */
+    public int friendsJoinNotifyCooldownSeconds() {
+        return bounded("friends.join-notify-cooldown-seconds", 300, 0, 86400);
+    }
 
     public boolean mailEnabled() { return config.getBoolean("mail.enable", true); }
     public int mailExpireDays() { return bounded("mail.expire-days", 30, 0, 3650); }

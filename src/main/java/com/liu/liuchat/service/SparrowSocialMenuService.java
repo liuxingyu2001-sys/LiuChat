@@ -139,8 +139,8 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                     click -> openFriendRequests(click.player(), 1)));
             items.put(46, button(Material.PAPER, "&7已发送请求", List.of("&7查看等待对方处理的请求"),
                     click -> openFriendSent(click.player(), 1)));
-            items.put(47, button(Material.WRITABLE_BOOK, "&a添加好友", List.of("&7铁砧输入玩家名发送请求"),
-                    click -> openAddFriendDialog(click.player())));
+            items.put(47, button(Material.WRITABLE_BOOK, "&a添加好友", List.of("&7在线玩家一键添加 / 手动输入"),
+                    click -> openAddFriendPicker(click.player())));
             if (current > 1) {
                 items.put(48, button(Material.SPECTRAL_ARROW, "&e上一页",
                         List.of("&7第 " + (current - 1) + " 页"),
@@ -227,6 +227,57 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                     p -> openFriendSent(p, current + 1),
                     this::openFriendMain);
             open(player, normal(player, "已发送的请求", 6, items));
+        }));
+    }
+
+    /** 先列出本服在线玩家，点击直接发请求；离线玩家再走铁砧输入。 */
+    private void openAddFriendPicker(Player player) {
+        openAddFriendPicker(player, 1);
+    }
+
+    private void openAddFriendPicker(Player player, int page) {
+        friends.friends(player.getUniqueId()).thenAccept(all -> main(player, () -> {
+            Map<Integer, Item> items = new ConcurrentHashMap<>();
+            java.util.Set<String> friendIds = new java.util.HashSet<>();
+            for (Friend friend : all) friendIds.add(friend.uuid().toString());
+            java.util.List<Player> online = new java.util.ArrayList<>();
+            for (Player target : Bukkit.getOnlinePlayers()) {
+                if (target.equals(player) || friendIds.contains(target.getUniqueId().toString())) continue;
+                online.add(target);
+            }
+            online.sort(java.util.Comparator.comparing(Player::getName, String.CASE_INSENSITIVE_ORDER));
+            int pages = Math.max(1, (online.size() + CONTENT - 1) / CONTENT);
+            int current = Math.min(Math.max(1, page), pages);
+            int from = (current - 1) * CONTENT;
+            int to = Math.min(online.size(), from + CONTENT);
+            for (int i = from; i < to; i++) {
+                Player target = online.get(i);
+                items.put(i - from, head(target.getName(), target.getUniqueId(), target.getName(),
+                        List.of("&7点击发送好友请求", "&7无需输入名字"), click ->
+                                friends.request(click.player().getUniqueId(), click.player().getName(),
+                                                target.getUniqueId(), target.getName())
+                                        .thenAccept(result -> afterFriend(click.player(), result, "friend.ok",
+                                                target.getName(), () -> openFriendMain(click.player())))));
+            }
+            if (online.isEmpty()) {
+                items.put(22, button(Material.COBWEB, "&7没有可添加的在线玩家",
+                        List.of("&7可以点击下方“手动输入”查找离线玩家"), null));
+            }
+            items.put(45, button(Material.ANVIL, "&e手动输入名字", List.of("&7添加离线或跨服玩家"),
+                    click -> openAddFriendDialog(click.player())));
+            if (current > 1) {
+                items.put(48, button(Material.SPECTRAL_ARROW, "&e上一页", List.of("&7第 " + (current - 1) + " 页"),
+                        click -> openAddFriendPicker(click.player(), current - 1)));
+            }
+            if (current < pages) {
+                items.put(50, button(Material.SPECTRAL_ARROW, "&e下一页", List.of("&7第 " + (current + 1) + " 页"),
+                        click -> openAddFriendPicker(click.player(), current + 1)));
+            }
+            items.put(49, button(Material.PAPER, "&7第 " + current + " / " + pages + " 页",
+                    List.of("&7好友 " + all.size() + " 人"), null));
+            items.put(53, button(Material.ARROW, "&7返回好友", List.of("&7点击返回"),
+                    click -> openFriendMain(click.player())));
+            open(player, normal(player, "添加好友", 6, items));
         }));
     }
 
@@ -398,6 +449,65 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             openComposeDialog(player, initialRecipient);
             return;
         }
+        openRecipientPicker(player);
+    }
+
+    /** 优先列出好友和本服在线玩家，点击选择；离线/跨服收件人再手动输入。 */
+    private void openRecipientPicker(Player player) {
+        openRecipientPicker(player, 1);
+    }
+
+    private void openRecipientPicker(Player player, int page) {
+        friends.friends(player.getUniqueId()).thenAccept(all -> main(player, () -> {
+            Map<Integer, Item> items = new ConcurrentHashMap<>();
+            java.util.Map<UUID, ComposeTarget> targets = new java.util.LinkedHashMap<>();
+            for (Friend friend : all) {
+                Player online = Bukkit.getPlayer(friend.uuid());
+                targets.put(friend.uuid(), new ComposeTarget(friend.name(), friend.uuid(), true, online != null));
+            }
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (online.equals(player)) continue;
+                targets.putIfAbsent(online.getUniqueId(), new ComposeTarget(online.getName(),
+                        online.getUniqueId(), false, true));
+            }
+            java.util.List<ComposeTarget> list = new java.util.ArrayList<>(targets.values());
+            list.sort(java.util.Comparator.comparing(ComposeTarget::friend).reversed()
+                    .thenComparing(ComposeTarget::name, String.CASE_INSENSITIVE_ORDER));
+            int pages = Math.max(1, (list.size() + CONTENT - 1) / CONTENT);
+            int current = Math.min(Math.max(1, page), pages);
+            int from = (current - 1) * CONTENT;
+            int to = Math.min(list.size(), from + CONTENT);
+            for (int i = from; i < to; i++) {
+                ComposeTarget target = list.get(i);
+                items.put(i - from, head(target.name(), target.uuid(), target.name(),
+                        List.of(target.friend() ? "&a好友" : "&7在线玩家",
+                                target.online() ? "&a在线" : "&7离线",
+                                "&7点击选择收件人"), click ->
+                                openComposeDialog(click.player(), target.name())));
+            }
+            if (list.isEmpty()) {
+                items.put(22, button(Material.COBWEB, "&7没有可选择的收件人",
+                        List.of("&7点击下方“手动输入”"), null));
+            }
+            items.put(45, button(Material.ANVIL, "&e手动输入名字", List.of("&7输入离线/跨服玩家"),
+                    click -> openRecipientAnvil(click.player())));
+            if (current > 1) {
+                items.put(48, button(Material.SPECTRAL_ARROW, "&e上一页", List.of("&7第 " + (current - 1) + " 页"),
+                        click -> openRecipientPicker(click.player(), current - 1)));
+            }
+            if (current < pages) {
+                items.put(50, button(Material.SPECTRAL_ARROW, "&e下一页", List.of("&7第 " + (current + 1) + " 页"),
+                        click -> openRecipientPicker(click.player(), current + 1)));
+            }
+            items.put(49, button(Material.PAPER, "&7第 " + current + " / " + pages + " 页",
+                    List.of("&7好友与在线玩家"), null));
+            items.put(53, button(Material.ARROW, "&7返回邮箱", List.of("&7点击返回"),
+                    click -> openMailList(click.player())));
+            open(player, normal(player, "选择收件人", 6, items));
+        }));
+    }
+
+    private void openRecipientAnvil(Player player) {
         AtomicReference<String> input = new AtomicReference<>("");
         Map<Integer, Item> buttons = new ConcurrentHashMap<>();
         buttons.put(27, button(Material.RED_STAINED_GLASS_PANE, "&c取消", List.of("&7返回邮箱"),
@@ -422,6 +532,8 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                 .build(player);
         open(player, window);
     }
+
+    private record ComposeTarget(String name, UUID uuid, boolean friend, boolean online) { }
 
     private void openComposeDialog(Player player, String recipient) {
         TextDialogInput.Builder body = DialogInput.text("body", text("正文"))

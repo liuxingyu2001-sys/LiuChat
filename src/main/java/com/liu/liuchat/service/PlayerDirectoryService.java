@@ -34,6 +34,8 @@ public final class PlayerDirectoryService implements Listener, AutoCloseable {
     });
     private final Map<String, PlayerIdentity> byName = new ConcurrentHashMap<>();
     private final Map<String, PlayerIdentity> byUuid = new ConcurrentHashMap<>();
+    /** 每次 join/quit 记录的“写入前 last_seen”，供上线提醒判断是否只是切服/重连。 */
+    private final Map<UUID, CompletableFuture<Long>> previousSeen = new ConcurrentHashMap<>();
 
     public PlayerDirectoryService(JavaPlugin plugin, Database database) {
         this.plugin = plugin;
@@ -53,14 +55,41 @@ public final class PlayerDirectoryService implements Listener, AutoCloseable {
     /** 主线程调用；写库异步，不阻塞登录/退出。 */
     public void record(Player player) {
         if (player == null) return;
-        PlayerIdentity identity = new PlayerIdentity(player.getUniqueId().toString(), player.getName(),
+        UUID uuid = player.getUniqueId();
+        PlayerIdentity identity = new PlayerIdentity(uuid.toString(), player.getName(),
                 System.currentTimeMillis());
         cache(identity);
+        CompletableFuture<Long> previous = new CompletableFuture<>();
+        previousSeen.put(uuid, previous);
         try {
-            worker.execute(() -> database.saveIdentity(identity));
+            worker.execute(() -> {
+                long seen = 0L;
+                try {
+                    PlayerIdentity loaded = database.loadIdentityByUuid(uuid.toString());
+                    if (loaded != null) seen = loaded.lastSeen();
+                } catch (RuntimeException ignored) {
+                    // 读取失败时按首次上线处理，不阻断登录
+                }
+                previous.complete(seen);
+                try {
+                    database.saveIdentity(identity);
+                } catch (RuntimeException ignored) {
+                    // 停服竞态：数据库关闭前已提交的写入由 DbExecutor 排空
+                }
+            });
         } catch (RuntimeException ignored) {
-            // 停服竞态：数据库关闭前已提交的写入由 DbExecutor 排空
+            previous.complete(0L);
         }
+    }
+
+    /**
+     * 本次上线写入前的 last_seen；用于判断玩家是不是刚在别的子服掉线/切服。
+     * 未记录过（首次上线）返回 0。
+     */
+    public CompletableFuture<Long> previousSeen(UUID uuid) {
+        if (uuid == null) return CompletableFuture.completedFuture(0L);
+        CompletableFuture<Long> future = previousSeen.get(uuid);
+        return future == null ? CompletableFuture.completedFuture(0L) : future;
     }
 
     private void cache(PlayerIdentity identity) {

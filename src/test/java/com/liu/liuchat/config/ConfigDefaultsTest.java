@@ -93,6 +93,7 @@ class ConfigDefaultsTest {
                     new java.io.InputStreamReader(java.util.Objects.requireNonNull(input), java.nio.charset.StandardCharsets.UTF_8));
             assertEquals(100, defaults.getInt("friends.max-friends"));
             assertEquals(168, defaults.getInt("friends.request-expire-hours"));
+            assertEquals(300, defaults.getInt("friends.join-notify-cooldown-seconds"));
             assertEquals(30, defaults.getInt("mail.expire-days"));
             assertEquals(3, defaults.getInt("mail.max-attachments"));
             assertFalse(defaults.getBoolean("mail.allow-self"));
