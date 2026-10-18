@@ -87,6 +87,7 @@ final class MysqlDatabase extends AbstractJdbcDatabase {
 
     @Override
     protected void migrateSocialSchema(java.sql.Statement statement) {
+        super.migrateSocialSchema(statement);
         try {
             statement.executeUpdate("ALTER TABLE mail MODIFY COLUMN attachments MEDIUMTEXT");
         } catch (java.sql.SQLException ignored) {

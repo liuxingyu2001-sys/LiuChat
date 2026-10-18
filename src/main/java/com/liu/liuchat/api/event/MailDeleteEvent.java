@@ -5,7 +5,7 @@ import org.bukkit.event.HandlerList;
 
 import java.util.UUID;
 
-/** 邮件被删除后触发。 */
+/** 邮件被某一方删除后触发；{@link #getRecipientId()} 是执行删除的一方（收件人或发件人）。 */
 public final class MailDeleteEvent extends Event {
     private static final HandlerList HANDLERS = new HandlerList();
     private final UUID recipientId;

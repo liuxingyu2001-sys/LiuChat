@@ -8,6 +8,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -96,13 +99,95 @@ class SocialSqliteTest {
             assertEquals("主题", db.loadMailByPrefix("u-r", "12345678").subject());
             assertNull(db.loadMailByPrefix("other", "12345678"));
             assertEquals(1, db.loadMail("u-r", now, 0, 10).size());
+            assertEquals(1, db.countMailBySender("u-s", now));
+            assertEquals("主题", db.loadMailBySenderPrefix("u-s", "12345678").subject());
+            assertNull(db.loadMailBySenderPrefix("other", "12345678"));
+            assertEquals(1, db.loadMailBySender("u-s", now, 0, 10).size());
 
             assertTrue(db.markMailRead(mail.id(), "u-r"));
             assertEquals(0, db.countUnread("u-r", now));
             assertTrue(db.markMailClaimed(mail.id(), "u-r"));
             assertFalse(db.markMailClaimed(mail.id(), "u-r"), "不能重复领取");
+            MailRow sent = db.loadMailBySender("u-s", now, 0, 10).get(0);
+            assertTrue(sent.read());
+            assertTrue(sent.claimed());
+            assertTrue(sent.readAt() > 0);
+            assertTrue(sent.claimedAt() > 0);
+
             assertTrue(db.deleteMail(mail.id(), "u-r"));
-            assertNull(db.loadMail(mail.id()));
+            assertEquals(0, db.countMail("u-r", now));
+            assertNull(db.loadMailByPrefix("u-r", "12345678"));
+            assertEquals(1, db.countMailBySender("u-s", now), "收件人删除不应影响发件箱");
+        } finally {
+            db.close();
+        }
+    }
+
+    @Test
+    void sentMailSoftDeleteAndRecall(@TempDir Path dir) {
+        SqliteDatabase db = open(dir);
+        try {
+            long now = System.currentTimeMillis();
+            MailRow deleted = new MailRow("aaaa1111-abcd-ef01-2345-6789abcdef01", "u-s", "Sender",
+                    "u-r", "Recipient", "删除发件", "正文", List.of(), now, 0, false, false);
+            assertTrue(db.saveMail(deleted));
+            assertTrue(db.deleteMailBySender(deleted.id(), "u-s"));
+            assertEquals(0, db.countMailBySender("u-s", now));
+            assertNull(db.loadMailBySenderPrefix("u-s", "aaaa1111"));
+            assertEquals(1, db.countMail("u-r", now), "删除发件记录不应影响收件箱");
+
+            MailRow recall = new MailRow("bbbb2222-abcd-ef01-2345-6789abcdef01", "u-s", "Sender",
+                    "u-r", "Recipient", "撤回", "正文", List.of(), now, 0, false, false);
+            assertTrue(db.saveMail(recall));
+            assertTrue(db.recallMail(recall.id(), "u-s"));
+            assertNull(db.loadMailByPrefix("u-r", "bbbb2222"));
+            assertEquals(1, db.countMail("u-r", now), "被撤回邮件不应计入收件箱");
+            MailRow recalled = db.loadMailBySenderPrefix("u-s", "bbbb2222");
+            assertNotNull(recalled);
+            assertTrue(recalled.recalled());
+
+            MailRow read = new MailRow("cccc3333-abcd-ef01-2345-6789abcdef01", "u-s", "Sender",
+                    "u-r", "Recipient", "已读", "正文", List.of(), now, 0, false, false);
+            assertTrue(db.saveMail(read));
+            assertTrue(db.markMailRead(read.id(), "u-r"));
+            assertFalse(db.recallMail(read.id(), "u-s"), "已读邮件不能撤回");
+        } finally {
+            db.close();
+        }
+    }
+
+    @Test
+    void migratesOldMailSchema(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("liuchat.db");
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + file);
+             Statement statement = connection.createStatement()) {
+            statement.executeUpdate("""
+                    CREATE TABLE mail (
+                        id VARCHAR(36) PRIMARY KEY,
+                        sender_uuid VARCHAR(36) NOT NULL,
+                        sender_name VARCHAR(32) NOT NULL,
+                        recipient_uuid VARCHAR(36) NOT NULL,
+                        recipient_name VARCHAR(32) NOT NULL,
+                        subject VARCHAR(128) NOT NULL,
+                        body TEXT NOT NULL,
+                        attachments MEDIUMTEXT,
+                        created_at BIGINT NOT NULL,
+                        expires_at BIGINT NOT NULL,
+                        is_read INT NOT NULL DEFAULT 0,
+                        claimed INT NOT NULL DEFAULT 0
+                    )""");
+            statement.executeUpdate("INSERT INTO mail VALUES "
+                    + "('old-id', 'u-s', 'Sender', 'u-r', 'Recipient', '旧邮件', '正文', '', 1, 0, 0, 0)");
+        }
+        SqliteDatabase db = open(dir);
+        try {
+            MailRow old = db.loadMail("old-id");
+            assertNotNull(old);
+            assertEquals(0, old.readAt());
+            assertEquals(0, old.claimedAt());
+            assertFalse(old.recalled());
+            assertTrue(db.markMailRead("old-id", "u-r"));
+            assertTrue(db.loadMail("old-id").readAt() > 0);
         } finally {
             db.close();
         }

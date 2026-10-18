@@ -556,6 +556,7 @@ public final class SocialMenuService implements Listener, SocialMenu {
             case NO_ATTACHMENTS -> "mail.no-attachments";
             case INVENTORY_FULL -> "mail.inventory-full";
             case PLAYER_OFFLINE -> "mail.player-offline";
+            case RECALL_NOT_ALLOWED -> "mail.recall-not-allowed";
             case SENDER_NOT_FOUND, RECIPIENT_NOT_FOUND -> "mail.not-found";
         };
         messages.send(player, key);

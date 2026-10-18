@@ -67,7 +67,7 @@ if (mail != null && mail.isEnabled()) {
 }
 ```
 
-`MailApi` 提供发送、分页邮箱、详情、未读数、标记已读、领取附件与删除。
+`MailApi` 提供发送、收件箱/发件箱分页、详情、未读数、标记已读、领取附件、收件人删除、发件人删除自己的副本与撤回未读邮件。发件箱中的 `Mail.read()` / `claimed()` / `readAt()` / `claimedAt()` / `recalled()` 反映收件人的阅读、领取与撤回状态。
 附件使用 Paper 二进制 `ItemStack` 序列化并持久化，领取时切回玩家区域线程。
 详见 [邮件系统](mail.md)。
 

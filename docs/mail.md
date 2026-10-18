@@ -18,10 +18,13 @@
 
 命令只负责打开界面，列表/详情/按钮使用 Sparrow UI 箱子窗口；写邮件先打开收件人选择器（好友 + 本服在线玩家），也可手动输入离线/跨服玩家；主题/正文/附件使用 Paper Dialog（原版与 Sparrow 没有多行文本控件）：
 
-- **邮箱列表**：左键阅读，右键删除（弹出确认）；底部可翻页。
-- **阅读邮件**：打开时自动标记已读；正文与附件在同一个界面展示。
+- **邮箱列表**：左键阅读，右键删除（弹出确认）；底部可翻页，右下角“已发送”查看发件箱。
+- **阅读邮件**：打开时自动标记已读；正文与附件在同一个界面展示；可点击“回复”给发件人写邮件。
 - **领取附件**：点击“领取附件”按钮，附件全部进入背包；背包不足时返回提示且不标记领取。
-- **写邮件**：点击右下角按钮先选收件人（好友/在线玩家点头像，或手动输入），再填写主题、正文，可勾选附带主手物品；不需要在聊天栏输入。
+- **撤回**：仅在对方未读、附件未领取时可撤回；撤回后收件人不再看到，发件箱保留“已撤回”状态。
+- **删除**：收件人删除只影响自己的收件箱，发件人删除只影响自己的发件箱，互不删除对方副本。
+- **写邮件**：点击右下角按钮先选收件人（好友/在线玩家点头像，或手动输入），再填写主题、正文，可勾选附带主手物品；不需要在聊天栏输入。回复会预填发件人和 `Re:` 主题。
+- **已发送**：显示收件人、主题、时间、对方是否已读（含阅读时间）、附件是否已领取（含领取时间）；左键查看正文/再次发送/撤回未读，右键（或详情页）只删除自己的发件记录。
 - 收到新邮件、上线未读数量等聊天通知都带点击事件，点击直接打开邮箱。
 - 勾选附带主手物品时，发送前先从背包扣除；发送失败会自动退回（背包满则掉落在脚下）。
 - 邮件主题在界面输入框中输入，因此支持空格；列表显示完整主题。
@@ -72,6 +75,15 @@ mail.inbox(playerId, 1).thenAccept(page -> {
     // page.mails() / total() / unread() / pageSize()
 });
 
+mail.sent(senderId, 1).thenAccept(page -> {
+    // page.mails() 中每封 Mail 的 read()/claimed()/readAt()/claimedAt()/recalled()
+    // 是收件人的阅读、领取与撤回状态
+});
+
+mail.recall(senderId, mailId).thenAccept(result -> {
+    // OK / RECALL_NOT_ALLOWED / NOT_FOUND
+});
+
 mail.claim(player, mailId).thenAccept(result -> {
     // OK / INVENTORY_FULL / ALREADY_CLAIMED ...
 });
@@ -81,7 +93,11 @@ mail.claim(player, mailId).thenAccept(result -> {
 
 - `send(MailDraft)`
 - `inbox(UUID recipient, int page)`
+- `sent(UUID sender, int page)`
 - `mail(UUID recipient, String idOrPrefix)`
+- `sentMail(UUID sender, String idOrPrefix)`
+- `deleteSent(UUID sender, String idOrPrefix)`
+- `recall(UUID sender, String idOrPrefix)`
 - `unread(UUID recipient)`
 - `markRead(UUID recipient, String idOrPrefix)`
 - `claim(Player player, String idOrPrefix)`
@@ -100,7 +116,8 @@ mail.claim(player, mailId).thenAccept(result -> {
 | `MailReceivedEvent` | 成功落库后 | 否 |
 | `MailClaimEvent` | 附件放入背包前 | 是 |
 | `MailReadEvent` | 标记已读后 | 否 |
-| `MailDeleteEvent` | 删除邮件后 | 否 |
+| `MailDeleteEvent` | 删除邮件后（收件人删除或发件人删除自己的副本） | 否 |
+| `MailRecallEvent` | 发件人成功撤回未读邮件后 | 否 |
 
 事件定义在 `com.liu.liuchat.api.event`。
 
@@ -115,5 +132,5 @@ mail.claim(player, mailId).thenAccept(result -> {
 
 启动时自动创建：
 
-- `mail`：`id`（UUID）、发件人/收件人 UUID 与名字、主题、正文、附件 Base64、创建/过期时间、已读/已领取标记
+- `mail`：`id`（UUID）、发件人/收件人 UUID 与名字、主题、正文、附件 Base64、创建/过期时间、已读/已领取标记及时间、撤回标记、收发双方独立删除标记
 - 另见 [好友系统](friends.md) 的 `player_identity` / `friend_link` / `friend_request`

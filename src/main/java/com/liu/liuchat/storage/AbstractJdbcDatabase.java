@@ -400,16 +400,35 @@ abstract class AbstractJdbcDatabase implements Database {
                     created_at     BIGINT NOT NULL,
                     expires_at     BIGINT NOT NULL,
                     is_read        INT NOT NULL DEFAULT 0,
-                    claimed        INT NOT NULL DEFAULT 0
+                    claimed        INT NOT NULL DEFAULT 0,
+                    read_at        BIGINT NOT NULL DEFAULT 0,
+                    claimed_at     BIGINT NOT NULL DEFAULT 0,
+                    recalled       INT NOT NULL DEFAULT 0,
+                    sender_deleted INT NOT NULL DEFAULT 0,
+                    recipient_deleted INT NOT NULL DEFAULT 0
                 )""");
         tryIndex(statement, "CREATE INDEX friend_link_high ON friend_link(high_uuid)");
         tryIndex(statement, "CREATE INDEX friend_request_target ON friend_request(target_uuid)");
         tryIndex(statement, "CREATE INDEX player_identity_name ON player_identity(name_key)");
         tryIndex(statement, "CREATE INDEX mail_recipient ON mail(recipient_uuid, created_at)");
+        tryIndex(statement, "CREATE INDEX mail_sender ON mail(sender_uuid, created_at)");
     }
 
     /** 旧库升级钩子：方言相关的列类型迁移。 */
     protected void migrateSocialSchema(Statement statement) {
+        addColumn(statement, "mail", "read_at", "BIGINT NOT NULL DEFAULT 0");
+        addColumn(statement, "mail", "claimed_at", "BIGINT NOT NULL DEFAULT 0");
+        addColumn(statement, "mail", "recalled", "INT NOT NULL DEFAULT 0");
+        addColumn(statement, "mail", "sender_deleted", "INT NOT NULL DEFAULT 0");
+        addColumn(statement, "mail", "recipient_deleted", "INT NOT NULL DEFAULT 0");
+    }
+
+    private static void addColumn(Statement statement, String table, String column, String definition) {
+        try {
+            statement.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+        } catch (SQLException ignored) {
+            // 列已存在
+        }
     }
 
     private static void tryIndex(Statement statement, String sql) {
@@ -719,8 +738,9 @@ abstract class AbstractJdbcDatabase implements Database {
             if (!ready) return false;
             try (PreparedStatement ps = connection.prepareStatement(
                     "INSERT INTO mail (id, sender_uuid, sender_name, recipient_uuid, recipient_name, "
-                            + "subject, body, attachments, created_at, expires_at, is_read, claimed) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                            + "subject, body, attachments, created_at, expires_at, is_read, claimed, "
+                            + "read_at, claimed_at, recalled) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
                 ps.setString(1, mail.id());
                 ps.setString(2, mail.senderUuid());
                 ps.setString(3, mail.senderName());
@@ -733,6 +753,9 @@ abstract class AbstractJdbcDatabase implements Database {
                 ps.setLong(10, mail.expiresAt());
                 ps.setInt(11, mail.read() ? 1 : 0);
                 ps.setInt(12, mail.claimed() ? 1 : 0);
+                ps.setLong(13, mail.readAt());
+                ps.setLong(14, mail.claimedAt());
+                ps.setInt(15, mail.recalled() ? 1 : 0);
                 return ps.executeUpdate() == 1;
             } catch (Exception e) {
                 fail("保存邮件失败", e);
@@ -748,7 +771,7 @@ abstract class AbstractJdbcDatabase implements Database {
             if (!ready) return null;
             try (PreparedStatement ps = connection.prepareStatement(
                     "SELECT id, sender_uuid, sender_name, recipient_uuid, recipient_name, subject, body, "
-                            + "attachments, created_at, expires_at, is_read, claimed FROM mail WHERE id = ?")) {
+                            + "attachments, created_at, expires_at, is_read, claimed, read_at, claimed_at, recalled FROM mail WHERE id = ?")) {
                 ps.setString(1, id);
                 try (ResultSet rs = ps.executeQuery()) {
                     return rs.next() ? mapMail(rs) : null;
@@ -767,8 +790,9 @@ abstract class AbstractJdbcDatabase implements Database {
             if (!ready) return null;
             try (PreparedStatement ps = connection.prepareStatement(
                     "SELECT id, sender_uuid, sender_name, recipient_uuid, recipient_name, subject, body, "
-                            + "attachments, created_at, expires_at, is_read, claimed FROM mail "
-                            + "WHERE recipient_uuid = ? AND id LIKE ? AND (expires_at = 0 OR expires_at > ?) "
+                            + "attachments, created_at, expires_at, is_read, claimed, read_at, claimed_at, recalled FROM mail "
+                            + "WHERE recipient_uuid = ? AND id LIKE ? AND recipient_deleted = 0 AND recalled = 0 "
+                            + "AND (expires_at = 0 OR expires_at > ?) "
                             + "ORDER BY created_at DESC LIMIT 1")) {
                 ps.setString(1, recipientUuid);
                 ps.setString(2, prefix + "%");
@@ -791,8 +815,9 @@ abstract class AbstractJdbcDatabase implements Database {
             if (!ready) return mails;
             try (PreparedStatement ps = connection.prepareStatement(
                     "SELECT id, sender_uuid, sender_name, recipient_uuid, recipient_name, subject, body, "
-                            + "attachments, created_at, expires_at, is_read, claimed FROM mail "
-                            + "WHERE recipient_uuid = ? AND (expires_at = 0 OR expires_at > ?) "
+                            + "attachments, created_at, expires_at, is_read, claimed, read_at, claimed_at, recalled FROM mail "
+                            + "WHERE recipient_uuid = ? AND recipient_deleted = 0 AND recalled = 0 "
+                            + "AND (expires_at = 0 OR expires_at > ?) "
                             + "ORDER BY created_at DESC LIMIT ? OFFSET ?")) {
                 ps.setString(1, recipientUuid);
                 ps.setLong(2, now);
@@ -813,6 +838,7 @@ abstract class AbstractJdbcDatabase implements Database {
     public int countMail(String recipientUuid, long now) {
         if (!ready || recipientUuid == null) return 0;
         return executor.read(() -> countSql("SELECT COUNT(*) FROM mail WHERE recipient_uuid = ? "
+                + "AND recipient_deleted = 0 AND recalled = 0 "
                 + "AND (expires_at = 0 OR expires_at > ?)", recipientUuid, now));
     }
 
@@ -820,7 +846,8 @@ abstract class AbstractJdbcDatabase implements Database {
     public int countUnread(String recipientUuid, long now) {
         if (!ready || recipientUuid == null) return 0;
         return executor.read(() -> countSql("SELECT COUNT(*) FROM mail WHERE recipient_uuid = ? "
-                + "AND is_read = 0 AND (expires_at = 0 OR expires_at > ?)", recipientUuid, now));
+                + "AND recipient_deleted = 0 AND recalled = 0 AND is_read = 0 "
+                + "AND (expires_at = 0 OR expires_at > ?)", recipientUuid, now));
     }
 
     private int countSql(String sql, String recipientUuid, long now) {
@@ -838,28 +865,122 @@ abstract class AbstractJdbcDatabase implements Database {
     }
 
     @Override
+    public List<MailRow> loadMailBySender(String senderUuid, long now, int offset, int limit) {
+        if (!ready || senderUuid == null) return List.of();
+        return executor.read(() -> {
+            List<MailRow> mails = new ArrayList<>();
+            if (!ready) return mails;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT id, sender_uuid, sender_name, recipient_uuid, recipient_name, subject, body, "
+                            + "attachments, created_at, expires_at, is_read, claimed, read_at, claimed_at, recalled FROM mail "
+                            + "WHERE sender_uuid = ? AND sender_deleted = 0 "
+                            + "AND (expires_at = 0 OR expires_at > ?) "
+                            + "ORDER BY created_at DESC LIMIT ? OFFSET ?")) {
+                ps.setString(1, senderUuid);
+                ps.setLong(2, now);
+                ps.setInt(3, Math.max(1, Math.min(100, limit)));
+                ps.setInt(4, Math.max(0, offset));
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) mails.add(mapMail(rs));
+                }
+            } catch (Exception e) {
+                fail("读取发件箱失败", e);
+                return null;
+            }
+            return mails;
+        });
+    }
+
+    @Override
+    public int countMailBySender(String senderUuid, long now) {
+        if (!ready || senderUuid == null) return 0;
+        return executor.read(() -> {
+            if (!ready) return 0;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT COUNT(*) FROM mail WHERE sender_uuid = ? AND sender_deleted = 0 "
+                            + "AND (expires_at = 0 OR expires_at > ?)")) {
+                ps.setString(1, senderUuid);
+                ps.setLong(2, now);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? rs.getInt(1) : 0;
+                }
+            } catch (Exception e) {
+                fail("统计发件箱失败", e);
+                return 0;
+            }
+        });
+    }
+
+    @Override
+    public MailRow loadMailBySenderPrefix(String senderUuid, String prefix) {
+        if (!ready || senderUuid == null || prefix == null) return null;
+        return executor.read(() -> {
+            if (!ready) return null;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT id, sender_uuid, sender_name, recipient_uuid, recipient_name, subject, body, "
+                            + "attachments, created_at, expires_at, is_read, claimed, read_at, claimed_at, recalled FROM mail "
+                            + "WHERE sender_uuid = ? AND id LIKE ? AND sender_deleted = 0 "
+                            + "AND (expires_at = 0 OR expires_at > ?) "
+                            + "ORDER BY created_at DESC LIMIT 1")) {
+                ps.setString(1, senderUuid);
+                ps.setString(2, prefix + "%");
+                ps.setLong(3, System.currentTimeMillis());
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? mapMail(rs) : null;
+                }
+            } catch (Exception e) {
+                fail("按前缀读取发件箱失败", e);
+                return null;
+            }
+        });
+    }
+
+    @Override
     public boolean markMailRead(String id, String recipientUuid) {
-        return updateMail("UPDATE mail SET is_read = 1 WHERE id = ? AND recipient_uuid = ?", id, recipientUuid);
+        return updateMail("UPDATE mail SET is_read = 1, "
+                        + "read_at = CASE WHEN read_at = 0 THEN ? ELSE read_at END "
+                        + "WHERE id = ? AND recipient_uuid = ? AND recipient_deleted = 0 AND recalled = 0",
+                id, recipientUuid, System.currentTimeMillis());
     }
 
     @Override
     public boolean markMailClaimed(String id, String recipientUuid) {
-        return updateMail("UPDATE mail SET claimed = 1 WHERE id = ? AND recipient_uuid = ? AND claimed = 0",
-                id, recipientUuid);
+        return updateMail("UPDATE mail SET claimed = 1, claimed_at = ? WHERE id = ? AND recipient_uuid = ? "
+                        + "AND claimed = 0 AND recipient_deleted = 0 AND recalled = 0",
+                id, recipientUuid, System.currentTimeMillis());
     }
 
     @Override
     public boolean deleteMail(String id, String recipientUuid) {
-        return updateMail("DELETE FROM mail WHERE id = ? AND recipient_uuid = ?", id, recipientUuid);
+        return updateMail("UPDATE mail SET recipient_deleted = 1 WHERE id = ? AND recipient_uuid = ? "
+                + "AND recipient_deleted = 0", id, recipientUuid);
     }
 
-    private boolean updateMail(String sql, String id, String recipientUuid) {
-        if (!ready || id == null || recipientUuid == null) return false;
+    @Override
+    public boolean deleteMailBySender(String id, String senderUuid) {
+        return updateMail("UPDATE mail SET sender_deleted = 1 WHERE id = ? AND sender_uuid = ? "
+                + "AND sender_deleted = 0", id, senderUuid);
+    }
+
+    @Override
+    public boolean recallMail(String id, String senderUuid) {
+        return updateMail("UPDATE mail SET recalled = 1 WHERE id = ? AND sender_uuid = ? "
+                + "AND recalled = 0 AND is_read = 0 AND claimed = 0", id, senderUuid);
+    }
+
+    private boolean updateMail(String sql, String id, String ownerUuid) {
+        return updateMail(sql, id, ownerUuid, -1);
+    }
+
+    private boolean updateMail(String sql, String id, String ownerUuid, long timestamp) {
+        if (!ready || id == null || ownerUuid == null) return false;
         return executor.read(() -> {
             if (!ready) return false;
             try (PreparedStatement ps = connection.prepareStatement(sql)) {
-                ps.setString(1, id);
-                ps.setString(2, recipientUuid);
+                int index = 1;
+                if (timestamp >= 0) ps.setLong(index++, timestamp);
+                ps.setString(index++, id);
+                ps.setString(index, ownerUuid);
                 return ps.executeUpdate() >= 1;
             } catch (Exception e) {
                 fail("更新邮件失败", e);
@@ -894,7 +1015,8 @@ abstract class AbstractJdbcDatabase implements Database {
         }
         return new MailRow(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
                 rs.getString(5), rs.getString(6), rs.getString(7), parts,
-                rs.getLong(9), rs.getLong(10), rs.getInt(11) != 0, rs.getInt(12) != 0);
+                rs.getLong(9), rs.getLong(10), rs.getInt(11) != 0, rs.getInt(12) != 0,
+                rs.getLong(13), rs.getLong(14), rs.getInt(15) != 0);
     }
 
     private static String[] canonical(String first, String second) {

@@ -144,6 +144,21 @@ public interface Database extends AutoCloseable {
         return 0;
     }
 
+    /** 发件箱分页；已过期邮件不返回。 */
+    default List<MailRow> loadMailBySender(String senderUuid, long now, int offset, int limit) {
+        return List.of();
+    }
+
+    default int countMailBySender(String senderUuid, long now) {
+        return 0;
+    }
+
+    /** 发件箱按唯一前缀查找；找不到返回 null。 */
+    default MailRow loadMailBySenderPrefix(String senderUuid, String prefix) {
+        return null;
+    }
+
+
     default boolean markMailRead(String id, String recipientUuid) {
         return false;
     }
@@ -153,6 +168,16 @@ public interface Database extends AutoCloseable {
     }
 
     default boolean deleteMail(String id, String recipientUuid) {
+        return false;
+    }
+
+    /** 仅从发件箱隐藏，不影响收件人。 */
+    default boolean deleteMailBySender(String id, String senderUuid) {
+        return false;
+    }
+
+    /** 撤回未读且附件未领取的邮件；收件人之后不再看到。 */
+    default boolean recallMail(String id, String senderUuid) {
         return false;
     }
 

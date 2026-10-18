@@ -345,9 +345,15 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                 lore.add(line("&7发件人: &f", entry.senderName()));
                 lore.add(line("&7时间: &f", TIME.format(Instant.ofEpochMilli(entry.createdAt())
                         .atZone(ZoneId.systemDefault()))));
-                lore.add(text(entry.read() ? "&7状态: &7已读" : "&e状态: 未读"));
-                lore.add(line("&7附件: &f", String.valueOf(entry.attachments().size()))
-                        .append(entry.claimed() ? text(" &7(已领取)") : Component.empty()));
+                if (entry.read()) {
+                    lore.add(text("&7状态: 已读").append(entry.readAt() > 0
+                            ? text(" &8" + time(entry.readAt())) : Component.empty()));
+                } else lore.add(text("&e状态: 未读"));
+                if (entry.attachments().isEmpty()) lore.add(text("&7附件: 无"));
+                else {
+                    lore.add(line("&7附件: &f", String.valueOf(entry.attachments().size()))
+                            .append(entry.claimed() ? text(" &7(已领取)") : Component.empty()));
+                }
                 lore.add(text("&a左键阅读"));
                 lore.add(text("&c右键删除"));
                 items.put(i, button(entry.read() ? Material.BOOK : Material.WRITTEN_BOOK,
@@ -366,10 +372,149 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                     p -> openMailList(p, current - 1),
                     p -> openMailList(p, current + 1),
                     Player::closeInventory);
+            items.put(51, button(Material.WRITTEN_BOOK, "&b已发送", List.of("&7查看发件与阅读状态"),
+                    click -> openSentList(click.player(), 1)));
             items.put(53, button(Material.WRITABLE_BOOK, "&a写邮件",
-                    List.of("&7输入收件人，填写主题与正文", "&7可附带主手物品"), click -> openCompose(click.player())));
+                    List.of("&7选择收件人，填写主题与正文", "&7可附带主手物品"), click -> openCompose(click.player())));
             open(player, normal(player, "邮箱", 6, items));
         }));
+    }
+
+    private void openSentList(Player player, int page) {
+        if (!mail.isEnabled()) {
+            messages.send(player, "mail.disabled");
+            return;
+        }
+        mail.sent(player.getUniqueId(), page).thenAccept(result -> main(player, () -> {
+            Map<Integer, Item> items = new ConcurrentHashMap<>();
+            if (result.total() == 0) {
+                items.put(22, button(Material.COBWEB, "&7还没有已发送邮件", List.of("&7写邮件后会出现在这里"), null));
+            }
+            int pages = Math.max(1, (result.total() + result.pageSize() - 1) / result.pageSize());
+            int current = Math.min(Math.max(1, page), pages);
+            for (int i = 0; i < result.mails().size() && i < CONTENT; i++) {
+                Mail entry = result.mails().get(i);
+                List<Component> lore = new ArrayList<>();
+                lore.add(line("&7收件人: &f", entry.recipientName()));
+                lore.add(line("&7时间: &f", TIME.format(Instant.ofEpochMilli(entry.createdAt())
+                        .atZone(ZoneId.systemDefault()))));
+                if (entry.recalled()) lore.add(text("&c已撤回"));
+                else if (entry.read()) {
+                    lore.add(text("&a对方已读").append(entry.readAt() > 0
+                            ? text(" &8" + time(entry.readAt())) : Component.empty()));
+                } else lore.add(text("&e对方未读"));
+                if (entry.attachments().isEmpty()) lore.add(text("&7附件: 无"));
+                else {
+                    lore.add(line("&7附件: &f", String.valueOf(entry.attachments().size()))
+                            .append(entry.claimed()
+                                    ? text(" &a(已领取" + (entry.claimedAt() > 0
+                                    ? " " + time(entry.claimedAt()) : "") + ")")
+                                    : text(" &7(未领取)")));
+                }
+                lore.add(text("&a左键查看"));
+                lore.add(text("&c右键删除发件记录"));
+                items.put(i, button(Material.BOOK, text("&e").append(user(entry.subject())), lore, click -> {
+                    if (click.clickType().isRightClick()) {
+                        openConfirm(click.player(), "删除发件记录 " + entry.subject(), confirm ->
+                                mail.deleteSent(confirm.getUniqueId(), entry.id())
+                                        .thenAccept(deleteResult -> afterMail(confirm, deleteResult, "mail.sent-delete-ok",
+                                                () -> openSentList(confirm, current))));
+                    } else {
+                        openSentDetail(click.player(), entry.id(), current);
+                    }
+                }));
+            }
+            if (current > 1) {
+                items.put(48, button(Material.SPECTRAL_ARROW, "&e上一页",
+                        List.of("&7第 " + (current - 1) + " 页"),
+                        click -> openSentList(click.player(), current - 1)));
+            }
+            if (current < pages) {
+                items.put(50, button(Material.SPECTRAL_ARROW, "&e下一页",
+                        List.of("&7第 " + (current + 1) + " 页"),
+                        click -> openSentList(click.player(), current + 1)));
+            }
+            items.put(49, button(Material.PAPER, "&7第 " + current + " / " + pages + " 页",
+                    List.of("&7已发送 " + result.total() + " 封"), null));
+            items.put(45, button(Material.ARROW, "&7返回收件箱", List.of("&7点击返回"),
+                    click -> openMailList(click.player())));
+            items.put(53, button(Material.BARRIER, "&c关闭", List.of("&7点击关闭界面"),
+                    click -> click.window().close()));
+            open(player, normal(player, "已发送", 6, items));
+        }));
+    }
+
+    private void openSentDetail(Player player, String mailId, int page) {
+        mail.sentMail(player.getUniqueId(), mailId).thenAccept(found -> main(player, () -> {
+            if (found.isEmpty()) {
+                messages.send(player, "mail.not-found");
+                openSentList(player, 1);
+                return;
+            }
+            renderSentDetail(player, found.get(), page);
+        }));
+    }
+
+    private void renderSentDetail(Player player, Mail entry, int page) {
+        Map<Integer, Item> items = new ConcurrentHashMap<>();
+        List<Component> info = new ArrayList<>();
+        info.add(line("&7收件人: &f", entry.recipientName()));
+        info.add(line("&7时间: &f", TIME.format(Instant.ofEpochMilli(entry.createdAt())
+                .atZone(ZoneId.systemDefault()))));
+        if (entry.recalled()) info.add(text("&c状态: 已撤回"));
+        else if (entry.read()) {
+            info.add(text("&a状态: 对方已读").append(entry.readAt() > 0
+                    ? text(" &8" + time(entry.readAt())) : Component.empty()));
+        } else info.add(text("&e状态: 对方未读"));
+        if (entry.attachments().isEmpty()) info.add(text("&7附件: 无"));
+        else if (entry.claimed()) {
+            info.add(text("&a附件: 已领取").append(entry.claimedAt() > 0
+                    ? text(" &8" + time(entry.claimedAt())) : Component.empty()));
+        } else info.add(line("&7附件: &f", String.valueOf(entry.attachments().size())));
+        info.add(text("&7正文:"));
+        String[] lines = entry.body().split("\\R", -1);
+        int max = Math.min(8, lines.length);
+        for (int i = 0; i < max; i++) {
+            String line = lines[i];
+            info.add(line("&f", line.length() > 42 ? line.substring(0, 42) + "..." : line));
+        }
+        if (lines.length > max) info.add(text("&8..."));
+        items.put(4, button(Material.PAPER, text("&e").append(user(entry.subject())), info, null));
+        int slot = 18;
+        for (ItemStack item : entry.attachments()) {
+            if (slot >= 27) break;
+            items.put(slot++, item(item, null));
+        }
+        items.put(45, button(Material.ARROW, "&7返回已发送", List.of("&7点击返回"),
+                click -> openSentList(click.player(), page)));
+        items.put(48, button(Material.WRITABLE_BOOK, "&a再次发送", List.of("&7给同一收件人写新邮件"),
+                click -> openComposeDialog(click.player(), entry.recipientName(), "", "")));
+        if (!entry.recalled() && !entry.read() && !entry.claimed()) {
+            items.put(50, button(Material.ENDER_EYE, "&e撤回邮件",
+                    List.of("&7仅在对方未读、附件未领取时可撤回", "&7撤回后收件人将不再看到"),
+                    click -> openConfirm(click.player(), "撤回邮件 " + entry.subject(), confirm ->
+                            mail.recall(confirm.getUniqueId(), entry.id())
+                                    .thenAccept(result -> afterMail(confirm, result, "mail.recall-ok",
+                                            () -> openSentDetail(confirm, entry.id(), page))))));
+        }
+        items.put(53, button(Material.BARRIER, "&c删除已发送", List.of("&7仅删除你的发件记录", "&7不影响收件人的邮件"),
+                click -> openConfirm(click.player(), "删除发件记录 " + entry.subject(), confirm ->
+                        mail.deleteSent(confirm.getUniqueId(), entry.id())
+                                .thenAccept(result -> afterMail(confirm, result, "mail.sent-delete-ok",
+                                        () -> openSentList(confirm, 1))))));
+        open(player, normal(player, "已发送详情", 6, items));
+    }
+
+    private static String time(long at) {
+        return at <= 0 ? "" : TIME.format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()));
+    }
+
+    private String replySubject(String subject) {
+        String value = subject == null || subject.isBlank() ? "无主题" : subject.strip();
+        if (value.regionMatches(true, 0, "Re:", 0, 3)) return value;
+        String result = "Re: " + value;
+        int max = Math.max(1, config.mailMaxSubject());
+        return result.length() > max ? result.substring(0, max) : result;
     }
 
     private void openMailDetail(Player player, String mailId) {
@@ -391,8 +536,13 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
         info.add(line("&7发件人: &f", entry.senderName()));
         info.add(line("&7时间: &f", TIME.format(Instant.ofEpochMilli(entry.createdAt())
                 .atZone(ZoneId.systemDefault()))));
-        info.add(entry.claimed() ? text("&7附件: &7已领取")
-                : line("&7附件: &f", String.valueOf(entry.attachments().size())));
+        info.add(entry.read() ? text("&7状态: 已读").append(entry.readAt() > 0
+                ? text(" &8" + time(entry.readAt())) : Component.empty()) : text("&e状态: 未读"));
+        if (entry.attachments().isEmpty()) info.add(text("&7附件: 无"));
+        else if (entry.claimed()) {
+            info.add(text("&7附件: 已领取").append(entry.claimedAt() > 0
+                    ? text(" &8" + time(entry.claimedAt())) : Component.empty()));
+        } else info.add(line("&7附件: &f", String.valueOf(entry.attachments().size())));
         info.add(text("&7正文:"));
         String[] lines = entry.body().split("\\R", -1);
         int max = Math.min(8, lines.length);
@@ -413,6 +563,9 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
         }
         items.put(45, button(Material.ARROW, "&7返回邮箱", List.of("&7点击返回"),
                 click -> openMailList(click.player(), 1)));
+        items.put(48, button(Material.WRITABLE_BOOK, "&a回复", List.of("&7回复发件人"),
+                click -> openComposeDialog(click.player(), entry.senderName(),
+                        replySubject(entry.subject()), "")));
         if (!entry.attachments().isEmpty() && !entry.claimed()) {
             items.put(49, button(Material.CHEST, "&a领取附件",
                     List.of("&7把全部附件放入背包", "&7背包不足时不会领取"),
@@ -536,7 +689,12 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
     private record ComposeTarget(String name, UUID uuid, boolean friend, boolean online) { }
 
     private void openComposeDialog(Player player, String recipient) {
+        openComposeDialog(player, recipient, "", "");
+    }
+
+    private void openComposeDialog(Player player, String recipient, String initialSubject, String initialBody) {
         TextDialogInput.Builder body = DialogInput.text("body", text("正文"))
+                .initial(initialBody == null ? "" : initialBody)
                 .maxLength(config.mailMaxBody())
                 .multiline(TextDialogInput.MultilineOptions.create(10, 120));
         ActionButton send = ActionButton.create(
@@ -552,6 +710,7 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                 .base(DialogBase.builder(text("写邮件"))
                         .inputs(List.of(
                                 DialogInput.text("subject", text("主题"))
+                                        .initial(initialSubject == null ? "" : initialSubject)
                                         .maxLength(config.mailMaxSubject()).build(),
                                 body.build(),
                                 DialogInput.bool("attach", text("附带主手物品"), false, "是", "否")))
@@ -842,6 +1001,7 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             case NO_ATTACHMENTS -> "mail.no-attachments";
             case INVENTORY_FULL -> "mail.inventory-full";
             case PLAYER_OFFLINE -> "mail.player-offline";
+            case RECALL_NOT_ALLOWED -> "mail.recall-not-allowed";
             case SENDER_NOT_FOUND, RECIPIENT_NOT_FOUND -> "mail.not-found";
         };
         messages.send(player, key);

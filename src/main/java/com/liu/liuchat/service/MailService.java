@@ -9,6 +9,7 @@ import com.liu.liuchat.api.event.MailClaimEvent;
 import com.liu.liuchat.api.event.MailDeleteEvent;
 import com.liu.liuchat.api.event.MailReadEvent;
 import com.liu.liuchat.api.event.MailReceivedEvent;
+import com.liu.liuchat.api.event.MailRecallEvent;
 import com.liu.liuchat.api.event.MailSendEvent;
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
@@ -188,6 +189,78 @@ public final class MailService implements MailApi, Listener, AutoCloseable {
     }
 
     @Override
+    public CompletableFuture<MailPage> sent(UUID sender, int page) {
+        if (!isEnabled() || sender == null) {
+            return CompletableFuture.completedFuture(new MailPage(List.of(), 1, config.mailPageSize(), 0, 0));
+        }
+        int requested = Math.max(1, Math.min(10_000, page));
+        int pageSize = config.mailPageSize();
+        return CompletableFuture.supplyAsync(() -> {
+            long now = System.currentTimeMillis();
+            String uuid = sender.toString();
+            int total = database.countMailBySender(uuid, now);
+            List<MailRow> rows = database.loadMailBySender(uuid, now, (requested - 1) * pageSize, pageSize);
+            List<Mail> mails = rows == null ? List.of() : rows.stream().map(this::toApi).toList();
+            return new MailPage(mails, requested, pageSize, total, 0);
+        }, worker).exceptionally(error -> {
+            plugin.getLogger().log(Level.WARNING, "读取发件箱失败", error);
+            return new MailPage(List.of(), requested, pageSize, 0, 0);
+        });
+    }
+
+    @Override
+    public CompletableFuture<Optional<Mail>> sentMail(UUID sender, String idOrPrefix) {
+        if (!isEnabled() || sender == null) return CompletableFuture.completedFuture(Optional.<Mail>empty());
+        return CompletableFuture.supplyAsync(() -> {
+            MailRow row = senderRow(sender, idOrPrefix);
+            if (row == null || row.expired(System.currentTimeMillis())) return Optional.<Mail>empty();
+            return Optional.of(toApi(row));
+        }, worker).exceptionally(error -> Optional.<Mail>empty());
+    }
+
+    private MailRow senderRow(UUID sender, String idOrPrefix) {
+        if (sender == null || idOrPrefix == null) return null;
+        String token = idOrPrefix.strip();
+        if (!token.matches("[0-9a-fA-F-]{4,36}")) return null;
+        MailRow row = database.loadMailBySenderPrefix(sender.toString(), token.toLowerCase(Locale.ROOT));
+        return row != null && sender.toString().equals(row.senderUuid()) ? row : null;
+    }
+
+    @Override
+    public CompletableFuture<MailResult> deleteSent(UUID sender, String idOrPrefix) {
+        if (!isEnabled()) return CompletableFuture.completedFuture(MailResult.DISABLED);
+        if (!database.isReady()) return CompletableFuture.completedFuture(MailResult.STORAGE_UNAVAILABLE);
+        return CompletableFuture.supplyAsync(() -> {
+            MailRow row = senderRow(sender, idOrPrefix);
+            if (row == null) return MailResult.NOT_FOUND;
+            boolean deleted = database.deleteMailBySender(row.id(), sender.toString());
+            if (deleted) SocialEvents.fire(plugin, new MailDeleteEvent(sender, row.id()));
+            return deleted ? MailResult.OK : MailResult.NOT_FOUND;
+        }, worker).exceptionally(error -> {
+            plugin.getLogger().log(Level.WARNING, "删除发件箱邮件失败", error);
+            return MailResult.STORAGE_UNAVAILABLE;
+        });
+    }
+
+    @Override
+    public CompletableFuture<MailResult> recall(UUID sender, String idOrPrefix) {
+        if (!isEnabled()) return CompletableFuture.completedFuture(MailResult.DISABLED);
+        if (!database.isReady()) return CompletableFuture.completedFuture(MailResult.STORAGE_UNAVAILABLE);
+        return CompletableFuture.supplyAsync(() -> {
+            MailRow row = senderRow(sender, idOrPrefix);
+            if (row == null) return MailResult.NOT_FOUND;
+            if (row.recalled()) return MailResult.OK;
+            if (row.read() || row.claimed()) return MailResult.RECALL_NOT_ALLOWED;
+            boolean recalled = database.recallMail(row.id(), sender.toString());
+            if (recalled) SocialEvents.fire(plugin, new MailRecallEvent(sender, row.id()));
+            return recalled ? MailResult.OK : MailResult.RECALL_NOT_ALLOWED;
+        }, worker).exceptionally(error -> {
+            plugin.getLogger().log(Level.WARNING, "撤回邮件失败", error);
+            return MailResult.STORAGE_UNAVAILABLE;
+        });
+    }
+
+    @Override
     public CompletableFuture<Optional<Mail>> mail(UUID recipient, String idOrPrefix) {
         if (!isEnabled() || recipient == null) return CompletableFuture.completedFuture(Optional.<Mail>empty());
         return CompletableFuture.supplyAsync(() -> {
@@ -345,12 +418,9 @@ public final class MailService implements MailApi, Listener, AutoCloseable {
     private MailRow row(UUID recipient, String idOrPrefix) {
         if (recipient == null || idOrPrefix == null) return null;
         String token = idOrPrefix.strip();
-        if (token.length() == 36) {
-            MailRow row = database.loadMail(token);
-            return row != null && recipient.toString().equals(row.recipientUuid()) ? row : null;
-        }
-        if (!token.matches("[0-9a-fA-F-]{4,35}")) return null;
-        return database.loadMailByPrefix(recipient.toString(), token.toLowerCase(Locale.ROOT));
+        if (!token.matches("[0-9a-fA-F-]{4,36}")) return null;
+        MailRow row = database.loadMailByPrefix(recipient.toString(), token.toLowerCase(Locale.ROOT));
+        return row != null && recipient.toString().equals(row.recipientUuid()) ? row : null;
     }
 
     private Mail toApi(MailRow row) {
@@ -363,7 +433,8 @@ public final class MailService implements MailApi, Listener, AutoCloseable {
         UUID recipient = UUID.fromString(row.recipientUuid());
         return new Mail(row.id(), sender, directory.nameOf(sender, row.senderName()),
                 recipient, directory.nameOf(recipient, row.recipientName()), row.subject(), row.body(),
-                attachments, row.createdAt(), row.expiresAt(), row.read(), row.claimed());
+                attachments, row.createdAt(), row.expiresAt(), row.read(), row.claimed(),
+                row.readAt(), row.claimedAt(), row.recalled());
     }
 
     private String normalizeSubject(String subject) {
