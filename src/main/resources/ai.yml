@@ -43,8 +43,14 @@ assistant:
   max-tokens: 1024
   # 相同问题（且配置、上下文都相同）在该时间内直接返回缓存答案，不请求模型 = 0 token，0 = 关闭。
   cache-seconds: 300
-  # 多轮上下文：按助手名共享一份会话，全服玩家共用（多个 NPC 绑同一助手 = 同一份上下文，
-  # /lc ask、/lc dialog ai、NPC 右键都接在同一条会话上）。请求与回答各算 1 条消息。
+  # 多轮上下文：默认按助手名共享一份会话，全服玩家共用（多个 NPC 绑同一助手 = 同一份上下文，
+  # /lc ask、/lc dialog ai、NPC 右键都接在同一条会话上，可用下面的 shared-memory 改成按玩家记忆）。
+  # 请求与回答各算 1 条消息。
+  # 记忆归属自定义开关：true = 全服共享一份记忆（别人的提问会进你的上下文）；
+  # false = 每个玩家各记各的，互不串台（仍保留各自多轮上下文）。
+  # 该开关是 /lc ask、/lc dialog ai 与未单独配置的 NPC 的默认值；
+  # 单个 NPC 可在 npc-assistants.yml 用 shared-memory 覆盖，见该文件说明。
+  shared-memory: true
   history-messages: 20 # 会话最多保留多少条消息，超出从最旧开始丢，0 = 关闭上下文
   history-chars: 4000 # 上下文字符预算，超出从最旧开始丢，0 = 不限制
   history-seconds: 0 # 会话闲置多少秒后清空，0 = 永不过期；设个 600~3600 能进一步省 token

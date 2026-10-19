@@ -18,6 +18,10 @@ import java.util.function.Consumer;
  * <p>
  * 会话按助手名共享：多个 NPC 绑到同一助手 = 同一份上下文，任何玩家的提问都会保留，
  * 超过 ai.assistant.history-* 上限后从最旧开始丢。system 提示词保持逐字节稳定以便服务商前缀缓存。
+ * <p>
+ * 记忆归属由开关决定：ai.assistant.shared-memory 是全局默认，
+ * npc-assistants.yml 的 shared-memory 与 npcs.&lt;id&gt;.shared-memory 可逐级覆盖；
+ * 关掉共享时会话键带上玩家 UUID，每个玩家各记各的、互不串台。
  */
 public final class AiAssistantService {
     public enum Status { OK, UNAVAILABLE, UNKNOWN_ASSISTANT, UNKNOWN_SKILL, TOO_LONG, BUSY, FAILED }
@@ -45,12 +49,27 @@ public final class AiAssistantService {
         this.sessions = sessions;
     }
 
+    /** 按 ai.assistant.shared-memory 全局开关决定共享还是按玩家记忆。 */
     public Status ask(Player player, String assistant, String question, Consumer<Result> onResult) {
+        return ask(player, assistant, config.aiAssistantSharedMemory(), question, onResult);
+    }
+
+    /**
+     * @param sharedMemory true = 会话键用助手名，全服共享一份记忆；
+     *                     false = 会话键追加玩家 UUID，该玩家独享一份（多轮上下文仍保留）
+     */
+    public Status ask(Player player, String assistant, boolean sharedMemory, String question,
+                      Consumer<Result> onResult) {
         UUID uuid = player.getUniqueId();
-        return askKeyed(uuid.toString(), assistant, assistant, question, result -> {
+        return askKeyed(uuid.toString(), assistant, sessionKey(assistant, uuid, sharedMemory), question, result -> {
             // 玩家等待期间退出/重进后不再回调，避免旧请求落到新会话
             if (Bukkit.getPlayer(uuid) == player) onResult.accept(result);
         });
+    }
+
+    /** 会话键：共享 = 助手名原样；私有 = 助手名#玩家UUID（超长键在存储层做哈希，不会撞车）。 */
+    public static String sessionKey(String assistant, UUID player, boolean sharedMemory) {
+        return sharedMemory ? assistant : assistant + "#" + player;
     }
 
     /** 会话就用助手名的便捷重载（/lc ask、NPC 对话）。 */

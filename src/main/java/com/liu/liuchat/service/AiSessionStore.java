@@ -21,10 +21,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * 每个助手一份、全服玩家共享的多轮会话。
+ * 多轮会话存储；会话键既可以用助手名（全服共享一份），
+ * 也可以用 {@code 助手名#玩家UUID}（该玩家独享一份，见 ai.assistant.shared-memory
+ * 与 npc-assistants.yml 的 shared-memory 开关）。
  * <p>
- * NPC 右键、/lc ask、/lc dialog ai 只要解析到同一个助手名，就共用同一份会话，
- * 任何一个玩家的提问和回答都会留下来给后续玩家当上下文，直到超过上限被裁掉。
+ * 共享模式下 NPC 右键、/lc ask、/lc dialog ai 解析到同一个助手名就共用同一份会话，
+ * 任何一个玩家的提问和回答都会留下来给后续玩家当上下文，直到超过上限被裁掉；
+ * 私有模式下同一玩家的多轮上下文仍保留，只是别的玩家看不到。
  * 内存读写全部在主线程；落盘是异步定时 + 关服同步，重启不丢。
  */
 public final class AiSessionStore {
@@ -63,7 +66,8 @@ public final class AiSessionStore {
     /** 单条回答落盘/入上下文的长度上限，防止一条超长回答吃掉整个字符预算 */
     private static final int MAX_STORED_ANSWER = 4000;
     private static final int MAX_ASSISTANT_KEY = 48;
-    private static final int MAX_SESSIONS = 64;
+    /** 会话数量护栏：按玩家记忆模式下会话数按玩家数增长，比共享模式放得更宽 */
+    private static final int MAX_SESSIONS = 256;
     private static final long MAX_FILE_BYTES = 4L * 1024 * 1024;
 
     private final Path file;
@@ -260,29 +264,23 @@ public final class AiSessionStore {
     private void save() {
         if (!persist || file == null || !dirty) return;
         try {
-            JsonObject root = new JsonObject();
-            JsonObject data = new JsonObject();
-            for (Map.Entry<String, Session> entry : sessions.entrySet()) {
-                JsonArray turns = new JsonArray();
-                for (Turn turn : entry.getValue().turns) {
-                    if (turn.answer == null) continue;
-                    JsonObject value = new JsonObject();
-                    value.addProperty("q", turn.question);
-                    value.addProperty("a", turn.answer);
-                    turns.add(value);
+            String json = serialized();
+            int dropped = 0;
+            // load() 会忽略超过 MAX_FILE_BYTES 的会话文件：写盘前先丢最久没活动的会话，
+            // 保证写出的文件下次一定能读回，而不是重启后整份历史凭空消失。
+            while (json.getBytes(StandardCharsets.UTF_8).length > MAX_FILE_BYTES && sessions.size() > 1) {
+                int target = Math.max(1, sessions.size() / 8);
+                for (int i = 0; i < target && sessions.size() > 1; i++) {
+                    if (dropOldestSession()) dropped++;
                 }
-                if (turns.isEmpty()) continue;
-                JsonObject session = new JsonObject();
-                session.addProperty("activity", entry.getValue().lastActivity);
-                session.add("turns", turns);
-                data.add(entry.getKey(), session);
+                json = serialized();
             }
-            root.addProperty("version", 1);
-            root.add("sessions", data);
+            if (dropped > 0)
+                log.warning("AI 会话文件超过体积上限，已丢弃 " + dropped + " 个最久未活动的会话");
             Path parent = file.getParent();
             if (parent != null) Files.createDirectories(parent);
             Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            Files.writeString(tmp, root.toString(), StandardCharsets.UTF_8);
+            Files.writeString(tmp, json, StandardCharsets.UTF_8);
             try {
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ex) {
@@ -294,6 +292,62 @@ public final class AiSessionStore {
         }
     }
 
+    /** 把当前会话序列化成 ai-sessions.json 的内容（未完成的轮次不落盘）。 */
+    private String serialized() {
+        JsonObject root = new JsonObject();
+        JsonObject data = new JsonObject();
+        for (Map.Entry<String, Session> entry : sessions.entrySet()) {
+            JsonArray turns = new JsonArray();
+            for (Turn turn : entry.getValue().turns) {
+                if (turn.answer == null) continue;
+                JsonObject value = new JsonObject();
+                value.addProperty("q", turn.question);
+                value.addProperty("a", turn.answer);
+                turns.add(value);
+            }
+            if (turns.isEmpty()) continue;
+            JsonObject session = new JsonObject();
+            session.addProperty("activity", entry.getValue().lastActivity);
+            session.add("turns", turns);
+            data.add(entry.getKey(), session);
+        }
+        root.addProperty("version", 1);
+        root.add("sessions", data);
+        return root.toString();
+    }
+
+    /** 丢弃最久没活动的会话；优先丢没有待回答轮次的，避免把正在等回答的上下文丢掉。 */
+    private boolean dropOldestSession() {
+        String victim = null;
+        long oldest = Long.MAX_VALUE;
+        for (Map.Entry<String, Session> entry : sessions.entrySet()) {
+            if (hasPending(entry.getValue())) continue;
+            if (entry.getValue().lastActivity < oldest) {
+                oldest = entry.getValue().lastActivity;
+                victim = entry.getKey();
+            }
+        }
+        // 全部会话都在等回答时退而求其次，仍丢最久没活动的那个
+        if (victim == null) {
+            oldest = Long.MAX_VALUE;
+            for (Map.Entry<String, Session> entry : sessions.entrySet()) {
+                if (entry.getValue().lastActivity < oldest) {
+                    oldest = entry.getValue().lastActivity;
+                    victim = entry.getKey();
+                }
+            }
+        }
+        if (victim == null) return false;
+        sessions.remove(victim);
+        dirty = true;
+        return true;
+    }
+
+    private static boolean hasPending(Session session) {
+        for (Turn turn : session.turns) if (turn.answer == null) return true;
+        return false;
+    }
+
     private static String text(JsonObject turn, String field) {
         JsonElement value = turn.get(field);
         if (value == null || value.isJsonNull() || !value.isJsonPrimitive()) return null;
@@ -301,8 +355,15 @@ public final class AiSessionStore {
         return text.isBlank() ? null : text;
     }
 
+    /**
+     * 会话键归一化：不超长原样返回（与历史 ai-sessions.json 完全兼容）；
+     * 超长键（玩家会话 {@code 助手#uuid}、公屏 {@code 助手#public}）直接截断会让不同键
+     * 撞到同一份会话，改为保留前缀 + 内容哈希，既唯一又不超长。
+     */
     private static String key(String assistant) {
         String value = assistant == null ? "" : assistant.strip();
-        return value.length() <= MAX_ASSISTANT_KEY ? value : value.substring(0, MAX_ASSISTANT_KEY);
+        if (value.length() <= MAX_ASSISTANT_KEY) return value;
+        return value.substring(0, MAX_ASSISTANT_KEY - 9) + "#"
+                + AiAnswerCache.sha256(value).substring(0, 8);
     }
 }

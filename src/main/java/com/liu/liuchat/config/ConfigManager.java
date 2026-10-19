@@ -12,6 +12,8 @@ public final class ConfigManager {
 
     private final JavaPlugin plugin;
     private volatile FileConfiguration config;
+    /** aiAssistantProfiles 的解析缓存：load() 时解析一次，提问热路径不再遍历配置段。 */
+    private volatile java.util.Map<String, String> assistantProfiles = java.util.Map.of();
 
     public ConfigManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -26,6 +28,7 @@ public final class ConfigManager {
         }
         mountAi(loaded, "ai.", loadAi(loaded));
         config = loaded;
+        assistantProfiles = readAssistantProfiles(loaded);
     }
 
     /**
@@ -173,7 +176,12 @@ public final class ConfigManager {
     /** 回答前是否加 [显示名] 前缀，false = 只发正文 */
     public boolean aiAssistantAnswerPrefix() { return config.getBoolean("ai.assistant.answer-prefix", true); }
     public java.util.Map<String, String> aiAssistantProfiles() {
-        org.bukkit.configuration.ConfigurationSection section = config.getConfigurationSection("ai.assistant.profiles");
+        return assistantProfiles;
+    }
+
+    private static java.util.Map<String, String> readAssistantProfiles(
+            org.bukkit.configuration.ConfigurationSection root) {
+        org.bukkit.configuration.ConfigurationSection section = root.getConfigurationSection("ai.assistant.profiles");
         if (section == null) return java.util.Map.of();
         java.util.Map<String, String> profiles = new java.util.LinkedHashMap<>();
         for (String name : section.getKeys(false)) {
@@ -181,6 +189,9 @@ public final class ConfigManager {
         }
         return java.util.Map.copyOf(profiles);
     }
+
+    /** 记忆（多轮上下文）是否全服共享：false = 每个玩家各记各的会话，互不串台。 */
+    public boolean aiAssistantSharedMemory() { return config.getBoolean("ai.assistant.shared-memory", true); }
     public String aiAssistantDefaultSkill() { return config.getString("ai.assistant.default-skill", "").strip(); }
     public int aiAssistantMaxQuestion() { return Math.max(1, Math.min(2000, config.getInt("ai.assistant.max-question", 300))); }
     public int aiAssistantMaxAnswer() { return Math.max(1, Math.min(4000, config.getInt("ai.assistant.max-answer", 600))); }

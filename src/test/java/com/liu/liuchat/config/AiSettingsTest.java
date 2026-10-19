@@ -62,6 +62,33 @@ class AiSettingsTest {
         assertFalse(config.contains("ai"));
     }
 
+    @Test void bundledSharedMemorySwitchDefaultsOn() throws Exception {
+        var ai = resource("/ai.yml");
+        assertTrue(ai.getBoolean("assistant.shared-memory"), "记忆共享默认开启，保持旧行为");
+        // NPC 文件不写顶层开关，才能继承 ai.yml 的全局默认
+        var npc = resource("/npc-assistants.yml");
+        assertFalse(npc.contains("shared-memory"));
+        assertTrue(npc.contains("npcs"));
+        var messages = resource("/messages.yml");
+        assertTrue(messages.contains("ai.ask-busy"));
+        assertFalse(messages.getString("ai.ask-busy", "").contains("${name}"),
+                "忙碌提示跨入口共用，不能指名某个助手");
+    }
+
+    @Test void sharedMemorySwitchMergesIntoExistingAiConfig() throws Exception {
+        var defaults = resource("/ai.yml");
+        // 升级后已有 ai.yml 没有该键：合并补上默认值 true
+        var upgraded = new YamlConfiguration();
+        upgraded.loadFromString("migrated: true\nassistant:\n  enable: true\n");
+        assertTrue(ConfigDefaults.merge(upgraded, defaults, "ai.yml"));
+        assertTrue(upgraded.getBoolean("assistant.shared-memory"));
+        // 用户显式改成 false 的不被默认值覆盖
+        assertFalse(ConfigDefaults.merge(upgraded, defaults, "ai.yml"));
+        upgraded.set("assistant.shared-memory", false);
+        assertFalse(ConfigDefaults.merge(upgraded, defaults, "ai.yml"));
+        assertFalse(upgraded.getBoolean("assistant.shared-memory"));
+    }
+
     @Test void bundledAssistantNamingDefaultsExist() throws Exception {
         var defaults = resource("/ai.yml");
         assertEquals("聊天助手", defaults.getString("assistant.name"));

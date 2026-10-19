@@ -34,7 +34,16 @@ public final class AssistantDialog {
         this.assistant = assistant;
     }
 
+    /** 按 ai.assistant.shared-memory 全局开关打开。 */
     public void open(Player player, String name, String title) {
+        open(player, name, title, config.aiAssistantSharedMemory());
+    }
+
+    /**
+     * @param sharedMemory 该入口的记忆归属：true = 全服共享一份会话，false = 这个玩家各记各的
+     *                     （npc-assistants.yml 每个 NPC 可单独覆盖，见该文件的 shared-memory）
+     */
+    public void open(Player player, String name, String title, boolean sharedMemory) {
         if (!player.hasPermission("liuchat.ask")) { messages.send(player, "no-permission"); return; }
         if (!config.aiAssistantEnabled()) { messages.send(player, "ai.unavailable"); return; }
         ActionButton send = ActionButton.create(Component.text("发送问题"), Component.empty(), 160,
@@ -45,15 +54,16 @@ public final class AssistantDialog {
                         messages.send(player, "ai.ask-usage");
                         return;
                     }
-                    AiAssistantService.Status result = assistant.ask(player, name, question.strip(), reply -> {
-                        if (reply.status() == AiAssistantService.Status.OK)
-                            showAnswer(player, name, title, reply.answer());
-                        else messages.send(player, "ai.failed");
-                    });
+                    AiAssistantService.Status result = assistant.ask(player, name, sharedMemory,
+                            question.strip(), reply -> {
+                                if (reply.status() == AiAssistantService.Status.OK)
+                                    showAnswer(player, name, title, sharedMemory, reply.answer());
+                                else messages.send(player, "ai.failed");
+                            });
                     switch (result) {
                         case OK -> messages.send(player, "ai.thinking", "${name}",
                                 com.liu.liuchat.util.TextUtil.color(config.aiAssistantTitle(name)));
-                        case BUSY -> messages.send(player, "ai.pending");
+                        case BUSY -> messages.send(player, "ai.ask-busy");
                         case TOO_LONG -> messages.send(player, "ai.too-long");
                         case UNAVAILABLE -> messages.send(player, "ai.unavailable");
                         case UNKNOWN_ASSISTANT -> messages.send(player, "ai.assistant-unknown", "${assistant}", name);
@@ -73,7 +83,7 @@ public final class AssistantDialog {
         player.showDialog(dialog);
     }
 
-    private void showAnswer(Player player, String name, String title, String answer) {
+    private void showAnswer(Player player, String name, String title, boolean sharedMemory, String answer) {
         if (!player.isOnline()) return;
         String clean = answer.replace('§', '&');
         List<io.papermc.paper.registry.data.dialog.body.DialogBody> body = AiAnswerFormatter.lines(clean).stream()
@@ -84,7 +94,7 @@ public final class AssistantDialog {
                 .base(DialogBase.builder(Component.text(title)).body(body).build())
                 .type(DialogType.multiAction(List.of(ActionButton.create(Component.text("继续提问"), Component.empty(), 140,
                         DialogAction.customClick((response, audience) -> main(player, () -> {
-                            if (player.equals(audience)) open(player, name, title);
+                            if (player.equals(audience)) open(player, name, title, sharedMemory);
                         }), ClickCallback.Options.builder().uses(1).build()))),
                         ActionButton.create(Component.text("关闭"), Component.empty(), 100,
                                 DialogAction.customClick((response, audience) -> { },

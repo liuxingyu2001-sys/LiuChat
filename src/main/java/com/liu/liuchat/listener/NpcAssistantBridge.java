@@ -2,6 +2,7 @@ package com.liu.liuchat.listener;
 
 import com.liu.liuchat.command.AssistantDialog;
 import com.liu.liuchat.config.ConfigDefaults;
+import com.liu.liuchat.config.ConfigManager;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -22,17 +23,20 @@ import java.util.Map;
 
 /** Optional Citizens right-click bridge; no Citizens classes are loaded when absent. */
 public final class NpcAssistantBridge implements Listener {
-    private record Binding(String assistant, String title) { }
+    /** 包级可见以便单测；sharedMemory = 该 NPC 记忆开关解析后的最终值。 */
+    record Binding(String assistant, String title, boolean sharedMemory) { }
     private final JavaPlugin plugin;
     private final AssistantDialog dialog;
+    private final ConfigManager config;
     private volatile Map<Integer, Binding> bindings = Map.of();
     private final Map<java.util.UUID, Long> lastClick = new HashMap<>();
     private volatile double maxDistance = 6;
     private volatile boolean cancelOtherActions = true;
 
-    public NpcAssistantBridge(JavaPlugin plugin, AssistantDialog dialog) {
+    public NpcAssistantBridge(JavaPlugin plugin, AssistantDialog dialog, ConfigManager config) {
         this.plugin = plugin;
         this.dialog = dialog;
+        this.config = config;
         reload();
         Bukkit.getPluginManager().registerEvents(this, plugin);
         var citizens = Bukkit.getPluginManager().getPlugin("Citizens");
@@ -63,7 +67,7 @@ public final class NpcAssistantBridge implements Listener {
                     lastClick.put(player.getUniqueId(), now);
                     if (cancelOtherActions && event instanceof org.bukkit.event.Cancellable cancellable)
                         cancellable.setCancelled(true);
-                    dialog.open(player, binding.assistant(), binding.title());
+                    dialog.open(player, binding.assistant(), binding.title(), binding.sharedMemory());
                 } catch (ReflectiveOperationException ex) {
                     plugin.getLogger().warning("Citizens NPC 助手事件处理失败: " + ex);
                 }
@@ -80,10 +84,14 @@ public final class NpcAssistantBridge implements Listener {
 
     public void reload() {
         migrateSharedConfig();
-        var config = ConfigDefaults.load(plugin, "npc-assistants.yml");
-        maxDistance = Math.max(1, Math.min(16, config.getDouble("max-distance", 6)));
-        cancelOtherActions = config.getBoolean("cancel-other-actions", true);
-        bindings = parseBindings(config);
+        var npcConfig = ConfigDefaults.load(plugin, "npc-assistants.yml");
+        maxDistance = Math.max(1, Math.min(16, npcConfig.getDouble("max-distance", 6)));
+        cancelOtherActions = npcConfig.getBoolean("cancel-other-actions", true);
+        // 记忆开关三级覆盖：npcs.<id> → 本文件顶层 → ai.yml 的 ai.assistant.shared-memory
+        boolean defaultShared = npcConfig.contains("shared-memory")
+                ? npcConfig.getBoolean("shared-memory", true)
+                : config.aiAssistantSharedMemory();
+        bindings = parseBindings(npcConfig, defaultShared);
     }
 
     /**
@@ -104,7 +112,7 @@ public final class NpcAssistantBridge implements Listener {
         }
     }
 
-    static Map<Integer, Binding> parseBindings(YamlConfiguration config) {
+    static Map<Integer, Binding> parseBindings(YamlConfiguration config, boolean defaultSharedMemory) {
         Map<Integer, Binding> loaded = new HashMap<>();
         var nodes = config.getConfigurationSection("npcs");
         if (nodes != null) for (String key : nodes.getKeys(false)) {
@@ -113,7 +121,8 @@ public final class NpcAssistantBridge implements Listener {
                 if (id < 0 || !nodes.getBoolean(key + ".enable", true)) continue;
                 String assistant = nodes.getString(key + ".assistant", "");
                 if (!assistant.matches("[a-zA-Z0-9_-]{1,48}")) continue;
-                loaded.put(id, new Binding(assistant, nodes.getString(key + ".title", "聊天助手")));
+                boolean shared = nodes.getBoolean(key + ".shared-memory", defaultSharedMemory);
+                loaded.put(id, new Binding(assistant, nodes.getString(key + ".title", "聊天助手"), shared));
             } catch (NumberFormatException ignored) { }
         }
         return Map.copyOf(loaded);

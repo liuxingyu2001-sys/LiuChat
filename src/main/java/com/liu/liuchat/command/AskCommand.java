@@ -61,7 +61,7 @@ public final class AskCommand implements ChatCommand {
             case UNKNOWN_SKILL -> messages.send(player, "ai.skill-unknown", "${skill}",
                     profiles.getOrDefault(name, config.aiAssistantDefaultSkill()));
             case TOO_LONG -> messages.send(player, "ai.too-long");
-            case BUSY -> messages.send(player, "ai.pending");
+            case BUSY -> messages.send(player, "ai.ask-busy");
             default -> messages.send(player, "ai.failed");
         }
     }

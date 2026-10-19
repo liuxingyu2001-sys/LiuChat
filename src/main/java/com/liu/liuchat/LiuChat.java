@@ -245,7 +245,7 @@ public final class LiuChat extends JavaPlugin {
         ColorDialog colorDialog = new ColorDialog(this, profiles, messageManager);
         AssistantDialog assistantDialog = new AssistantDialog(this, configManager, messageManager, assistantService);
         DialogCommand dialog = new DialogCommand(this, messageManager, configManager, colorDialog, assistantDialog);
-        NpcAssistantBridge npcBridge = new NpcAssistantBridge(this, assistantDialog);
+        NpcAssistantBridge npcBridge = new NpcAssistantBridge(this, assistantDialog, configManager);
         reloadCommand = new ReloadCommand(configManager, messageManager, presentation, dialog, skills, npcBridge,
                 aiSessions);
         router.register(reloadCommand);

@@ -10,7 +10,7 @@
 | **全服喇叭** | `/horn` 或 `/lb`，支持聊天、Title、ActionBar、BossBar 与音效；禁言或超长喊话不扣余额，跨服模式会预检代理包长度；**控制台可直接使用**（无需余额与禁言检查） |
 | 快捷触发 | `shortcut.yml` 正则替换，支持 hover、点击命令/建议/复制/URL |
 | 屏蔽与资料 | `/liuc ignore`、`unignore`、`ignorelist`、`nick`；MySQL 共享持久化 |
-| 扩展 | PAPI（含 CustomNameplates 的 PAPI 占位符）、Paper Dialog 可配置布局、聊天菜单界面（`/liuc menu`：DialogMenu 内置菜单，或 ArcMenu 聊天工作区 `liuchat:chat`，未安装则自动降级）、独立开关的 AI 聊天审核与私聊助手（按助手共享多轮会话、答案缓存、输出上限）、每日聊天日志 |
+| 扩展 | PAPI（含 CustomNameplates 的 PAPI 占位符）、Paper Dialog 可配置布局、聊天菜单界面（`/liuc menu`：DialogMenu 内置菜单，或 ArcMenu 聊天工作区 `liuchat:chat`，未安装则自动降级）、独立开关的 AI 聊天审核与私聊助手（共享/按玩家记忆可切，答案缓存、输出上限）、每日聊天日志 |
 | **跨服聊天** | 两种传输：proxy（默认，经代理转发到其他子服）/ redis（`cross-server.transport: redis`，Redis pub/sub 直连，空服也能收发、不依赖在线玩家载体，发布失败自动回落代理）；收端按自己的 format 渲染、`${server}` 显示发送端子服；无代理/单服开着无副作用 |
 | **QQ 官方机器人** | `qq.yml` 配置 AppID/AppSecret 后通过官方 WebSocket 网关双向桥接：群聊 @机器人 / 私聊 / 频道 @ / 频道私信进游戏，本服公屏可按目标发到 QQ；token 自动刷新、心跳、断线退避、op 7 resume、op 9 重新鉴权；优先在 5 分钟窗口内被动回复，超出才尝试主动消息；QQ 正文不能注入颜色/占位符，不执行命令 |
 | **好友系统** | **Sparrow UI 窗口 + 铁砧输入**：主界面直接展示好友（头像/在线/时间），左键写邮件、右键删除；请求/已发送分页，接受/拒绝/撤回、在线玩家选择器/铁砧输入添加；双向关系 + 单向请求（过期/上限）、在线状态、上线通知（跨服 last_seen 去重，重复上线有冷却）；SQLite/MySQL 持久化；聊天通知可点击打开界面；`FriendApi` + 事件 |

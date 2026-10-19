@@ -80,6 +80,7 @@ ai.skill-unknown: "&c找不到 skill: &e${skill} &7(输入 /liuc ask list 查看
 ai.unavailable: "&c聊天助手未启用或未配置接口和模型。"
 ai.too-long: "&c问题内容过长。"
 ai.thinking: "&7${name}正在回答..." # ${name} = 助手显示名
+ai.ask-busy: "&e上一个问题还在回答中，请稍候再问。" # 同一玩家上一条提问还没返回（跨入口共用一把锁）
 ai.failed: "&c聊天助手暂时不可用，请稍后再试。"
 # 助手回答：前缀 + 正文拼成一条消息发送，多段内容用换行分段（${answer} 里自带换行）
 ai.answer-prefix: "&b[${name}] " # 显示名前缀，ai.assistant.answer-prefix: false 时不输出
