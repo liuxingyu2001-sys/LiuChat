@@ -27,6 +27,7 @@ public final class SharedConfig implements AutoCloseable {
     static final List<String> LOCAL_FILES = List.of("chat.yml", "ai.yml", "npc-assistants.yml", "qq.yml");
     private volatile com.liu.liuchat.util.Schedulers.Handle task;
     private volatile boolean closed;
+    private volatile boolean insideReload;
     private final AtomicBoolean reloading = new AtomicBoolean();
 
     public SharedConfig(JavaPlugin plugin, Path root) {
@@ -93,7 +94,16 @@ public final class SharedConfig implements AutoCloseable {
             baseline = Map.of();
             return;
         }
-        baseline = snapshot();
+        if (!enabled) {
+            baseline = Map.of();
+            return;
+        }
+        // 自动重载过程中会被 reload.run() 再次调用 watch()；此时必须保留
+        // “本轮 poll 看到的基线”，否则重载期间的新改动会被末尾的 snapshot 吞掉。
+        boolean preserveBaseline = insideReload;
+        if (!preserveBaseline) {
+            baseline = snapshot();
+        }
         task = com.liu.liuchat.util.Schedulers.runAsyncTimer(plugin, () -> {
             if (closed) return;
             Map<String, FileStamp> current;
@@ -104,20 +114,24 @@ public final class SharedConfig implements AutoCloseable {
                 return;
             }
             Map<String, FileStamp> previous = baseline;
-            if (!current.equals(previous)) {
+            if (!current.equals(previous) && reloading.compareAndSet(false, true)) {
                 baseline = current;
-                if (reloading.compareAndSet(false, true)) {
-                    com.liu.liuchat.util.Schedulers.run(plugin, () -> {
-                        try {
-                            if (closed || !plugin.isEnabled()) return;
-                            reload.run();
-                            logger.info("共享配置已自动重载");
-                        } catch (RuntimeException e) {
-                            logger.log(java.util.logging.Level.WARNING, "共享配置自动重载失败", e);
-                        } finally {
-                            reloading.set(false);
-                        }
-                    });
+                boolean scheduled = com.liuxingyu.liulib.LiuLib.scheduler().global(() -> {
+                    insideReload = true;
+                    try {
+                        if (closed || !plugin.isEnabled()) return;
+                        reload.run();
+                        logger.info("共享配置已自动重载");
+                    } catch (RuntimeException e) {
+                        logger.log(java.util.logging.Level.WARNING, "共享配置自动重载失败", e);
+                    } finally {
+                        insideReload = false;
+                        reloading.set(false);
+                    }
+                });
+                if (!scheduled) {
+                    baseline = previous;
+                    reloading.set(false);
                 }
             }
         }, 200L, 200L);

@@ -102,61 +102,80 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
 
     /** 主界面直接展示好友，避免每次先点“好友列表”。 */
     private void openFriendPage(Player player, int page) {
-        friends.friends(player.getUniqueId()).thenAccept(all -> main(player, () -> {
-            Map<Integer, Item> items = new ConcurrentHashMap<>();
-            int pageSize = Math.max(1, Math.min(CONTENT, config.friendsPageSize()));
-            int pages = Math.max(1, (all.size() + pageSize - 1) / pageSize);
-            int current = Math.min(Math.max(1, page), pages);
-            int from = (current - 1) * pageSize;
-            int to = Math.min(all.size(), from + pageSize);
-            int online = 0;
-            for (Friend friend : all) {
-                if (friend.online()) online++;
-            }
-            for (int i = from; i < to; i++) {
-                Friend friend = all.get(i);
-                int slot = i - from;
-                Consumer<ItemClick> action = click -> {
-                    if (click.clickType().isRightClick()) {
-                        openConfirm(click.player(), "删除好友 " + friend.name(), confirm ->
-                                friends.removeName(confirm.getUniqueId(), confirm.getName(), friend.name())
-                                        .thenAccept(result -> afterFriend(confirm, result, "friend.removed",
-                                                friend.name(), () -> openFriendPage(confirm, current))));
-                    } else {
-                        openCompose(click.player(), friend.name());
-                    }
-                };
-                items.put(slot, head(friend.name(), friend.uuid(), friend.name(),
-                        List.of(friend.online() ? "&a在线" : "&7离线",
-                                "&7成为好友: &f" + TIME.format(Instant.ofEpochMilli(friend.since())
-                                        .atZone(ZoneId.systemDefault())),
-                                "&a左键写邮件", "&c右键删除好友"), action));
-            }
-            if (all.isEmpty()) {
-                items.put(22, button(Material.COBWEB, "&7还没有好友", List.of("&7点击下方“添加好友”"), null));
-            }
-            items.put(45, button(Material.BELL, "&e好友请求", List.of("&7查看收到的好友请求"),
-                    click -> openFriendRequests(click.player(), 1)));
-            items.put(46, button(Material.PAPER, "&7已发送请求", List.of("&7查看等待对方处理的请求"),
-                    click -> openFriendSent(click.player(), 1)));
-            items.put(47, button(Material.WRITABLE_BOOK, "&a添加好友", List.of("&7在线玩家一键添加 / 手动输入"),
-                    click -> openAddFriendPicker(click.player())));
-            if (current > 1) {
-                items.put(48, button(Material.SPECTRAL_ARROW, "&e上一页",
-                        List.of("&7第 " + (current - 1) + " 页"),
-                        click -> openFriendPage(click.player(), current - 1)));
-            }
-            if (current < pages) {
-                items.put(50, button(Material.SPECTRAL_ARROW, "&e下一页",
-                        List.of("&7第 " + (current + 1) + " 页"),
-                        click -> openFriendPage(click.player(), current + 1)));
-            }
-            items.put(49, button(Material.PAPER, "&7第 " + current + " / " + pages + " 页",
-                    List.of("&7好友 " + all.size() + " 人，在线 " + online + " 人"), null));
-            items.put(53, button(Material.BARRIER, "&c关闭", List.of("&7点击关闭界面"),
-                    click -> click.window().close()));
-            open(player, normal(player, "好友 " + online + "/" + all.size(), 6, items));
-        }));
+        friends.friends(player.getUniqueId())
+                .thenCombine(friends.incomingRequests(player.getUniqueId()), FriendSnapshot::new)
+                .thenAccept(snapshot -> main(player, () -> renderFriendPage(player, page, snapshot)));
+    }
+
+    /** 好友主界面：好友列表 + 待处理请求数量徽标 + 全部单击入口。 */
+    private void renderFriendPage(Player player, int page, FriendSnapshot snapshot) {
+        List<Friend> all = snapshot.friends();
+        List<FriendRequest> pending = snapshot.requests();
+        Map<Integer, Item> items = new ConcurrentHashMap<>();
+        int pageSize = Math.max(1, Math.min(CONTENT, config.friendsPageSize()));
+        int pages = Math.max(1, (all.size() + pageSize - 1) / pageSize);
+        int current = Math.min(Math.max(1, page), pages);
+        int from = (current - 1) * pageSize;
+        int to = Math.min(all.size(), from + pageSize);
+        int online = 0;
+        for (Friend friend : all) {
+            if (friend.online()) online++;
+        }
+        for (int i = from; i < to; i++) {
+            Friend friend = all.get(i);
+            int slot = i - from;
+            Consumer<ItemClick> action = click -> {
+                if (click.clickType().isRightClick()) {
+                    openConfirm(click.player(), "删除好友 " + friend.name(), confirm ->
+                            friends.removeName(confirm.getUniqueId(), confirm.getName(), friend.name())
+                                    .thenAccept(result -> afterFriend(confirm, result, "friend.removed",
+                                            friend.name(), () -> openFriendPage(confirm, current))));
+                } else {
+                    openCompose(click.player(), friend.name());
+                }
+            };
+            items.put(slot, head(friend.name(), friend.uuid(), friend.name(),
+                    List.of(friend.online() ? "&a在线" : "&7离线",
+                            "&7成为好友: &f" + TIME.format(Instant.ofEpochMilli(friend.since())
+                                    .atZone(ZoneId.systemDefault())),
+                            "&a左键写邮件", "&c右键删除好友"), action));
+        }
+        if (all.isEmpty()) {
+            items.put(22, button(Material.COBWEB, "&7还没有好友", List.of("&7点击下方“添加好友”"), null));
+        }
+        List<String> bellLore = new ArrayList<>();
+        if (pending.isEmpty()) {
+            bellLore.add("&7暂时没有新的好友请求");
+        } else {
+            bellLore.add("&c有 " + pending.size() + " 个待处理请求");
+            bellLore.add("&a点击立即查看并处理");
+        }
+        items.put(45, button(Material.BELL,
+                pending.isEmpty() ? "&e好友请求" : "&e好友请求 &c(" + pending.size() + ")",
+                bellLore, click -> openFriendRequests(click.player(), 1)));
+        items.put(46, button(Material.PAPER, "&7已发送请求", List.of("&7查看等待对方处理的请求"),
+                click -> openFriendSent(click.player(), 1)));
+        items.put(47, button(Material.WRITABLE_BOOK, "&a添加好友", List.of("&7在线玩家一键添加 / 手动输入"),
+                click -> openAddFriendPicker(click.player())));
+        if (current > 1) {
+            items.put(48, button(Material.SPECTRAL_ARROW, "&e上一页",
+                    List.of("&7第 " + (current - 1) + " 页"),
+                    click -> openFriendPage(click.player(), current - 1)));
+        }
+        if (current < pages) {
+            items.put(50, button(Material.SPECTRAL_ARROW, "&e下一页",
+                    List.of("&7第 " + (current + 1) + " 页"),
+                    click -> openFriendPage(click.player(), current + 1)));
+        }
+        items.put(49, button(Material.PAPER, "&7第 " + current + " / " + pages + " 页",
+                List.of("&7好友 " + all.size() + " 人，在线 " + online + " 人"), null));
+        items.put(53, button(Material.BARRIER, "&c关闭", List.of("&7点击关闭界面"),
+                click -> click.window().close()));
+        open(player, normal(player, "好友 " + online + "/" + all.size(), 6, items));
+    }
+
+    /** 好友页数据快照，避免多次异步查询导致界面闪动。 */
+    private record FriendSnapshot(List<Friend> friends, List<FriendRequest> requests) {
     }
 
     @Override
@@ -354,6 +373,9 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                     lore.add(line("&7附件: &f", String.valueOf(entry.attachments().size()))
                             .append(entry.claimed() ? text(" &7(已领取)") : Component.empty()));
                 }
+                if (!entry.attachments().isEmpty() && !entry.claimed()) {
+                    lore.add(text("&e有附件可单击领取"));
+                }
                 lore.add(text("&a左键阅读"));
                 lore.add(text("&c右键删除"));
                 items.put(i, button(entry.read() ? Material.BOOK : Material.WRITTEN_BOOK,
@@ -372,11 +394,13 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                     p -> openMailList(p, current - 1),
                     p -> openMailList(p, current + 1),
                     Player::closeInventory);
-            items.put(51, button(Material.WRITTEN_BOOK, "&b已发送", List.of("&7查看发件与阅读状态"),
+            items.put(50, button(Material.PAPER, "&7共 " + result.total() + " 封邮件",
+                    List.of("&7未读: &e" + result.unread() + " &7封", "&7附件可在邮件详情里单击领取"), null));
+            items.put(51, button(Material.WRITTEN_BOOK, "&b已发送", List.of("&7查看发件、阅读与领取状态"),
                     click -> openSentList(click.player(), 1)));
             items.put(53, button(Material.WRITABLE_BOOK, "&a写邮件",
                     List.of("&7选择收件人，填写主题与正文", "&7可附带主手物品"), click -> openCompose(click.player())));
-            open(player, normal(player, "邮箱", 6, items));
+            open(player, normal(player, result.unread() > 0 ? "邮箱 &c" + result.unread() + " 封未读" : "邮箱", 6, items));
         }));
     }
 

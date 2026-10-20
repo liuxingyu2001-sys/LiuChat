@@ -195,15 +195,15 @@ P01-P22：PASS / FAIL / N/A
 
 在真实的双后端 MySQL 环境（`storage.type: mysql`，两端同一库）额外执行：
 
-1. **好友流程**：A 在 backend-a 执行 `/liuc friend add B`；B 在 backend-b 应收到请求通知，
-   执行 `/liuc friend accept A` 后两端 `/liuc friend list` 均显示对方。A 下线后 B 列表应显示离线；
-   A 重新登录时 B 应收到上线通知（`friends.notify-on-join: true`）。
+1. **好友流程**：A 在 backend-a 打开 `/friend`，点“添加好友”选择 B 的头像发送请求；B 在 backend-b
+   应收到可点击的请求通知，点击打开“好友请求”页后左键接受，两端好友主界面均应显示对方（铃铛数量归零）。
+   A 下线后 B 列表应显示离线；A 重新登录时 B 应收到上线通知（`friends.notify-on-join: true`）。
 2. **离线上限**：把 `friends.max-friends` 临时设为 1，确认第三名玩家的请求/接受返回好友上限；
    恢复配置后 `/liuc reload`。
-3. **邮件与附件**：A 主手持有物品，执行 `/liuc mail` → 写邮件，填写 B/主题/正文并勾选附带主手；
-   B 在 backend-b 打开 `/liuc mail`，左键阅读未读邮件，点击“领取附件”后物品进入背包，再次领取返回“已领取”。
+3. **邮件与附件**：A 主手持有物品，打开 `/mail` → 写邮件 → 选择 B → 填写主题/正文并勾选附带主手；
+   B 在 backend-b 打开 `/mail`，左键阅读未读邮件，点击“领取附件”后物品进入背包，再次领取返回“已领取”。
 4. **背包满**：B 背包填满后领取，应返回 `INVENTORY_FULL`，邮件不被标记领取；清理背包后再次领取成功。
-5. **离线收件**：B 不在线时 A 通过界面发送邮件；B 重新登录应收到未读数量提示，打开 `/liuc mail` 可见。
+5. **离线收件**：B 不在线时 A 通过界面发送邮件；B 重新登录应收到可点击的未读数量提示，点击即可打开邮箱。
 6. **过期**：把 `mail.expire-days` 设为 1 并修改数据库邮件 `expires_at` 为过去时间，
    确认列表/详情不可见，且过期清理任务删除记录。
 7. **API**：测试插件通过 `Bukkit.getServicesManager().load(FriendApi.class)` 与 `MailApi.class`

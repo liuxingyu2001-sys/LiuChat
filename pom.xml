@@ -4,7 +4,7 @@
 
   <groupId>com.liuxingyu</groupId>
   <artifactId>LiuChat</artifactId>
-  <version>0.8.3</version>
+  <version>0.8.4</version>
   <packaging>jar</packaging>
 
   <name>LiuChat</name>
@@ -48,6 +48,12 @@
       <groupId>io.papermc.paper</groupId>
       <artifactId>paper-api</artifactId>
       <version>${spigot.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.liuxingyu</groupId>
+      <artifactId>LiuLib</artifactId>
+      <version>1.0.3</version>
       <scope>provided</scope>
     </dependency>
     <dependency>

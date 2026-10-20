@@ -108,6 +108,24 @@ class ConfigDefaultsTest {
         }
     }
 
+    @Test void socialMessagesNeverAskPlayersToTypeCommands() throws Exception {
+        try (var input = getClass().getResourceAsStream("/messages.yml")) {
+            var messages = YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(java.util.Objects.requireNonNull(input), java.nio.charset.StandardCharsets.UTF_8));
+            int checked = 0;
+            for (String key : messages.getKeys(true)) {
+                if (!(key.startsWith("friend.") || key.startsWith("mail."))) continue;
+                String text = messages.getString(key);
+                if (text == null) continue;
+                checked++;
+                assertFalse(text.contains("/liuc"), "好友/邮件提示不应包含指令: " + key + " -> " + text);
+                assertFalse(text.contains("/friend"), "好友/邮件提示不应包含指令: " + key + " -> " + text);
+                assertFalse(text.contains("/mail"), "好友/邮件提示不应包含指令: " + key + " -> " + text);
+            }
+            assertTrue(checked >= 40, "应覆盖全部好友/邮件提示，实际: " + checked);
+        }
+    }
+
     @Test void privateChatDefaultsHaveSeparateReplyActions() throws Exception {
         try (var input = getClass().getResourceAsStream("/chat.yml")) {
             var defaults = YamlConfiguration.loadConfiguration(

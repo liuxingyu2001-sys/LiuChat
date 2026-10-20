@@ -1,11 +1,12 @@
 package com.liu.liuchat.util;
 
+import com.liuxingyu.liulib.LiuLib;
+import com.liuxingyu.liulib.scheduler.TaskHandle;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -81,47 +82,31 @@ public final class Schedulers {
 
     /** 下一次全局 tick 执行（Folia：全局区域调度器）。 */
     public static Handle run(Plugin plugin, Runnable action) {
-        if (FOLIA) {
-            return wrap(Bukkit.getGlobalRegionScheduler().run(plugin, task -> action.run()));
-        }
-        return wrap(Bukkit.getScheduler().runTask(plugin, action));
+        LiuLib.scheduler().global(action);
+        return NOOP;
     }
 
     /** 延迟若干 tick 后在全局线程执行。 */
     public static Handle runLater(Plugin plugin, Runnable action, long delayTicks) {
-        long delay = Math.max(1L, delayTicks);
-        if (FOLIA) {
-            return wrap(Bukkit.getGlobalRegionScheduler().runDelayed(plugin, task -> action.run(), delay));
-        }
-        return wrap(Bukkit.getScheduler().runTaskLater(plugin, action, delayTicks));
+        return wrap(LiuLib.scheduler().globalLater(Math.max(1L, delayTicks), action));
     }
 
     /** 周期性全局任务，单位 tick。 */
     public static Handle runTimer(Plugin plugin, Runnable action, long delayTicks, long periodTicks) {
-        if (FOLIA) {
-            return wrap(Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, task -> action.run(),
-                    Math.max(1L, delayTicks), Math.max(1L, periodTicks)));
-        }
-        return wrap(Bukkit.getScheduler().runTaskTimer(plugin, action, delayTicks, periodTicks));
+        return wrap(LiuLib.scheduler().globalTimer(Math.max(1L, delayTicks), Math.max(1L, periodTicks), action));
     }
 
     // ---------------- 异步 ----------------
 
     /** 异步执行（IO / 网络用）。 */
     public static Handle runAsync(Plugin plugin, Runnable action) {
-        if (FOLIA) {
-            return wrap(Bukkit.getAsyncScheduler().runNow(plugin, task -> action.run()));
-        }
-        return wrap(Bukkit.getScheduler().runTaskAsynchronously(plugin, action));
+        LiuLib.scheduler().async(action);
+        return NOOP;
     }
 
     /** 周期性异步任务，单位 tick。 */
     public static Handle runAsyncTimer(Plugin plugin, Runnable action, long delayTicks, long periodTicks) {
-        if (FOLIA) {
-            return wrap(Bukkit.getAsyncScheduler().runAtFixedRate(plugin, task -> action.run(),
-                    Math.max(1L, delayTicks) * 50L, Math.max(1L, periodTicks) * 50L, TimeUnit.MILLISECONDS));
-        }
-        return wrap(Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, action, delayTicks, periodTicks));
+        return wrap(LiuLib.scheduler().asyncTimer(Math.max(1L, delayTicks), Math.max(1L, periodTicks), action));
     }
 
     // ---------------- 实体 / 玩家 ----------------
@@ -159,15 +144,7 @@ public final class Schedulers {
 
     // ---------------- 句柄包装 ----------------
 
-    private static Handle wrap(org.bukkit.scheduler.BukkitTask task) {
-        return new Handle() {
-            @Override public void cancel() { task.cancel(); }
-
-            @Override public boolean isCancelled() { return task.isCancelled(); }
-        };
-    }
-
-    private static Handle wrap(io.papermc.paper.threadedregions.scheduler.ScheduledTask task) {
+    private static Handle wrap(TaskHandle task) {
         return new Handle() {
             @Override public void cancel() { task.cancel(); }
 
