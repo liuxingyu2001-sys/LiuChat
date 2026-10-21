@@ -51,6 +51,13 @@ public interface FriendApi {
 
     CompletableFuture<Boolean> areFriends(UUID first, UUID second);
 
+    /**
+     * 好友传送：不需要对方同意，把在线玩家直接传送到同服在线好友身边。
+     * 好友离线返回 {@link FriendResult#TELEPORT_OFFLINE}，在其它子服返回
+     * {@link FriendResult#TELEPORT_OTHER_SERVER}。
+     */
+    CompletableFuture<FriendResult> teleport(UUID player, UUID friend);
+
     /** 本服精确在线，或跨服在线名单中包含该名字。 */
     boolean isOnline(String playerName);
 

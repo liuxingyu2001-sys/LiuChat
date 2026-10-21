@@ -17,5 +17,17 @@ public enum FriendResult {
     CANCELLED,
     NOT_FOUND,
     DISABLED,
-    STORAGE_UNAVAILABLE
+    STORAGE_UNAVAILABLE,
+    /** 好友传送已在配置中关闭。 */
+    TELEPORT_DISABLED,
+    /** 没有好友传送权限。 */
+    TELEPORT_DENIED,
+    /** 好友不在线。 */
+    TELEPORT_OFFLINE,
+    /** 好友在其它子服，无法直接传送。 */
+    TELEPORT_OTHER_SERVER,
+    /** 传送冷却中。 */
+    TELEPORT_COOLDOWN,
+    /** 传送被服务端拒绝或取消。 */
+    TELEPORT_FAILED
 }

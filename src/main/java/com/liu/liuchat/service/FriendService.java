@@ -23,9 +23,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -51,6 +53,8 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
     private volatile boolean closed;
     /** 接收者 + 上线好友 -> 最近一次上线提醒时间，避免跨服往返重复提醒。 */
     private final FriendJoinNotificationGate joinGate = new FriendJoinNotificationGate();
+    /** 发起者 -> 好友传送冷却结束时间戳。 */
+    private final Map<UUID, Long> teleportCooldowns = new ConcurrentHashMap<>();
 
     public FriendService(JavaPlugin plugin, Database database, ConfigManager config, MessageManager messages,
                          CrossServerService crossServer, PlayerDirectoryService directory) {
@@ -354,6 +358,81 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
     }
 
     @Override
+    public CompletableFuture<FriendResult> teleport(UUID playerId, UUID friendId) {
+        if (playerId == null || friendId == null) {
+            return CompletableFuture.completedFuture(FriendResult.NOT_FOUND);
+        }
+        Player player = Bukkit.getPlayer(playerId);
+        if (player == null || !player.isOnline()) {
+            return CompletableFuture.completedFuture(FriendResult.TELEPORT_OFFLINE);
+        }
+        return teleport(player, friendId, directory.nameOf(friendId, friendId.toString()));
+    }
+
+    /**
+     * 好友传送：不需要对方同意，直接把发起者传送到在线好友身边。
+     *
+     * <p>只支持同一服务器：好友在其它子服时返回 {@link FriendResult#TELEPORT_OTHER_SERVER}，
+     * 由界面提示玩家；是否启用、冷却秒数见 {@code friends.teleport} 与
+     * {@code friends.teleport-cooldown-seconds}，权限为 {@code liuchat.friend.teleport}。</p>
+     */
+    public CompletableFuture<FriendResult> teleport(Player player, UUID friendId, String friendName) {
+        if (closed || !config.friendsEnabled()) {
+            return CompletableFuture.completedFuture(FriendResult.DISABLED);
+        }
+        if (!config.friendsTeleport()) {
+            return CompletableFuture.completedFuture(FriendResult.TELEPORT_DISABLED);
+        }
+        if (player == null || friendId == null) {
+            return CompletableFuture.completedFuture(FriendResult.NOT_FOUND);
+        }
+        if (player.getUniqueId().equals(friendId)) {
+            return CompletableFuture.completedFuture(FriendResult.SELF);
+        }
+        if (!player.hasPermission("liuchat.friend.teleport")) {
+            return CompletableFuture.completedFuture(FriendResult.TELEPORT_DENIED);
+        }
+        if (!database.isReady()) {
+            return CompletableFuture.completedFuture(FriendResult.STORAGE_UNAVAILABLE);
+        }
+        return CompletableFuture.supplyAsync(() -> {
+            if (!database.areFriends(player.getUniqueId().toString(), friendId.toString())) {
+                return FriendResult.NOT_FRIENDS;
+            }
+            Player target = Bukkit.getPlayer(friendId);
+            if (target == null || !target.isOnline()) {
+                return isOnline(friendName) ? FriendResult.TELEPORT_OTHER_SERVER : FriendResult.TELEPORT_OFFLINE;
+            }
+            return FriendResult.OK;
+        }, worker).thenCompose(status -> {
+            if (status != FriendResult.OK) return CompletableFuture.completedFuture(status);
+            long now = System.currentTimeMillis();
+            long cooldown = Math.max(0L, config.friendsTeleportCooldownSeconds() * 1000L);
+            if (cooldown > 0L) {
+                Long until = teleportCooldowns.get(player.getUniqueId());
+                if (until != null && until > now) {
+                    return CompletableFuture.completedFuture(FriendResult.TELEPORT_COOLDOWN);
+                }
+                teleportCooldowns.put(player.getUniqueId(), now + cooldown);
+            }
+            Player target = Bukkit.getPlayer(friendId);
+            if (target == null || !target.isOnline()) {
+                return CompletableFuture.completedFuture(FriendResult.TELEPORT_OFFLINE);
+            }
+            return player.teleportAsync(target.getLocation())
+                    .thenApply(ok -> {
+                        if (!Boolean.TRUE.equals(ok)) return FriendResult.TELEPORT_FAILED;
+                        notifier.send(target.getName(), "friend.teleport-target-notify",
+                                "${player}", player.getName());
+                        return FriendResult.OK;
+                    });
+        }).exceptionally(error -> {
+            log("好友传送失败", error);
+            return FriendResult.TELEPORT_FAILED;
+        });
+    }
+
+    @Override
     public CompletableFuture<Boolean> areFriends(UUID first, UUID second) {
         if (first == null || second == null || !isEnabled()) return CompletableFuture.completedFuture(false);
         return CompletableFuture.supplyAsync(() -> database.areFriends(first.toString(), second.toString()),
@@ -452,6 +531,7 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
         closed = true;
         if (purgeTask != null) purgeTask.cancel();
         joinGate.clear();
+        teleportCooldowns.clear();
         worker.shutdown();
         try {
             if (!worker.awaitTermination(5, TimeUnit.SECONDS)) worker.shutdownNow();

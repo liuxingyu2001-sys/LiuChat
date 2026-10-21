@@ -53,7 +53,7 @@ if (friends != null && friends.isEnabled()) {
 }
 ```
 
-`FriendApi` 提供好友列表、请求查询、发送/接受/拒绝/撤回/删除、关系查询与在线状态。
+`FriendApi` 提供好友列表、请求查询、发送/接受/拒绝/撤回/删除、关系查询、在线状态与同服好友传送。
 方法返回 `CompletableFuture`，数据库与通知在专用线程执行；事件统一回主线程触发。
 详见 [好友系统](friends.md)。
 

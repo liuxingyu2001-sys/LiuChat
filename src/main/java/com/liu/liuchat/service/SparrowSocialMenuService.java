@@ -124,21 +124,26 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
         for (int i = from; i < to; i++) {
             Friend friend = all.get(i);
             int slot = i - from;
+            List<String> friendLore = new ArrayList<>();
+            friendLore.add(friend.online() ? "&a在线" : "&7离线");
+            friendLore.add("&7成为好友: &f" + TIME.format(Instant.ofEpochMilli(friend.since())
+                    .atZone(ZoneId.systemDefault())));
+            friendLore.add(friend.online() ? "&a左键直接传送" : "&7好友离线，无法传送");
+            friendLore.add("&a右键写邮件");
+            friendLore.add("&cShift+右键删除好友");
             Consumer<ItemClick> action = click -> {
-                if (click.clickType().isRightClick()) {
+                if (click.clickType().isShiftClick() && click.clickType().isRightClick()) {
                     openConfirm(click.player(), "删除好友 " + friend.name(), confirm ->
                             friends.removeName(confirm.getUniqueId(), confirm.getName(), friend.name())
                                     .thenAccept(result -> afterFriend(confirm, result, "friend.removed",
                                             friend.name(), () -> openFriendPage(confirm, current))));
-                } else {
+                } else if (click.clickType().isRightClick()) {
                     openCompose(click.player(), friend.name());
+                } else {
+                    teleport(click.player(), friend);
                 }
             };
-            items.put(slot, head(friend.name(), friend.uuid(), friend.name(),
-                    List.of(friend.online() ? "&a在线" : "&7离线",
-                            "&7成为好友: &f" + TIME.format(Instant.ofEpochMilli(friend.since())
-                                    .atZone(ZoneId.systemDefault())),
-                            "&a左键写邮件", "&c右键删除好友"), action));
+            items.put(slot, head(friend.name(), friend.uuid(), friend.name(), friendLore, action));
         }
         if (all.isEmpty()) {
             items.put(22, button(Material.COBWEB, "&7还没有好友", List.of("&7点击下方“添加好友”"), null));
@@ -612,6 +617,20 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                 () -> openMailDetail(player, mailId)));
     }
 
+    /** 好友传送：不需要对方同意，成功后直接关闭界面并提示。 */
+    private void teleport(Player player, Friend friend) {
+        friends.teleport(player, friend.uuid(), friend.name()).thenAccept(result -> {
+            if (result == FriendResult.OK) {
+                main(player, () -> {
+                    player.closeInventory();
+                    messages.send(player, "friend.teleport-ok", "${player}", friend.name());
+                });
+                return;
+            }
+            afterFriend(player, result, "friend.teleport-ok", friend.name(), () -> openFriendPage(player, 1));
+        });
+    }
+
     @Override
     public void openCompose(Player player) {
         openCompose(player, "");
@@ -999,6 +1018,12 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             case CANCELLED -> "friend.cancelled";
             case NOT_FOUND -> "friend.not-found";
             case DISABLED -> "friend.disabled";
+            case TELEPORT_DISABLED -> "friend.teleport-disabled";
+            case TELEPORT_DENIED -> "friend.teleport-no-permission";
+            case TELEPORT_OFFLINE -> "friend.teleport-offline";
+            case TELEPORT_OTHER_SERVER -> "friend.teleport-other-server";
+            case TELEPORT_COOLDOWN -> "friend.teleport-cooldown";
+            case TELEPORT_FAILED -> "friend.teleport-failed";
             default -> "friend.storage-unavailable";
         };
         messages.send(player, key, "${player}", target == null ? "" : target);

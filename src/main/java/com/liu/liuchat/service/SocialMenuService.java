@@ -137,13 +137,16 @@ public final class SocialMenuService implements Listener, SocialMenu {
                         List.of(friend.online() ? "&a在线" : "&7离线",
                                 "&7成为好友: &f" + TIME.format(Instant.ofEpochMilli(friend.since())
                                         .atZone(ZoneId.systemDefault())),
-                                "&7左键删除好友", "&7右键写邮件")));
+                                friend.online() ? "&a左键直接传送" : "&7好友离线，无法传送",
+                                "&a右键写邮件",
+                                "&cShift+左键删除好友")));
                 holder.actions.put(slot, new MenuAction(
-                        p -> openConfirm(p, "删除好友 " + friend.name(),
-                                confirm -> friends.removeName(confirm.getUniqueId(), confirm.getName(), friend.name())
-                                        .thenAccept(result -> afterFriend(confirm, result, "friend.removed", friend.name(),
-                                                () -> openFriendList(confirm, current)))),
+                        p -> teleport(p, friend),
                         p -> openCompose(p, friend.name())));
+                holder.shiftActions.put(slot, p -> openConfirm(p, "删除好友 " + friend.name(),
+                        confirm -> friends.removeName(confirm.getUniqueId(), confirm.getName(), friend.name())
+                                .thenAccept(result -> afterFriend(confirm, result, "friend.removed", friend.name(),
+                                        () -> openFriendList(confirm, current)))));
             }
             nav(holder, inventory, current, pages, p -> openFriendList(p, current - 1),
                     p -> openFriendList(p, current + 1), p -> openFriendMain(p));
@@ -515,6 +518,20 @@ public final class SocialMenuService implements Listener, SocialMenu {
         click(player);
     }
 
+    /** 好友传送：不需要对方同意，成功后关闭界面并提示。 */
+    private void teleport(Player player, Friend friend) {
+        friends.teleport(player, friend.uuid(), friend.name()).thenAccept(result -> {
+            if (result == FriendResult.OK) {
+                main(player, () -> {
+                    player.closeInventory();
+                    messages.send(player, "friend.teleport-ok", "${player}", friend.name());
+                });
+                return;
+            }
+            afterFriend(player, result, "friend.teleport-ok", friend.name(), () -> openFriendList(player, 1));
+        });
+    }
+
     private void afterFriend(Player player, FriendResult result, String okKey, String target, Runnable reopen) {
         String key = switch (result) {
             case OK -> okKey;
@@ -530,6 +547,12 @@ public final class SocialMenuService implements Listener, SocialMenu {
             case CANCELLED -> "friend.cancelled";
             case NOT_FOUND -> "friend.not-found";
             case DISABLED -> "friend.disabled";
+            case TELEPORT_DISABLED -> "friend.teleport-disabled";
+            case TELEPORT_DENIED -> "friend.teleport-no-permission";
+            case TELEPORT_OFFLINE -> "friend.teleport-offline";
+            case TELEPORT_OTHER_SERVER -> "friend.teleport-other-server";
+            case TELEPORT_COOLDOWN -> "friend.teleport-cooldown";
+            case TELEPORT_FAILED -> "friend.teleport-failed";
             default -> "friend.storage-unavailable";
         };
         messages.send(player, key, "${player}", target == null ? "" : target);
@@ -575,7 +598,14 @@ public final class SocialMenuService implements Listener, SocialMenu {
         if (slot < 0 || slot >= top.getSize()) return;
         MenuAction action = holder.actions.get(slot);
         if (action == null) return;
-        Consumer<Player> run = event.isRightClick() ? action.right() : action.left();
+        Consumer<Player> run;
+        if (event.isRightClick()) {
+            run = action.right();
+        } else if (event.isShiftClick()) {
+            run = holder.shiftActions.getOrDefault(slot, action.left());
+        } else {
+            run = action.left();
+        }
         if (run == null) return;
         Schedulers.runFor(plugin, player, () -> {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.0f);
@@ -688,6 +718,7 @@ public final class SocialMenuService implements Listener, SocialMenu {
         private final String name;
         private Inventory inventory;
         private final Map<Integer, MenuAction> actions = new HashMap<>();
+        private final Map<Integer, Consumer<Player>> shiftActions = new HashMap<>();
 
         private MenuHolder(String name) {
             this.name = name;

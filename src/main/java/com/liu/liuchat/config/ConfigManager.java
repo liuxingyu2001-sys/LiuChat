@@ -330,6 +330,11 @@ public final class ConfigManager {
     public int friendsRequestExpireHours() { return bounded("friends.request-expire-hours", 168, 0, 8760); }
     public int friendsPageSize() { return bounded("friends.page-size", 45, 1, 45); }
     public boolean friendsNotifyOnJoin() { return config.getBoolean("friends.notify-on-join", true); }
+    /** 好友之间是否可以直接传送（不需要对方同意）。 */
+    public boolean friendsTeleport() { return config.getBoolean("friends.teleport", true); }
+    public int friendsTeleportCooldownSeconds() {
+        return bounded("friends.teleport-cooldown-seconds", 0, 0, 3600);
+    }
     /** 同一好友在短时间内重复上线（跨服往返）时的通知冷却；0 = 不冷却。 */
     public int friendsJoinNotifyCooldownSeconds() {
         return bounded("friends.join-notify-cooldown-seconds", 300, 0, 86400);

@@ -81,6 +81,9 @@ permissions:
   liuchat.friend:
     description: 打开好友界面
     default: true
+  liuchat.friend.teleport:
+    description: 使用好友传送（直接传送到好友身边）
+    default: true
   liuchat.mail:
     description: 打开邮箱界面
     default: true

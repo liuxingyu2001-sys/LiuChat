@@ -14,7 +14,8 @@
 权限：`liuchat.friend`（默认所有玩家可用）。命令只负责打开界面，列表/按钮使用 Sparrow UI 箱子窗口，添加好友优先用在线玩家选择器，离线/跨服玩家用铁砧输入：
 
 - **主界面直接展示好友**：头像、在线状态、成为好友时间；不需要先点“好友列表”。
-- **好友头像**：左键直接写邮件，右键删除好友（弹出确认）。
+- **好友头像**：左键直接传送到好友身边（不需要对方同意），右键写邮件，Shift+右键删除好友（弹出确认）。
+- **好友传送**：仅同一服务器生效，好友离线或位于其它子服时会在聊天栏提示；权限 `liuchat.friend.teleport`（默认所有玩家可用），可在配置中关闭或设置冷却。
 - **好友请求**：底部铃铛按钮进入，按钮名称直接显示待处理数量（如“好友请求 (3)”）；左键接受、右键拒绝。
 - **已发送的请求**：底部按钮进入；左键撤回。
 - **添加好友**：底部按钮先列出本服在线玩家，点击头像直接发送请求；可点“手动输入名字”用铁砧添加离线/跨服玩家。
@@ -39,6 +40,8 @@ friends:
   request-expire-hours: 168 # 0 = 永不过期
   page-size: 45             # 每页好友数（箱子 45 个内容格）
   notify-on-join: true   # 好友上线时通知在线好友（跨服也尝试私密投递）
+  teleport: true         # 好友之间可直接传送（不需要对方同意），仅同服
+  teleport-cooldown-seconds: 0 # 传送冷却（秒）；0 = 不冷却
 ```
 
 修改后 `/liuc reload` 生效。服务启动后每小时清理一次过期请求；MySQL 模式下关系与请求跨子服共享。
@@ -72,6 +75,7 @@ friends.friends(playerId).thenAccept(list -> {
 - `deny(UUID player, UUID requester)`、`cancel(UUID sender, UUID target)`
 - `remove(UUID player, UUID friend)`
 - `areFriends(UUID, UUID)`
+- `teleport(UUID player, UUID friend)`（同服直接传送，不需要对方同意）
 - `isOnline(String name)`（本服或跨服在线名单，跨服名单有约 60 秒周期延迟）
 - `isEnabled()`
 
