@@ -20,6 +20,10 @@ import java.util.logging.Level;
  * <p>调用链等价于 HuskHomes 自身的 {@code /tp <玩家>}：目标在本服时直接传送，
  * 在其它子服时由 HuskHomes 先通过代理把玩家送过去，再完成落地传送。
  * 因此 HuskHomes 需要开启 {@code cross_server.enabled} 并配好代理与 Redis。</p>
+ *
+ * <p>权限说明：HuskHomes 的 {@code huskhomes.command.teleport} 只在命令层检查，
+ * 这里调用 API 不会触发它——能否使用好友传送只由 LiuChat 的
+ * {@code liuchat.friend.teleport} 决定，不会因为玩家没有 HuskHomes 的 tp 权限而失败。</p>
  */
 public final class HuskHomesHook {
     private static volatile boolean warned;
