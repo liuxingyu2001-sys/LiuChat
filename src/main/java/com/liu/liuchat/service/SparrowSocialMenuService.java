@@ -1011,30 +1011,7 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
     }
 
     private void afterFriend(Player player, FriendResult result, String okKey, String target, Runnable reopen) {
-        String key = switch (result) {
-            case OK -> okKey;
-            case ACCEPTED_MUTUAL -> "friend.mutual-accepted";
-            case REQUEST_SENT -> "friend.request-sent";
-            case REQUEST_EXISTS -> "friend.request-exists";
-            case ALREADY_FRIENDS -> "friend.already-friends";
-            case NOT_FRIENDS -> "friend.not-friends";
-            case REQUEST_NOT_FOUND -> "friend.request-not-found";
-            case FRIENDS_FULL -> "friend.full";
-            case REQUEST_LIMIT -> "friend.request-limit";
-            case SELF -> "friend.self";
-            case CANCELLED -> "friend.cancelled";
-            case NOT_FOUND -> "friend.not-found";
-            case DISABLED -> "friend.disabled";
-            case TELEPORT_DISABLED -> "friend.teleport-disabled";
-            case TELEPORT_DENIED -> "friend.teleport-no-permission";
-            case TELEPORT_OFFLINE -> "friend.teleport-offline";
-            case TELEPORT_OTHER_SERVER -> "friend.teleport-other-server";
-            case TELEPORT_COOLDOWN -> "friend.teleport-cooldown";
-            case TELEPORT_FAILED -> "friend.teleport-failed";
-            case TELEPORT_CROSS_SERVER -> "friend.teleport-queued";
-            default -> "friend.storage-unavailable";
-        };
-        messages.send(player, key, "${player}", target == null ? "" : target);
+        messages.send(player, FriendResultMessages.key(result, okKey), "${player}", target == null ? "" : target);
         main(player, reopen);
     }
 

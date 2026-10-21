@@ -279,7 +279,7 @@ public final class LiuChat extends JavaPlugin {
         router.register(tell);
         ChatCommand reply = new ReplyCommand(messageManager, tellService, tell);
         router.register(reply);
-        ChatCommand friend = new com.liu.liuchat.command.FriendCommand(socialMenu);
+        ChatCommand friend = new com.liu.liuchat.command.FriendCommand(socialMenu, friendService, messageManager);
         ChatCommand mail = new com.liu.liuchat.command.MailCommand(socialMenu);
         router.register(friend);
         router.register(mail);

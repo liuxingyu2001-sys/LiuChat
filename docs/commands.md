@@ -22,6 +22,7 @@
 /liuc dialog chatcolor              聊天颜色与渐变 Dialog
 /liuc menu [页面]                   打开聊天菜单界面（DialogMenu，或 ArcMenu 工作区）
 /friend（别名 /好友）              打开好友界面（列表/请求/添加）  权限: liuchat.friend
+/friend tp <好友名>                 直接传送到好友身边（同服落地/跨服走 HuskHomes）  权限: liuchat.friend + liuchat.friend.teleport
 /mail（别名 /邮件）                打开邮箱界面（阅读/领取/写邮件）  权限: liuchat.mail / liuchat.mail.attach
 /liuc friend                       同 /friend（子命令入口仍保留）
 /liuc mail                         同 /mail（子命令入口仍保留）

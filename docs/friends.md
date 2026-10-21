@@ -15,7 +15,7 @@
 
 - **主界面直接展示好友**：头像、在线状态、成为好友时间；不需要先点“好友列表”。
 - **好友头像**：左键直接传送到好友身边（不需要对方同意），右键写邮件，Shift+右键删除好友（弹出确认）。
-- **好友传送**：同服直接落地；好友在其它子服时，若服务器装了 HuskHomes 且开启跨服模式，会交给 HuskHomes 完成跨服传送（玩家先被送到对方所在子服，再落地到好友身边）。没装 HuskHomes 或未开跨服时提示“在其他服务器”。好友离线会提示。权限 `liuchat.friend.teleport`（默认所有玩家可用），可在配置中关闭或设置冷却。
+- **好友传送**：界面里左键好友，或习惯指令时用 `/friend tp <好友名>`（`/好友 tp <好友名>` 同样可用），效果完全一致。同服直接落地；好友在其它子服时，若服务器装了 HuskHomes 且开启跨服模式，会交给 HuskHomes 完成跨服传送（玩家先被送到对方所在子服，再落地到好友身边）。没装 HuskHomes 或未开跨服时提示“在其他服务器”。好友离线会提示。权限 `liuchat.friend.teleport`（默认所有玩家可用），可在配置中关闭或设置冷却。
 - **HuskHomes 接入**：软依赖，无需编译期安装；只通过官方 `HuskHomesAPI` 反射调用，等价于 HuskHomes 自身的 `/tp <玩家>`，因此会沿用它的传送预热、取消规则与跨服网络。HuskHomes 需开启 `cross_server.enabled` 并配好代理（Redis 或插件消息）。
 - **权限**：好友传送只看 `liuchat.friend.teleport`，**不需要** HuskHomes 的 `/tp` 权限（插件调用的是 API，不执行命令，命令层的权限检查不会被触发）；HuskHomes 的传送预热仍然生效，拥有 `huskhomes.bypass_teleport_warmup` 的玩家可跳过预热。
 - **好友请求**：底部铃铛按钮进入，按钮名称直接显示待处理数量（如“好友请求 (3)”）；左键接受、右键拒绝。
@@ -78,7 +78,7 @@ friends.friends(playerId).thenAccept(list -> {
 - `deny(UUID player, UUID requester)`、`cancel(UUID sender, UUID target)`
 - `remove(UUID player, UUID friend)`
 - `areFriends(UUID, UUID)`
-- `teleport(UUID player, UUID friend)`（直接传送，不需要对方同意；跨服经 HuskHomes 完成时返回 `TELEPORT_CROSS_SERVER`）
+- `teleport(UUID player, UUID friend)` / `teleport(UUID player, UUID friend, String friendName)`（直接传送，不需要对方同意；跨服经 HuskHomes 完成时返回 `TELEPORT_CROSS_SERVER`；带名字的重载可避免目录缓存缺失时把跨服好友误判为离线）
 - `isOnline(String name)`（本服或跨服在线名单，跨服名单有约 60 秒周期延迟）
 - `isEnabled()`
 

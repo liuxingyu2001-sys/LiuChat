@@ -60,6 +60,12 @@ public interface FriendApi {
      */
     CompletableFuture<FriendResult> teleport(UUID player, UUID friend);
 
+    /**
+     * 同 {@link #teleport(UUID, UUID)}，但带上好友名字用于跨服在线判断
+     * （调用方通常已经从好友列表拿到名字，避免目录缓存缺失时把跨服好友误判为离线）。
+     */
+    CompletableFuture<FriendResult> teleport(UUID player, UUID friend, String friendName);
+
     /** 本服精确在线，或跨服在线名单中包含该名字。 */
     boolean isOnline(String playerName);
 

@@ -360,6 +360,11 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
 
     @Override
     public CompletableFuture<FriendResult> teleport(UUID playerId, UUID friendId) {
+        return teleport(playerId, friendId, null);
+    }
+
+    @Override
+    public CompletableFuture<FriendResult> teleport(UUID playerId, UUID friendId, String friendName) {
         if (playerId == null || friendId == null) {
             return CompletableFuture.completedFuture(FriendResult.NOT_FOUND);
         }
@@ -367,7 +372,10 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
         if (player == null || !player.isOnline()) {
             return CompletableFuture.completedFuture(FriendResult.TELEPORT_OFFLINE);
         }
-        return teleport(player, friendId, directory.nameOf(friendId, friendId.toString()));
+        String name = friendName == null || friendName.isBlank()
+                ? directory.nameOf(friendId, friendId.toString())
+                : friendName;
+        return teleport(player, friendId, name);
     }
 
     /**
