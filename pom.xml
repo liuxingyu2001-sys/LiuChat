@@ -4,7 +4,7 @@
 
   <groupId>com.liuxingyu</groupId>
   <artifactId>LiuChat</artifactId>
-  <version>0.8.7</version>
+  <version>0.8.8</version>
   <packaging>jar</packaging>
 
   <name>LiuChat</name>
@@ -17,6 +17,7 @@
     <placeholderapi.version>2.11.6</placeholderapi.version>
     <sqlite.version>3.47.0.0</sqlite.version>
     <adventure.version>4.26.1</adventure.version>
+    <liulib.version>1.0.5</liulib.version>
   </properties>
 
   <repositories>
@@ -53,7 +54,7 @@
     <dependency>
       <groupId>com.liuxingyu</groupId>
       <artifactId>LiuLib</artifactId>
-      <version>1.0.3</version>
+      <version>${liulib.version}</version>
       <scope>provided</scope>
     </dependency>
     <dependency>

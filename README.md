@@ -4,12 +4,14 @@
 
 Paper / Leaf / Folia 1.21+ 聊天插件（Java 21）。好友/邮件界面内置 [Sparrow UI](https://github.com/Catnies/sparrow-ui)（Apache-2.0，已 relocate）。当前使用 Paper 1.21.11 API 编译；1.21 早期小版本尚未验证，部分功能可能需要较新版本。
 
-> **前置插件**：必须安装 **LiuLib 1.0.3+**。LiuChat 的物品字节编解码、文本与调度器复用 LiuLib 的共享实现；缺少 LiuLib 时服务端会按 `depend` 拒绝加载本插件。LiuChat 仍保留自己的 JDBC/Redis 实现以兼容现有数据与跨服协议。
+> **前置插件**：必须安装 **LiuLib 1.0.5+**。LiuChat 的物品字节编解码、文本与调度器复用 LiuLib 的共享实现；缺少 LiuLib 时服务端会按 `depend` 拒绝加载本插件。LiuChat 仍保留自己的 JDBC/Redis 实现以兼容现有数据与跨服协议。
+>
+> 聊天物品展示与邮件附件的物品直接来自玩家手持物品，经 LiuLib `ItemCodec` 完整序列化/反序列化（CE/NBT/PDC 全保真），不读取配置里的物品字符串，因此没有 `lib:` 物品库引用入口，也未声明 `liuitemlib` 软依赖。
 
 - **平台**：完整物品悬浮及 Dialogs 使用 Paper API；好友/邮件使用 Sparrow UI 的箱子窗口与铁砧输入；内置调度器兼容层，同一份 jar 在 Paper / Leaf 与 Folia 上均可运行（`folia-supported: true`）
 - **存储**：SQLite（单服）/ MySQL（跨服共享），驱动经 plugin.yml `libraries` 由 Paper 自动下载；数据库层与 Redis 协议保持 LiuChat 自有实现，升级 LiuLib 不会改变已有表结构
 - **跨服**：BungeeCord plugin messaging（BungeeCord / Velocity 均原生支持，当前协议 10）；可选 `cross-server.transport: redis` 改走 Redis pub/sub（手写 RESP 零依赖，空服可收发，失败自动回落代理）
-- **必装依赖**：LiuLib 1.0.3+
+- **必装依赖**：LiuLib 1.0.5+
 - **可选依赖**：PlaceholderAPI、CustomNameplates、CraftEngine、SoulSpace、Citizens、DialogMenu、ArcMenu + ProtocolLib；未安装时基础聊天可用
 
 ## 功能一览
