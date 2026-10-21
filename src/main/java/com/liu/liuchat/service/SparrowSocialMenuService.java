@@ -617,13 +617,20 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                 () -> openMailDetail(player, mailId)));
     }
 
-    /** 好友传送：不需要对方同意，成功后直接关闭界面并提示。 */
+    /** 好友传送：不需要对方同意；同服直接落地，跨服交给 HuskHomes，成功后关闭界面并提示。 */
     private void teleport(Player player, Friend friend) {
         friends.teleport(player, friend.uuid(), friend.name()).thenAccept(result -> {
             if (result == FriendResult.OK) {
                 main(player, () -> {
                     player.closeInventory();
                     messages.send(player, "friend.teleport-ok", "${player}", friend.name());
+                });
+                return;
+            }
+            if (result == FriendResult.TELEPORT_CROSS_SERVER) {
+                main(player, () -> {
+                    player.closeInventory();
+                    messages.send(player, "friend.teleport-queued", "${player}", friend.name());
                 });
                 return;
             }
@@ -1024,6 +1031,7 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             case TELEPORT_OTHER_SERVER -> "friend.teleport-other-server";
             case TELEPORT_COOLDOWN -> "friend.teleport-cooldown";
             case TELEPORT_FAILED -> "friend.teleport-failed";
+            case TELEPORT_CROSS_SERVER -> "friend.teleport-queued";
             default -> "friend.storage-unavailable";
         };
         messages.send(player, key, "${player}", target == null ? "" : target);

@@ -9,6 +9,7 @@ import com.liu.liuchat.api.event.FriendRemovedEvent;
 import com.liu.liuchat.api.event.FriendRequestEvent;
 import com.liu.liuchat.config.ConfigManager;
 import com.liu.liuchat.config.MessageManager;
+import com.liu.liuchat.hook.HuskHomesHook;
 import com.liu.liuchat.model.FriendRequestRow;
 import com.liu.liuchat.model.FriendRow;
 import com.liu.liuchat.storage.Database;
@@ -400,12 +401,17 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
                 return FriendResult.NOT_FRIENDS;
             }
             Player target = Bukkit.getPlayer(friendId);
-            if (target == null || !target.isOnline()) {
-                return isOnline(friendName) ? FriendResult.TELEPORT_OTHER_SERVER : FriendResult.TELEPORT_OFFLINE;
-            }
-            return FriendResult.OK;
+            if (target != null && target.isOnline()) return FriendResult.OK;
+            if (!isOnline(friendName)) return FriendResult.TELEPORT_OFFLINE;
+            // 好友在其它子服：装了 HuskHomes 就交给它做跨服传送（它自己会走代理），
+            // 否则只能提示“在其他服务器”。
+            return config.friendsTeleportCrossServer() && HuskHomesHook.available()
+                    ? FriendResult.TELEPORT_CROSS_SERVER
+                    : FriendResult.TELEPORT_OTHER_SERVER;
         }, worker).thenCompose(status -> {
-            if (status != FriendResult.OK) return CompletableFuture.completedFuture(status);
+            if (status != FriendResult.OK && status != FriendResult.TELEPORT_CROSS_SERVER) {
+                return CompletableFuture.completedFuture(status);
+            }
             long now = System.currentTimeMillis();
             long cooldown = Math.max(0L, config.friendsTeleportCooldownSeconds() * 1000L);
             if (cooldown > 0L) {
@@ -414,6 +420,10 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
                     return CompletableFuture.completedFuture(FriendResult.TELEPORT_COOLDOWN);
                 }
                 teleportCooldowns.put(player.getUniqueId(), now + cooldown);
+            }
+            if (status == FriendResult.TELEPORT_CROSS_SERVER) {
+                return HuskHomesHook.teleportToPlayer(plugin, player, friendName)
+                        .thenApply(ok -> ok ? FriendResult.TELEPORT_CROSS_SERVER : FriendResult.TELEPORT_FAILED);
             }
             Player target = Bukkit.getPlayer(friendId);
             if (target == null || !target.isOnline()) {

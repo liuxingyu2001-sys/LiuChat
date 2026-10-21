@@ -52,9 +52,11 @@ public interface FriendApi {
     CompletableFuture<Boolean> areFriends(UUID first, UUID second);
 
     /**
-     * 好友传送：不需要对方同意，把在线玩家直接传送到同服在线好友身边。
-     * 好友离线返回 {@link FriendResult#TELEPORT_OFFLINE}，在其它子服返回
-     * {@link FriendResult#TELEPORT_OTHER_SERVER}。
+     * 好友传送：不需要对方同意，把在线玩家直接传送到在线好友身边。
+     * <p>同服直接落地；好友在其它子服时，若服务器装了 HuskHomes 且开启跨服模式，
+     * 会把传送交给 HuskHomes 完成，返回 {@link FriendResult#TELEPORT_CROSS_SERVER}
+     * （异步，玩家稍后到达）。好友离线返回 {@link FriendResult#TELEPORT_OFFLINE}，
+     * 其它子服且无法跨服传送返回 {@link FriendResult#TELEPORT_OTHER_SERVER}。</p>
      */
     CompletableFuture<FriendResult> teleport(UUID player, UUID friend);
 

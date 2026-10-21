@@ -29,5 +29,7 @@ public enum FriendResult {
     /** 传送冷却中。 */
     TELEPORT_COOLDOWN,
     /** 传送被服务端拒绝或取消。 */
-    TELEPORT_FAILED
+    TELEPORT_FAILED,
+    /** 已通过 HuskHomes 发起跨服传送（异步，玩家随后会到达好友所在子服）。 */
+    TELEPORT_CROSS_SERVER
 }

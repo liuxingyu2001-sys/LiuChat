@@ -95,6 +95,7 @@ class ConfigDefaultsTest {
             assertEquals(168, defaults.getInt("friends.request-expire-hours"));
             assertEquals(300, defaults.getInt("friends.join-notify-cooldown-seconds"));
             assertTrue(defaults.getBoolean("friends.teleport"));
+            assertTrue(defaults.getBoolean("friends.teleport-cross-server"));
             assertEquals(0, defaults.getInt("friends.teleport-cooldown-seconds"));
             assertEquals(30, defaults.getInt("mail.expire-days"));
             assertEquals(3, defaults.getInt("mail.max-attachments"));

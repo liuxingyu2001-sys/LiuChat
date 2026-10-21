@@ -15,7 +15,8 @@
 
 - **主界面直接展示好友**：头像、在线状态、成为好友时间；不需要先点“好友列表”。
 - **好友头像**：左键直接传送到好友身边（不需要对方同意），右键写邮件，Shift+右键删除好友（弹出确认）。
-- **好友传送**：仅同一服务器生效，好友离线或位于其它子服时会在聊天栏提示；权限 `liuchat.friend.teleport`（默认所有玩家可用），可在配置中关闭或设置冷却。
+- **好友传送**：同服直接落地；好友在其它子服时，若服务器装了 HuskHomes 且开启跨服模式，会交给 HuskHomes 完成跨服传送（玩家先被送到对方所在子服，再落地到好友身边）。没装 HuskHomes 或未开跨服时提示“在其他服务器”。好友离线会提示。权限 `liuchat.friend.teleport`（默认所有玩家可用），可在配置中关闭或设置冷却。
+- **HuskHomes 接入**：软依赖，无需编译期安装；只通过官方 `HuskHomesAPI` 反射调用，等价于 HuskHomes 自身的 `/tp <玩家>`，因此会沿用它的传送预热、取消规则与跨服网络。HuskHomes 需开启 `cross_server.enabled` 并配好代理（Redis 或插件消息）。
 - **好友请求**：底部铃铛按钮进入，按钮名称直接显示待处理数量（如“好友请求 (3)”）；左键接受、右键拒绝。
 - **已发送的请求**：底部按钮进入；左键撤回。
 - **添加好友**：底部按钮先列出本服在线玩家，点击头像直接发送请求；可点“手动输入名字”用铁砧添加离线/跨服玩家。
@@ -40,7 +41,8 @@ friends:
   request-expire-hours: 168 # 0 = 永不过期
   page-size: 45             # 每页好友数（箱子 45 个内容格）
   notify-on-join: true   # 好友上线时通知在线好友（跨服也尝试私密投递）
-  teleport: true         # 好友之间可直接传送（不需要对方同意），仅同服
+  teleport: true         # 好友之间可直接传送（不需要对方同意）
+  teleport-cross-server: true # 好友在其它子服时交给 HuskHomes 跨服传送
   teleport-cooldown-seconds: 0 # 传送冷却（秒）；0 = 不冷却
 ```
 
@@ -75,7 +77,7 @@ friends.friends(playerId).thenAccept(list -> {
 - `deny(UUID player, UUID requester)`、`cancel(UUID sender, UUID target)`
 - `remove(UUID player, UUID friend)`
 - `areFriends(UUID, UUID)`
-- `teleport(UUID player, UUID friend)`（同服直接传送，不需要对方同意）
+- `teleport(UUID player, UUID friend)`（直接传送，不需要对方同意；跨服经 HuskHomes 完成时返回 `TELEPORT_CROSS_SERVER`）
 - `isOnline(String name)`（本服或跨服在线名单，跨服名单有约 60 秒周期延迟）
 - `isEnabled()`
 

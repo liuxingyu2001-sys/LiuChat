@@ -121,8 +121,10 @@ friends:
   notify-on-join: true
   # 同一好友重复上线/跨服往返时的通知冷却（秒）；0 = 每次都提醒
   join-notify-cooldown-seconds: 300
-  # 好友传送：在好友界面左键好友即可直接传送到对方身边，不需要对方同意；仅限同一服务器
+  # 好友传送：在好友界面左键好友即可直接传送到对方身边，不需要对方同意
   teleport: true
+  # 好友在其它子服时，是否调用 HuskHomes 的跨服传送（HuskHomes 需开启 cross_server）
+  teleport-cross-server: true
   # 好友传送冷却（秒）；0 = 不冷却
   teleport-cooldown-seconds: 0
 

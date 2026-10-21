@@ -528,6 +528,13 @@ public final class SocialMenuService implements Listener, SocialMenu {
                 });
                 return;
             }
+            if (result == FriendResult.TELEPORT_CROSS_SERVER) {
+                main(player, () -> {
+                    player.closeInventory();
+                    messages.send(player, "friend.teleport-queued", "${player}", friend.name());
+                });
+                return;
+            }
             afterFriend(player, result, "friend.teleport-ok", friend.name(), () -> openFriendList(player, 1));
         });
     }
@@ -553,6 +560,7 @@ public final class SocialMenuService implements Listener, SocialMenu {
             case TELEPORT_OTHER_SERVER -> "friend.teleport-other-server";
             case TELEPORT_COOLDOWN -> "friend.teleport-cooldown";
             case TELEPORT_FAILED -> "friend.teleport-failed";
+            case TELEPORT_CROSS_SERVER -> "friend.teleport-queued";
             default -> "friend.storage-unavailable";
         };
         messages.send(player, key, "${player}", target == null ? "" : target);

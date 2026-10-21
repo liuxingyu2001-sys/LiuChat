@@ -335,6 +335,10 @@ public final class ConfigManager {
     public int friendsTeleportCooldownSeconds() {
         return bounded("friends.teleport-cooldown-seconds", 0, 0, 3600);
     }
+    /** 好友在其它子服时是否交给 HuskHomes 做跨服传送（需要 HuskHomes 开启 cross_server）。 */
+    public boolean friendsTeleportCrossServer() {
+        return config.getBoolean("friends.teleport-cross-server", true);
+    }
     /** 同一好友在短时间内重复上线（跨服往返）时的通知冷却；0 = 不冷却。 */
     public int friendsJoinNotifyCooldownSeconds() {
         return bounded("friends.join-notify-cooldown-seconds", 300, 0, 86400);
