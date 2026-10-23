@@ -93,6 +93,18 @@ final class MysqlDatabase extends AbstractJdbcDatabase {
         } catch (java.sql.SQLException ignored) {
             // 新表已经是 MEDIUMTEXT，或旧表不存在
         }
+        // 好友/邮件 API 允许外部插件传入非玩家名（如工会名），旧库的 VARCHAR(32) 会写入失败。
+        // 逐列升级，单列失败不影响其它列；SQLite 不校验 VARCHAR 长度，无需迁移。
+        try {
+            statement.executeUpdate("ALTER TABLE mail MODIFY COLUMN sender_name VARCHAR(128) NOT NULL");
+        } catch (java.sql.SQLException ignored) {
+            // 新表已经是 VARCHAR(128)，或旧表不存在
+        }
+        try {
+            statement.executeUpdate("ALTER TABLE mail MODIFY COLUMN recipient_name VARCHAR(128) NOT NULL");
+        } catch (java.sql.SQLException ignored) {
+            // 新表已经是 VARCHAR(128)，或旧表不存在
+        }
     }
 
     @Override

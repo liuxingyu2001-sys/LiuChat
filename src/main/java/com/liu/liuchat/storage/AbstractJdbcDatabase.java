@@ -391,9 +391,9 @@ abstract class AbstractJdbcDatabase implements Database {
                 CREATE TABLE IF NOT EXISTS mail (
                     id             VARCHAR(36) PRIMARY KEY,
                     sender_uuid    VARCHAR(36) NOT NULL,
-                    sender_name    VARCHAR(32) NOT NULL,
+                    sender_name    VARCHAR(128) NOT NULL,
                     recipient_uuid VARCHAR(36) NOT NULL,
-                    recipient_name VARCHAR(32) NOT NULL,
+                    recipient_name VARCHAR(128) NOT NULL,
                     subject        VARCHAR(128) NOT NULL,
                     body           TEXT NOT NULL,
                     attachments    MEDIUMTEXT,
@@ -731,6 +731,20 @@ abstract class AbstractJdbcDatabase implements Database {
 
     // ---------------- 邮件 ----------------
 
+    /**
+     * 邮件表里名字列的最大字符数（按 Unicode 码点计，和 MySQL utf8mb4 的 VARCHAR 一致）。
+     * 玩家名最多 16，但邮件 API 允许外部插件（如工会插件）传入任意展示名，
+     * 旧库的 VARCHAR(32) 会因此抛 {@code Data too long for column 'recipient_name'}。
+     */
+    static final int MAIL_NAME_MAX = 128;
+
+    /** 截断到列宽且不把代理对（emoji/生僻字）从中间劈开，避免 MySQL 报非法字符串。 */
+    static String clampName(String value) {
+        if (value == null) return "";
+        if (value.codePointCount(0, value.length()) <= MAIL_NAME_MAX) return value;
+        return value.substring(0, value.offsetByCodePoints(0, MAIL_NAME_MAX));
+    }
+
     @Override
     public boolean saveMail(MailRow mail) {
         if (mail == null) return false;
@@ -743,9 +757,9 @@ abstract class AbstractJdbcDatabase implements Database {
                             + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
                 ps.setString(1, mail.id());
                 ps.setString(2, mail.senderUuid());
-                ps.setString(3, mail.senderName());
+                ps.setString(3, clampName(mail.senderName()));
                 ps.setString(4, mail.recipientUuid());
-                ps.setString(5, mail.recipientName());
+                ps.setString(5, clampName(mail.recipientName()));
                 ps.setString(6, mail.subject());
                 ps.setString(7, mail.body());
                 ps.setString(8, String.join("\n", mail.attachments()));
