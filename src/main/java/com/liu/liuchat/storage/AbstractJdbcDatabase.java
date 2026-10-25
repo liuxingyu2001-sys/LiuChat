@@ -38,6 +38,8 @@ abstract class AbstractJdbcDatabase implements Database {
     private volatile boolean ready;
     private final DbExecutor executor = new DbExecutor("LiuChat-db-writer");
     private final AtomicBoolean closed = new AtomicBoolean();
+    /** 旧列宽兜底只提示一次，避免每封邮件刷屏。 */
+    private volatile boolean warnedMailLegacyName;
 
     protected AbstractJdbcDatabase(JavaPlugin plugin) {
         this(plugin.getLogger(), plugin::isEnabled);
@@ -737,12 +739,18 @@ abstract class AbstractJdbcDatabase implements Database {
      * 旧库的 VARCHAR(32) 会因此抛 {@code Data too long for column 'recipient_name'}。
      */
     static final int MAIL_NAME_MAX = 128;
+    /** 旧库尚未完成列宽迁移时的兜底列宽（VARCHAR(32) 时代）。 */
+    static final int MAIL_NAME_LEGACY_MAX = 32;
 
     /** 截断到列宽且不把代理对（emoji/生僻字）从中间劈开，避免 MySQL 报非法字符串。 */
     static String clampName(String value) {
+        return clampName(value, MAIL_NAME_MAX);
+    }
+
+    static String clampName(String value, int max) {
         if (value == null) return "";
-        if (value.codePointCount(0, value.length()) <= MAIL_NAME_MAX) return value;
-        return value.substring(0, value.offsetByCodePoints(0, MAIL_NAME_MAX));
+        if (value.codePointCount(0, value.length()) <= max) return value;
+        return value.substring(0, value.offsetByCodePoints(0, max));
     }
 
     @Override
@@ -750,32 +758,65 @@ abstract class AbstractJdbcDatabase implements Database {
         if (mail == null) return false;
         return executor.read(() -> {
             if (!ready) return false;
-            try (PreparedStatement ps = connection.prepareStatement(
-                    "INSERT INTO mail (id, sender_uuid, sender_name, recipient_uuid, recipient_name, "
-                            + "subject, body, attachments, created_at, expires_at, is_read, claimed, "
-                            + "read_at, claimed_at, recalled) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
-                ps.setString(1, mail.id());
-                ps.setString(2, mail.senderUuid());
-                ps.setString(3, clampName(mail.senderName()));
-                ps.setString(4, mail.recipientUuid());
-                ps.setString(5, clampName(mail.recipientName()));
-                ps.setString(6, mail.subject());
-                ps.setString(7, mail.body());
-                ps.setString(8, String.join("\n", mail.attachments()));
-                ps.setLong(9, mail.createdAt());
-                ps.setLong(10, mail.expiresAt());
-                ps.setInt(11, mail.read() ? 1 : 0);
-                ps.setInt(12, mail.claimed() ? 1 : 0);
-                ps.setLong(13, mail.readAt());
-                ps.setLong(14, mail.claimedAt());
-                ps.setInt(15, mail.recalled() ? 1 : 0);
-                return ps.executeUpdate() == 1;
-            } catch (Exception e) {
-                fail("保存邮件失败", e);
-                return false;
+            try {
+                return insertMail(mail, MAIL_NAME_MAX);
+            } catch (SQLException error) {
+                if (!isNameTooLong(error)) {
+                    fail("保存邮件失败", error);
+                    return false;
+                }
+                // 列宽迁移没生效（例如数据库账号缺少 ALTER 权限）时退回旧列宽，
+                // 保证外部插件的邮件仍然能投递，而不是整封丢失。
+                if (!warnedMailLegacyName) {
+                    warnedMailLegacyName = true;
+                    logger.log(Level.WARNING,
+                            "mail 名字列仍是旧列宽（VARCHAR(32)），已按 32 字符截断保存；"
+                                    + "建议确认数据库账号有 ALTER 权限后重启以完成升级", error);
+                }
+                try {
+                    return insertMail(mail, MAIL_NAME_LEGACY_MAX);
+                } catch (SQLException retry) {
+                    fail("保存邮件失败", retry);
+                    return false;
+                }
             }
         });
+    }
+
+    private boolean insertMail(MailRow mail, int nameMax) throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "INSERT INTO mail (id, sender_uuid, sender_name, recipient_uuid, recipient_name, "
+                        + "subject, body, attachments, created_at, expires_at, is_read, claimed, "
+                        + "read_at, claimed_at, recalled) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+            ps.setString(1, mail.id());
+            ps.setString(2, mail.senderUuid());
+            ps.setString(3, clampName(mail.senderName(), nameMax));
+            ps.setString(4, mail.recipientUuid());
+            ps.setString(5, clampName(mail.recipientName(), nameMax));
+            ps.setString(6, mail.subject());
+            ps.setString(7, mail.body());
+            ps.setString(8, String.join("\n", mail.attachments()));
+            ps.setLong(9, mail.createdAt());
+            ps.setLong(10, mail.expiresAt());
+            ps.setInt(11, mail.read() ? 1 : 0);
+            ps.setInt(12, mail.claimed() ? 1 : 0);
+            ps.setLong(13, mail.readAt());
+            ps.setLong(14, mail.claimedAt());
+            ps.setInt(15, mail.recalled() ? 1 : 0);
+            return ps.executeUpdate() == 1;
+        }
+    }
+
+    /** MySQL/MariaDB 的「字符串超长」错误（SQLState 22001）。 */
+    static boolean isNameTooLong(SQLException error) {
+        String state = error.getSQLState();
+        if (state != null && state.startsWith("22001")) return true;
+        String message = error.getMessage();
+        if (message == null) return false;
+        String lower = message.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("data too long") || lower.contains("data truncation")
+                || lower.contains("string data, right truncation");
     }
 
     @Override

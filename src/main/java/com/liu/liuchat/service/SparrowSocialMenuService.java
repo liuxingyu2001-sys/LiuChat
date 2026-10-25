@@ -363,6 +363,11 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             }
             int pages = Math.max(1, (result.total() + result.pageSize() - 1) / result.pageSize());
             int current = Math.min(Math.max(1, page), pages);
+            // 删掉最后一页最后一封后 current 会被夹到前面的页：重新取那一页，避免显示空白页。
+            if (current != page) {
+                openMailList(player, current);
+                return;
+            }
             for (int i = 0; i < result.mails().size() && i < CONTENT; i++) {
                 Mail entry = result.mails().get(i);
                 List<Component> lore = new ArrayList<>();
@@ -399,7 +404,8 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                     p -> openMailList(p, current - 1),
                     p -> openMailList(p, current + 1),
                     Player::closeInventory);
-            items.put(50, button(Material.PAPER, "&7共 " + result.total() + " 封邮件",
+            // 注意：nav 已占用 48/49/50，这里是统计信息，不能再写 50，否则“下一页”会被覆盖。
+            items.put(46, button(Material.PAPER, "&7共 " + result.total() + " 封邮件",
                     List.of("&7未读: &e" + result.unread() + " &7封", "&7附件可在邮件详情里单击领取"), null));
             items.put(51, button(Material.WRITTEN_BOOK, "&b已发送", List.of("&7查看发件、阅读与领取状态"),
                     click -> openSentList(click.player(), 1)));
@@ -421,6 +427,10 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             }
             int pages = Math.max(1, (result.total() + result.pageSize() - 1) / result.pageSize());
             int current = Math.min(Math.max(1, page), pages);
+            if (current != page) {
+                openSentList(player, current);
+                return;
+            }
             for (int i = 0; i < result.mails().size() && i < CONTENT; i++) {
                 Mail entry = result.mails().get(i);
                 List<Component> lore = new ArrayList<>();
@@ -665,8 +675,8 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             Map<Integer, Item> items = new ConcurrentHashMap<>();
             java.util.Map<UUID, ComposeTarget> targets = new java.util.LinkedHashMap<>();
             for (Friend friend : all) {
-                Player online = Bukkit.getPlayer(friend.uuid());
-                targets.put(friend.uuid(), new ComposeTarget(friend.name(), friend.uuid(), true, online != null));
+                // friend.online() 含跨服在线状态，比只看本服更准确
+                targets.put(friend.uuid(), new ComposeTarget(friend.name(), friend.uuid(), true, friend.online()));
             }
             for (Player online : Bukkit.getOnlinePlayers()) {
                 if (online.equals(player)) continue;

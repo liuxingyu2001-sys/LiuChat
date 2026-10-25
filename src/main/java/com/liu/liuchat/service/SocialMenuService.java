@@ -274,6 +274,10 @@ public final class SocialMenuService implements Listener, SocialMenu {
             }
             int pages = Math.max(1, (result.total() + result.pageSize() - 1) / result.pageSize());
             int current = Math.min(Math.max(1, page), pages);
+            if (current != page) {
+                openMailList(player, current);
+                return;
+            }
             for (int i = 0; i < result.mails().size() && i < CONTENT; i++) {
                 Mail entry = result.mails().get(i);
                 List<Component> lore = new ArrayList<>();

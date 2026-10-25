@@ -109,7 +109,7 @@ tell.blocked-self: "&7[私聊] &f你 &7-> &e${player}&8: &f${message}"
 tell.blocked-notify: "&c[违规私聊拦截] &e${player} &7-> &e${target}&8: &f${message}"
 
 # 好友
-help.friend.desc: "&7打开好友界面"
+help.friend.desc: "&7打开好友界面；/friend tp <好友名> 直接传送"
 friend.usage: "&7好友相关操作请在好友界面中点击完成。"
 friend.disabled: "&c好友系统未启用。"
 friend.not-found: "&c找不到玩家 &e${player} &7(需要该玩家至少登录过一次)"

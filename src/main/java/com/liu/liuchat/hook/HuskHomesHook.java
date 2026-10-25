@@ -52,6 +52,10 @@ public final class HuskHomesHook {
             return result;
         }
         Schedulers.runFor(plugin, player, () -> {
+            if (!player.isOnline()) {
+                result.complete(false);
+                return;
+            }
             try {
                 result.complete(HuskHomesResolver.invoke(husk.getClass().getClassLoader(), player, targetName));
             } catch (InvocationTargetException error) {
@@ -62,7 +66,8 @@ public final class HuskHomesHook {
                 result.complete(false);
             }
         });
-        return result;
+        // 实体已卸载/服务器卡顿时调度可能不执行，兜底避免调用方的界面一直等不到结果。
+        return result.completeOnTimeout(false, 10, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private static void warn(JavaPlugin plugin, Throwable error) {

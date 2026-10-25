@@ -67,9 +67,9 @@ commands:
     description: 设置聊天昵称
     usage: /nick <昵称或MiniMessage>
   friend:
-    description: 打开好友界面
+    description: 打开好友界面 / 直接传送到好友身边
     aliases: ['好友']
-    usage: /friend
+    usage: /friend [tp <好友名>]
   mail:
     description: 打开邮箱界面
     aliases: ['邮件']

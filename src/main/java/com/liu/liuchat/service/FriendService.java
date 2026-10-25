@@ -22,6 +22,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -84,7 +85,11 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
         return CompletableFuture.supplyAsync(() -> {
             List<FriendRow> rows = database.loadFriends(player.toString());
             if (rows == null) return List.<Friend>of();
-            return rows.stream().map(row -> mapFriend(row)).toList();
+            // 在线优先，其次按名字排序：好友多时在线的人不会被翻到后面几页。
+            return rows.stream().map(this::mapFriend)
+                    .sorted(Comparator.comparing(Friend::online).reversed()
+                            .thenComparing(Friend::name, String.CASE_INSENSITIVE_ORDER))
+                    .toList();
         }, worker).exceptionally(error -> {
             log("读取好友列表失败", error);
             return List.of();
@@ -381,9 +386,11 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
     /**
      * 好友传送：不需要对方同意，直接把发起者传送到在线好友身边。
      *
-     * <p>只支持同一服务器：好友在其它子服时返回 {@link FriendResult#TELEPORT_OTHER_SERVER}，
-     * 由界面提示玩家；是否启用、冷却秒数见 {@code friends.teleport} 与
-     * {@code friends.teleport-cooldown-seconds}，权限为 {@code liuchat.friend.teleport}。</p>
+     * <p>同服直接落地（位置在目标玩家区域线程读取，Folia 下也安全）；
+     * 好友在其它子服时，若装了 HuskHomes 且开启跨服，交给它完成跨服传送，
+     * 否则返回 {@link FriendResult#TELEPORT_OTHER_SERVER}。是否启用、冷却秒数见
+     * {@code friends.teleport} 与 {@code friends.teleport-cooldown-seconds}，
+     * 权限为 {@code liuchat.friend.teleport}。</p>
      */
     public CompletableFuture<FriendResult> teleport(Player player, UUID friendId, String friendName) {
         if (closed || !config.friendsEnabled()) {
@@ -437,17 +444,48 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
             if (target == null || !target.isOnline()) {
                 return CompletableFuture.completedFuture(FriendResult.TELEPORT_OFFLINE);
             }
-            return player.teleportAsync(target.getLocation())
-                    .thenApply(ok -> {
-                        if (!Boolean.TRUE.equals(ok)) return FriendResult.TELEPORT_FAILED;
-                        notifier.send(target.getName(), "friend.teleport-target-notify",
-                                "${player}", player.getName());
-                        return FriendResult.OK;
-                    });
+            return teleportLocally(player, target);
         }).exceptionally(error -> {
             log("好友传送失败", error);
             return FriendResult.TELEPORT_FAILED;
         });
+    }
+
+    /**
+     * 同服落地：先在目标玩家的区域线程读取位置，再在发起者区域线程调用传送。
+     * Paper 上等价于主线程执行；Folia 上避免跨区域读实体位置 / 从错误线程传送。
+     * 目标在调度期间下线或实体已卸载时，用超时兜底返回失败，避免界面一直无反馈。
+     */
+    private CompletableFuture<FriendResult> teleportLocally(Player player, Player target) {
+        CompletableFuture<FriendResult> result = new CompletableFuture<>();
+        Schedulers.runFor(plugin, target, () -> {
+            if (!target.isOnline()) {
+                result.complete(FriendResult.TELEPORT_OFFLINE);
+                return;
+            }
+            org.bukkit.Location location = target.getLocation();
+            Schedulers.runFor(plugin, player, () -> {
+                if (!player.isOnline()) {
+                    result.complete(FriendResult.TELEPORT_FAILED);
+                    return;
+                }
+                player.teleportAsync(location).thenAccept(ok -> {
+                    if (result.isDone()) return; // 已超时兜底，不再重复提示
+                    if (!Boolean.TRUE.equals(ok)) {
+                        result.complete(FriendResult.TELEPORT_FAILED);
+                        return;
+                    }
+                    notifier.send(target.getName(), "friend.teleport-target-notify",
+                            "${player}", player.getName());
+                    result.complete(FriendResult.OK);
+                }).exceptionally(error -> {
+                    log("好友传送失败", error);
+                    result.complete(FriendResult.TELEPORT_FAILED);
+                    return null;
+                });
+            });
+        });
+        return result.completeOnTimeout(FriendResult.TELEPORT_FAILED, 10, TimeUnit.SECONDS);
     }
 
     @Override

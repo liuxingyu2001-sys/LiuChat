@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 外部插件（如工会插件）可以把任意展示名当邮件收件人/发件人写入，
@@ -33,6 +34,23 @@ class MailNameClampTest {
         String name = "a".repeat(AbstractJdbcDatabase.MAIL_NAME_MAX + 10);
         assertEquals(AbstractJdbcDatabase.MAIL_NAME_MAX,
                 AbstractJdbcDatabase.clampName(name).length());
+    }
+
+    @Test
+    void legacyWidthTruncationFitsOldColumn() {
+        String name = "a".repeat(100);
+        assertEquals(AbstractJdbcDatabase.MAIL_NAME_LEGACY_MAX,
+                AbstractJdbcDatabase.clampName(name, AbstractJdbcDatabase.MAIL_NAME_LEGACY_MAX).length());
+    }
+
+    @Test
+    void detectsDataTooLongError() {
+        assertTrue(AbstractJdbcDatabase.isNameTooLong(new java.sql.SQLException(
+                "Data too long for column 'recipient_name' at row 1", "22001")));
+        assertTrue(AbstractJdbcDatabase.isNameTooLong(new java.sql.SQLException(
+                "Data truncation: Data too long for column 'sender_name' at row 1")));
+        assertFalse(AbstractJdbcDatabase.isNameTooLong(new java.sql.SQLException(
+                "Duplicate entry 'x' for key 'PRIMARY'", "23000")));
     }
 
     @Test
