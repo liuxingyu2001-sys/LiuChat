@@ -2,6 +2,7 @@ package com.liu.liuchat.service;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,6 +46,24 @@ class MailAttachmentFilterTest {
         assertEquals(MailAttachmentFilter.Reason.PERSISTENT_DATA,
                 check(false, false, false, false, Set.of("other:key"), Set.of("mythicmobs:*")));
         assertNull(check(false, false, false, false, Set.of("mythicmobs:item"), Set.of("mythicmobs:*")));
+    }
+
+    @Test
+    void defaultKeywordsCoverSoulboundAndRentItems() {
+        for (String keyword : MailAttachmentFilter.DEFAULT_BLOCKED_KEYWORDS) {
+            assertTrue(MailAttachmentFilter.matchesBlockedKeyword(List.of("§7" + keyword)),
+                    "keyword should match: " + keyword);
+        }
+        assertTrue(MailAttachmentFilter.matchesBlockedKeyword(List.of("RentPlus:item:3")));
+        assertTrue(MailAttachmentFilter.matchesBlockedKeyword(List.of("这部坐骑是专属的")));
+        assertFalse(MailAttachmentFilter.matchesBlockedKeyword(List.of("minecraft:custom_name")));
+    }
+
+    @Test
+    void keywordBeatsCustomNameAndLore() {
+        assertEquals(MailAttachmentFilter.Reason.KEYWORD,
+                MailAttachmentFilter.check(false, true, true, false,
+                        Set.of(), Set.of(), true));
     }
 
     @Test

@@ -77,7 +77,10 @@ mail:
 | 自定义 Lore | 带任意 Lore 行的物品 |
 | CustomModelData | 带 `CustomModelData` 的资源包物品 |
 | PDC/NBT 数据 | 任意插件写入的持久化数据（`PersistentDataContainer` 非空） |
+| 绑定/租赁关键字 | PDC key、物品名或 Lore 里出现 `soulbound`、`bound_id`、`rentplus`、`rent_id`、`租赁`、`绑定`、`专属` |
 
+- 关键字规则是内置兜底（不依赖插件命名空间），用于灵魂绑定、租赁、专属类物品；关键字列表在
+  `MailAttachmentFilter.DEFAULT_BLOCKED_KEYWORDS`，命中后提示 `mail.attach-blocked-keyword`。
 - 唯一的例外是 PDC：把所有 key 加入 `allow-persistent-keys` 即可放行，支持命名空间通配（`liuchat:*`）。
   只有物品上**所有** key 都被允许时才视为普通物品。
 - GUI 在写邮件弹窗顶部就显示主手物品能否邮寄及原因，发送前还有一次检查；命中后不会扣除物品。

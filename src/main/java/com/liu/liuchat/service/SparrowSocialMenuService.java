@@ -808,6 +808,7 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             case CUSTOM_LORE -> "（带自定义 Lore）";
             case CUSTOM_MODEL_DATA -> "（带自定义模型数据）";
             case PERSISTENT_DATA -> "（带插件 PDC/NBT 数据）";
+            case KEYWORD -> "（绑定/租赁物品）";
         };
     }
 

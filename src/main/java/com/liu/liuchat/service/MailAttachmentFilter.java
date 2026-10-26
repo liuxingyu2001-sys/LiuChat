@@ -3,8 +3,12 @@ package com.liu.liuchat.service;
 import com.liu.liuchat.config.ConfigManager;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -28,7 +32,9 @@ public final class MailAttachmentFilter {
         CUSTOM_NAME("name"),
         CUSTOM_LORE("lore"),
         CUSTOM_MODEL_DATA("model-data"),
-        PERSISTENT_DATA("pdc");
+        PERSISTENT_DATA("pdc"),
+        /** 物品名/Lore/PDC key 命中绑定、租赁等关键字。 */
+        KEYWORD("keyword");
 
         private final String suffix;
 
@@ -41,6 +47,13 @@ public final class MailAttachmentFilter {
         }
     }
 
+    /**
+     * 默认拦截的 PDC 数据 / 名称 / Lore 关键字（小写）。插件封装的“绑定/租赁”物品
+     * 各自用不同的 key 或文案标记，这里统一按关键字兜底，避免出现在默认白名单外。
+     */
+    public static final List<String> DEFAULT_BLOCKED_KEYWORDS = List.of(
+            "soulbound", "bound_id", "rentplus", "rent_id", "租赁", "绑定", "专属");
+
     private MailAttachmentFilter() {
     }
 
@@ -51,21 +64,51 @@ public final class MailAttachmentFilter {
         boolean customName = false;
         boolean customLore = false;
         boolean customModelData = false;
+        boolean blockedKeyword = false;
         Set<String> pdcKeys = Set.of();
         if (meta != null) {
             customName = meta.hasDisplayName();
-            java.util.List<net.kyori.adventure.text.Component> lore = meta.lore();
+            List<Component> lore = meta.lore();
             customLore = lore != null && !lore.isEmpty();
             customModelData = meta.hasCustomModelData();
             pdcKeys = meta.getPersistentDataContainer().getKeys().stream()
                     .map(NamespacedKey::toString).collect(java.util.stream.Collectors.toSet());
+            List<String> texts = new ArrayList<>();
+            if (customName) texts.add(plain(meta.displayName()));
+            if (customLore) lore.forEach(line -> texts.add(plain(line)));
+            blockedKeyword = matchesBlockedKeyword(pdcKeys) || matchesBlockedKeyword(texts);
         }
         return check(config.mailBlockedMaterials().contains(item.getType()),
                 customName && config.mailBlockCustomName(),
                 customLore && config.mailBlockCustomLore(),
                 customModelData && config.mailBlockCustomModelData(),
                 config.mailBlockPersistentData() ? pdcKeys : Set.of(),
-                config.mailAllowedPersistentKeys());
+                config.mailAllowedPersistentKeys(),
+                blockedKeyword);
+    }
+
+    private static String plain(Component component) {
+        return component == null ? "" : PlainTextComponentSerializer.plainText().serialize(component);
+    }
+
+    /**
+     * 关键字兜底：任意 PDC key、物品名或 Lore 里出现绑定/租赁类标记就视为不可邮寄。
+     * 覆盖各插件自定义的物品（灵魂绑定、租赁专用等），不依赖它们的命名空间。
+     */
+    static boolean matchesBlockedKeyword(java.util.Collection<String> values) {
+        return matchesBlockedKeyword(values, DEFAULT_BLOCKED_KEYWORDS);
+    }
+
+    static boolean matchesBlockedKeyword(java.util.Collection<String> values, List<String> keywords) {
+        if (values == null || values.isEmpty() || keywords == null || keywords.isEmpty()) return false;
+        for (String value : values) {
+            if (value == null) continue;
+            String normalized = value.toLowerCase(Locale.ROOT);
+            for (String keyword : keywords) {
+                if (!keyword.isEmpty() && normalized.contains(keyword)) return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -74,7 +117,14 @@ public final class MailAttachmentFilter {
      */
     static Reason check(boolean blockedMaterial, boolean customName, boolean customLore,
                         boolean customModelData, Set<String> pdcKeys, Set<String> allowedKeys) {
+        return check(blockedMaterial, customName, customLore, customModelData, pdcKeys, allowedKeys, false);
+    }
+
+    static Reason check(boolean blockedMaterial, boolean customName, boolean customLore,
+                        boolean customModelData, Set<String> pdcKeys, Set<String> allowedKeys,
+                        boolean blockedKeyword) {
         if (blockedMaterial) return Reason.MATERIAL;
+        if (blockedKeyword) return Reason.KEYWORD;
         if (customName) return Reason.CUSTOM_NAME;
         if (customLore) return Reason.CUSTOM_LORE;
         if (customModelData) return Reason.CUSTOM_MODEL_DATA;
