@@ -64,6 +64,8 @@ MailApi mail = Bukkit.getServicesManager().load(MailApi.class);
 if (mail != null && mail.isEnabled()) {
     mail.send(new MailDraft(senderId, senderName, recipientId, recipientName,
             "主题", "正文", List.of(item))).thenAccept(result -> { /* MailResult */ });
+// 附件默认受黑名单限制：带自定义名称/Lore/模型数据/PDC 的物品、以及配置里的黑名单材质
+// 会返回 MailResult.ATTACHMENT_BLOCKED（规则见 docs/mail.md 的“附件黑名单”）。
 }
 ```
 

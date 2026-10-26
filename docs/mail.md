@@ -45,6 +45,15 @@ mail:
   send-cooldown-seconds: 5
   notify-on-join: true
   allow-self: false
+  # 附件黑名单：默认禁止邮寄自定义物品
+  attachment-filter:
+    enable: true
+    block-custom-name: true        # 铁砧改过名的物品
+    block-custom-lore: true        # 带自定义 Lore 的物品
+    block-custom-model-data: true  # 带 CustomModelData 的物品
+    block-persistent-data: true    # 带任意 PDC/NBT 数据的插件物品
+    materials: [BEDROCK, BARRIER, COMMAND_BLOCK]
+    allow-persistent-keys: []      # 白名单，如 [mythicmobs:*]
 ```
 
 修改后 `/liuc reload` 生效。服务每小时清理过期邮件；过期邮件不会出现在列表/详情中。
@@ -56,6 +65,24 @@ mail:
 - 领取前会先检查背包容量（模拟加入 36 格存储），放不下返回 `INVENTORY_FULL`，不会部分领取。
 - 领取成功后邮件标记 `claimed`，不能重复领取；若容量检查后背包又被占用，剩余物品会掉落在玩家脚下而不是吞掉。
 - 附件在详情界面中展示为实际物品图标，但点击界面不会取走；必须点击“领取附件”才会放入背包。
+
+### 附件黑名单
+
+默认**不允许邮寄自定义物品**，防止管理员物品、活动道具、带插件数据的物品通过邮件跨服转移。判定顺序：
+
+| 命中项 | 说明 |
+|---|---|
+| 黑名单材质 | `attachment-filter.materials` 里列的 `Material` |
+| 自定义名称 | 用铁砧改过名的物品（`hasDisplayName()`） |
+| 自定义 Lore | 带任意 Lore 行的物品 |
+| CustomModelData | 带 `CustomModelData` 的资源包物品 |
+| PDC/NBT 数据 | 任意插件写入的持久化数据（`PersistentDataContainer` 非空） |
+
+- 唯一的例外是 PDC：把所有 key 加入 `allow-persistent-keys` 即可放行，支持命名空间通配（`liuchat:*`）。
+  只有物品上**所有** key 都被允许时才视为普通物品。
+- GUI 在写邮件弹窗顶部就显示主手物品能否邮寄及原因，发送前还有一次检查；命中后不会扣除物品。
+- 走 API 发送时返回 `MailResult.ATTACHMENT_BLOCKED`，与界面提示一致，无法绕过界面邮寄。
+- 关闭 `attachment-filter.enable` 即恢复“任意物品都能邮寄”的旧行为。
 
 ## 外部 API
 

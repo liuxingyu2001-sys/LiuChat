@@ -766,8 +766,13 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                 text("取消"), Component.empty(), 100,
                 DialogAction.customClick((view, audience) -> { },
                         ClickCallback.Options.builder().uses(1).build()));
+        // 先把“主手物品能不能邮寄”告诉玩家，避免填完正文才被拦下
+        java.util.List<io.papermc.paper.registry.data.dialog.body.DialogBody> hints = new ArrayList<>();
+        hints.add(io.papermc.paper.registry.data.dialog.body.DialogBody.plainMessage(
+                attachHint(player), 300));
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(text("写邮件"))
+                        .body(hints)
                         .inputs(List.of(
                                 DialogInput.text("subject", text("主题"))
                                         .initial(initialSubject == null ? "" : initialSubject)
@@ -777,6 +782,33 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                         .build())
                 .type(DialogType.multiAction(List.of(send), cancel, 1)));
         player.showDialog(dialog);
+    }
+
+    /** 写邮件弹窗里提示主手物品是否可邮寄（黑名单材质/自定义物品直接说明原因）。 */
+    private Component attachHint(Player player) {
+        ItemStack hand = player.getInventory().getItemInMainHand();
+        if (hand.getType().isAir()) {
+            return text("&7主手为空：勾选“附带主手物品”会提示没有可附带的物品。");
+        }
+        String name = hand.getType().name();
+        if (!config.mailAttachmentFilterEnabled()) {
+            return text("&7附件过滤已关闭，主手物品可直接邮寄：&f" + name);
+        }
+        MailAttachmentFilter.Reason blocked = MailAttachmentFilter.check(hand, config);
+        if (blocked == null) {
+            return text("&a主手物品可以邮寄：&f" + name);
+        }
+        return text("&c主手物品不能邮寄：&f" + name + " &c" + blockedText(blocked));
+    }
+
+    private static String blockedText(MailAttachmentFilter.Reason reason) {
+        return switch (reason) {
+            case MATERIAL -> "（黑名单物品）";
+            case CUSTOM_NAME -> "（带自定义名称）";
+            case CUSTOM_LORE -> "（带自定义 Lore）";
+            case CUSTOM_MODEL_DATA -> "（带自定义模型数据）";
+            case PERSISTENT_DATA -> "（带插件 PDC/NBT 数据）";
+        };
     }
 
     private void sendFromDialog(Player player, String recipient, DialogResponseView view) {
@@ -811,6 +843,11 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
                 return;
             }
             attached = hand.clone();
+            MailAttachmentFilter.Reason blocked = MailAttachmentFilter.check(attached, config);
+            if (blocked != null) {
+                messages.send(player, blocked.messageKey());
+                return;
+            }
             if (!consumeAttachment(player, attached)) {
                 messages.send(player, "mail.attach-changed");
                 return;
@@ -1037,6 +1074,7 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             case ATTACHMENT_TOO_MANY -> "mail.attach-too-many";
             case ATTACHMENT_TOO_LARGE -> "mail.attach-too-large";
             case ATTACHMENT_INVALID -> "mail.attach-invalid";
+            case ATTACHMENT_BLOCKED -> "mail.attach-blocked";
             case MAILBOX_FULL -> "mail.mailbox-full";
             case COOLDOWN -> "mail.cooldown";
             case NOT_FOUND -> "mail.not-found";

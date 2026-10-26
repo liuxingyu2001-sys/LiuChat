@@ -16,6 +16,13 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface MailApi {
 
+    /**
+     * 发送邮件。
+     * <p>
+     * 附件受黑名单限制（见 {@code mail.attachment-filter}）：黑名单材质、带自定义名称 /
+     * Lore / CustomModelData / PDC 数据的自定义物品会被拒绝，返回
+     * {@link MailResult#ATTACHMENT_BLOCKED}，需要时可关闭过滤或把 PDC key 加入白名单。
+     */
     CompletableFuture<MailResult> send(MailDraft draft);
 
     /** @param page 从 1 开始 */

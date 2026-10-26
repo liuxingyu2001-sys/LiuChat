@@ -102,6 +102,9 @@ public final class MailService implements MailApi, Listener, AutoCloseable {
         List<ItemStack> attachments = new ArrayList<>();
         for (ItemStack item : draft.attachments()) {
             if (item == null || item.getType().isAir()) return CompletableFuture.completedFuture(MailResult.ATTACHMENT_INVALID);
+            if (config.mailAttachmentFilterEnabled() && MailAttachmentFilter.check(item, config) != null) {
+                return CompletableFuture.completedFuture(MailResult.ATTACHMENT_BLOCKED);
+            }
             attachments.add(item.clone());
         }
         if (attachments.size() > config.mailMaxAttachments()) {

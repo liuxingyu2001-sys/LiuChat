@@ -100,6 +100,13 @@ class ConfigDefaultsTest {
             assertEquals(30, defaults.getInt("mail.expire-days"));
             assertEquals(3, defaults.getInt("mail.max-attachments"));
             assertFalse(defaults.getBoolean("mail.allow-self"));
+            assertTrue(defaults.getBoolean("mail.attachment-filter.enable"));
+            assertTrue(defaults.getBoolean("mail.attachment-filter.block-custom-name"));
+            assertTrue(defaults.getBoolean("mail.attachment-filter.block-custom-lore"));
+            assertTrue(defaults.getBoolean("mail.attachment-filter.block-custom-model-data"));
+            assertTrue(defaults.getBoolean("mail.attachment-filter.block-persistent-data"));
+            assertTrue(defaults.getStringList("mail.attachment-filter.materials").contains("BEDROCK"));
+            assertTrue(defaults.getStringList("mail.attachment-filter.allow-persistent-keys").isEmpty());
         }
         try (var input = getClass().getResourceAsStream("/messages.yml")) {
             var messages = YamlConfiguration.loadConfiguration(

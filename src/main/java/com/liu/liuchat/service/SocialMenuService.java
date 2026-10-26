@@ -442,6 +442,11 @@ public final class SocialMenuService implements Listener, SocialMenu {
                 return;
             }
             attached = hand.clone();
+            MailAttachmentFilter.Reason blocked = MailAttachmentFilter.check(attached, config);
+            if (blocked != null) {
+                messages.send(player, blocked.messageKey());
+                return;
+            }
             if (!consumeAttachment(player, attached)) {
                 messages.send(player, "mail.attach-changed");
                 return;
@@ -560,6 +565,7 @@ public final class SocialMenuService implements Listener, SocialMenu {
             case ATTACHMENT_TOO_MANY -> "mail.attach-too-many";
             case ATTACHMENT_TOO_LARGE -> "mail.attach-too-large";
             case ATTACHMENT_INVALID -> "mail.attach-invalid";
+            case ATTACHMENT_BLOCKED -> "mail.attach-blocked";
             case MAILBOX_FULL -> "mail.mailbox-full";
             case COOLDOWN -> "mail.cooldown";
             case NOT_FOUND -> "mail.not-found";

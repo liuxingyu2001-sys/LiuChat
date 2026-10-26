@@ -14,6 +14,8 @@ public enum MailResult {
     ATTACHMENT_TOO_MANY,
     ATTACHMENT_TOO_LARGE,
     ATTACHMENT_INVALID,
+    /** 附件命中邮件黑名单（黑名单材质，或带自定义名称/Lore/模型数据/PDC 数据）。 */
+    ATTACHMENT_BLOCKED,
     MAILBOX_FULL,
     COOLDOWN,
     NOT_FOUND,

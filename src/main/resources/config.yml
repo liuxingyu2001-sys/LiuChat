@@ -150,6 +150,33 @@ mail:
   notify-on-join: true
   # 是否允许给自己发邮件
   allow-self: false
+  # 附件过滤：默认禁止邮寄“自定义物品”，防止管理员物品/活动道具通过邮件转移
+  attachment-filter:
+    enable: true
+    # 带自定义名称（铁砧改名）的物品
+    block-custom-name: true
+    # 带自定义 Lore 的物品
+    block-custom-lore: true
+    # 带自定义模型数据（CustomModelData）的物品
+    block-custom-model-data: true
+    # 带任意 PDC/NBT 数据的物品（插件自定义物品几乎都有）
+    block-persistent-data: true
+    # 额外按材质拉黑，写 Bukkit Material 名
+    materials:
+      - BEDROCK
+      - BARRIER
+      - LIGHT
+      - STRUCTURE_VOID
+      - STRUCTURE_BLOCK
+      - JIGSAW
+      - COMMAND_BLOCK
+      - CHAIN_COMMAND_BLOCK
+      - REPEATING_COMMAND_BLOCK
+      - COMMAND_BLOCK_MINECART
+      - DEBUG_STICK
+      - KNOWLEDGE_BOOK
+    # 例外：允许邮寄的 PDC key（命名空间:key，支持 plugin:* 通配）
+    allow-persistent-keys: []
 
 # ------------------------------------------------------------
 # 存储

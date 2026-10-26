@@ -356,6 +356,48 @@ public final class ConfigManager {
     public boolean mailNotifyOnJoin() { return config.getBoolean("mail.notify-on-join", true); }
     public boolean mailAllowSelf() { return config.getBoolean("mail.allow-self", false); }
 
+    /** 附件过滤总开关：关闭后不再检查自定义物品/黑名单材质。 */
+    public boolean mailAttachmentFilterEnabled() {
+        return config.getBoolean("mail.attachment-filter.enable", true);
+    }
+
+    public boolean mailBlockCustomName() {
+        return config.getBoolean("mail.attachment-filter.block-custom-name", true);
+    }
+
+    public boolean mailBlockCustomLore() {
+        return config.getBoolean("mail.attachment-filter.block-custom-lore", true);
+    }
+
+    public boolean mailBlockCustomModelData() {
+        return config.getBoolean("mail.attachment-filter.block-custom-model-data", true);
+    }
+
+    public boolean mailBlockPersistentData() {
+        return config.getBoolean("mail.attachment-filter.block-persistent-data", true);
+    }
+
+    /** 额外拉黑的材质；无法识别的名字忽略，避免写错一个名字导致整份列表失效。 */
+    public java.util.Set<org.bukkit.Material> mailBlockedMaterials() {
+        java.util.Set<org.bukkit.Material> result = new java.util.HashSet<>();
+        for (String raw : config.getStringList("mail.attachment-filter.materials")) {
+            org.bukkit.Material material = org.bukkit.Material.matchMaterial(raw);
+            if (material != null) result.add(material);
+        }
+        return result;
+    }
+
+    /** 允许邮寄的 PDC key（小写）；支持 {@code plugin:*} 通配。 */
+    public java.util.Set<String> mailAllowedPersistentKeys() {
+        java.util.Set<String> result = new java.util.HashSet<>();
+        for (String raw : config.getStringList("mail.attachment-filter.allow-persistent-keys")) {
+            if (raw == null) continue;
+            String key = raw.strip().toLowerCase(java.util.Locale.ROOT);
+            if (!key.isEmpty()) result.add(key);
+        }
+        return result;
+    }
+
     private int bounded(String path, int fallback, int min, int max) {
         return Math.max(min, Math.min(max, config.getInt(path, fallback)));
     }
