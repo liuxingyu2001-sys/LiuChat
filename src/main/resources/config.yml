@@ -150,18 +150,14 @@ mail:
   notify-on-join: true
   # 是否允许给自己发邮件
   allow-self: false
-  # 附件过滤：默认禁止邮寄“自定义物品”，防止管理员物品/活动道具通过邮件转移
+  # 附件过滤：防止管理员物品/活动道具通过邮件转移
+  # mode: blacklist（默认）= 只拦截命中下列黑名单的物品，普通改名/带 Lore/带 PDC 的物品可正常邮寄
+  #       whitelist        = 旧行为，只放行“没有自定义名称/Lore/模型数据/PDC”的普通物品
   attachment-filter:
     enable: true
-    # 带自定义名称（铁砧改名）的物品
-    block-custom-name: true
-    # 带自定义 Lore 的物品
-    block-custom-lore: true
-    # 带自定义模型数据（CustomModelData）的物品
-    block-custom-model-data: true
-    # 带任意 PDC/NBT 数据的物品（插件自定义物品几乎都有）
-    block-persistent-data: true
-    # 额外按材质拉黑，写 Bukkit Material 名
+    mode: blacklist
+    # ---- blacklist 模式规则：命中任一即拦截 ----
+    # 按材质拉黑，写 Bukkit Material 名
     materials:
       - BEDROCK
       - BARRIER
@@ -175,6 +171,26 @@ mail:
       - COMMAND_BLOCK_MINECART
       - DEBUG_STICK
       - KNOWLEDGE_BOOK
+    # 按 PDC key 拉黑（命名空间:key，支持 plugin:* 通配）
+    blocked-persistent-keys: []
+    # 物品名 / Lore / PDC key 包含任一关键字即拦截（不区分大小写）；留空 [] 表示不按关键字拦截
+    blocked-keywords:
+      - soulbound
+      - bound_id
+      - rentplus
+      - rent_id
+      - 租赁
+      - 绑定
+      - 专属
+    # ---- whitelist 模式选项（blacklist 模式下忽略） ----
+    # 带自定义名称（铁砧改名）的物品
+    block-custom-name: true
+    # 带自定义 Lore 的物品
+    block-custom-lore: true
+    # 带自定义模型数据（CustomModelData）的物品
+    block-custom-model-data: true
+    # 带任意 PDC/NBT 数据的物品（插件自定义物品几乎都有）
+    block-persistent-data: true
     # 例外：允许邮寄的 PDC key（命名空间:key，支持 plugin:* 通配）
     allow-persistent-keys: []
 

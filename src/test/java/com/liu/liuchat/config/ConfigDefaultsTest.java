@@ -101,6 +101,12 @@ class ConfigDefaultsTest {
             assertEquals(3, defaults.getInt("mail.max-attachments"));
             assertFalse(defaults.getBoolean("mail.allow-self"));
             assertTrue(defaults.getBoolean("mail.attachment-filter.enable"));
+            // 默认黑名单模式：关键字列表与代码内置默认保持一致，避免两处漂移
+            assertEquals("blacklist", defaults.getString("mail.attachment-filter.mode"));
+            assertEquals(com.liu.liuchat.service.MailAttachmentFilter.DEFAULT_BLOCKED_KEYWORDS,
+                    defaults.getStringList("mail.attachment-filter.blocked-keywords"));
+            assertTrue(defaults.getStringList("mail.attachment-filter.blocked-persistent-keys").isEmpty());
+            // whitelist 模式的旧选项保留，切回 mode: whitelist 即可恢复旧行为
             assertTrue(defaults.getBoolean("mail.attachment-filter.block-custom-name"));
             assertTrue(defaults.getBoolean("mail.attachment-filter.block-custom-lore"));
             assertTrue(defaults.getBoolean("mail.attachment-filter.block-custom-model-data"));

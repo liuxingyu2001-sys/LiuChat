@@ -784,7 +784,7 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
         player.showDialog(dialog);
     }
 
-    /** 写邮件弹窗里提示主手物品是否可邮寄（黑名单材质/自定义物品直接说明原因）。 */
+    /** 写邮件弹窗里提示主手物品是否可邮寄（命中黑名单/关键字的物品直接说明原因）。 */
     private Component attachHint(Player player) {
         ItemStack hand = player.getInventory().getItemInMainHand();
         if (hand.getType().isAir()) {
@@ -807,8 +807,8 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             case CUSTOM_NAME -> "（带自定义名称）";
             case CUSTOM_LORE -> "（带自定义 Lore）";
             case CUSTOM_MODEL_DATA -> "（带自定义模型数据）";
-            case PERSISTENT_DATA -> "（带插件 PDC/NBT 数据）";
-            case KEYWORD -> "（绑定/租赁物品）";
+            case PERSISTENT_DATA -> "（带被禁用的 PDC 数据）";
+            case KEYWORD -> "（绑定/租赁/专属物品）";
         };
     }
 

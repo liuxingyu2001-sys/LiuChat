@@ -356,11 +356,22 @@ public final class ConfigManager {
     public boolean mailNotifyOnJoin() { return config.getBoolean("mail.notify-on-join", true); }
     public boolean mailAllowSelf() { return config.getBoolean("mail.allow-self", false); }
 
-    /** 附件过滤总开关：关闭后不再检查自定义物品/黑名单材质。 */
+    /** 附件过滤总开关：关闭后不再检查任何附件规则。 */
     public boolean mailAttachmentFilterEnabled() {
         return config.getBoolean("mail.attachment-filter.enable", true);
     }
 
+    /**
+     * 附件过滤模式：{@code blacklist}（默认，只拦截 materials / blocked-persistent-keys /
+     * blocked-keywords 命中项）或 {@code whitelist}（旧行为，只放行普通物品）。
+     * 写错的值按 blacklist 处理，避免配置笔误把过滤整体关掉。
+     */
+    public String mailAttachmentFilterMode() {
+        String mode = config.getString("mail.attachment-filter.mode", "blacklist");
+        return "whitelist".equalsIgnoreCase(mode == null ? "" : mode.strip()) ? "whitelist" : "blacklist";
+    }
+
+    /** 以下四项只在 whitelist 模式下生效。 */
     public boolean mailBlockCustomName() {
         return config.getBoolean("mail.attachment-filter.block-custom-name", true);
     }
@@ -387,13 +398,38 @@ public final class ConfigManager {
         return result;
     }
 
-    /** 允许邮寄的 PDC key（小写）；支持 {@code plugin:*} 通配。 */
+    /** 允许邮寄的 PDC key（小写）；支持 {@code plugin:*} 通配。仅 whitelist 模式使用。 */
     public java.util.Set<String> mailAllowedPersistentKeys() {
         java.util.Set<String> result = new java.util.HashSet<>();
         for (String raw : config.getStringList("mail.attachment-filter.allow-persistent-keys")) {
             if (raw == null) continue;
             String key = raw.strip().toLowerCase(java.util.Locale.ROOT);
             if (!key.isEmpty()) result.add(key);
+        }
+        return result;
+    }
+
+    /** blacklist 模式额外拉黑的 PDC key（小写）；支持 {@code plugin:*} 通配。 */
+    public java.util.Set<String> mailBlockedPersistentKeys() {
+        java.util.Set<String> result = new java.util.HashSet<>();
+        for (String raw : config.getStringList("mail.attachment-filter.blocked-persistent-keys")) {
+            if (raw == null) continue;
+            String key = raw.strip().toLowerCase(java.util.Locale.ROOT);
+            if (!key.isEmpty()) result.add(key);
+        }
+        return result;
+    }
+
+    /**
+     * blacklist 模式关键字（小写）：物品名 / Lore / PDC key 包含任一关键字即拦截。
+     * 默认值来自内置 {@code config.yml} 的合并结果；显式写成空列表表示不按关键字拦截。
+     */
+    public java.util.List<String> mailBlockedKeywords() {
+        java.util.List<String> result = new java.util.ArrayList<>();
+        for (String raw : config.getStringList("mail.attachment-filter.blocked-keywords")) {
+            if (raw == null) continue;
+            String keyword = raw.strip().toLowerCase(java.util.Locale.ROOT);
+            if (!keyword.isEmpty()) result.add(keyword);
         }
         return result;
     }

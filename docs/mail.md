@@ -45,14 +45,26 @@ mail:
   send-cooldown-seconds: 5
   notify-on-join: true
   allow-self: false
-  # 附件黑名单：默认禁止邮寄自定义物品
+  # 附件过滤：默认黑名单模式，只拦截命中黑名单的物品
   attachment-filter:
     enable: true
+    mode: blacklist                # blacklist（默认）/ whitelist（旧行为，只放行普通物品）
+    # ---- blacklist 模式规则：命中任一即拦截 ----
+    materials: [BEDROCK, BARRIER, COMMAND_BLOCK]
+    blocked-persistent-keys: []    # 按 PDC key 拉黑，支持 [rentplus:*] 通配
+    blocked-keywords:              # 物品名 / Lore / PDC key 包含即拦截（不区分大小写）
+      - soulbound
+      - bound_id
+      - rentplus
+      - rent_id
+      - 租赁
+      - 绑定
+      - 专属
+    # ---- whitelist 模式选项（blacklist 模式下忽略） ----
     block-custom-name: true        # 铁砧改过名的物品
     block-custom-lore: true        # 带自定义 Lore 的物品
     block-custom-model-data: true  # 带 CustomModelData 的物品
     block-persistent-data: true    # 带任意 PDC/NBT 数据的插件物品
-    materials: [BEDROCK, BARRIER, COMMAND_BLOCK]
     allow-persistent-keys: []      # 白名单，如 [mythicmobs:*]
 ```
 
@@ -66,23 +78,24 @@ mail:
 - 领取成功后邮件标记 `claimed`，不能重复领取；若容量检查后背包又被占用，剩余物品会掉落在玩家脚下而不是吞掉。
 - 附件在详情界面中展示为实际物品图标，但点击界面不会取走；必须点击“领取附件”才会放入背包。
 
-### 附件黑名单
+### 附件过滤
 
-默认**不允许邮寄自定义物品**，防止管理员物品、活动道具、带插件数据的物品通过邮件跨服转移。判定顺序：
+默认 **blacklist（黑名单）模式**：只拦截命中黑名单的物品，普通物品（包括铁砧改名、带 Lore、
+带插件 PDC 数据的物品）都可以正常邮寄。判定顺序：
 
 | 命中项 | 说明 |
 |---|---|
 | 黑名单材质 | `attachment-filter.materials` 里列的 `Material` |
-| 自定义名称 | 用铁砧改过名的物品（`hasDisplayName()`） |
-| 自定义 Lore | 带任意 Lore 行的物品 |
-| CustomModelData | 带 `CustomModelData` 的资源包物品 |
-| PDC/NBT 数据 | 任意插件写入的持久化数据（`PersistentDataContainer` 非空） |
-| 绑定/租赁关键字 | PDC key、物品名或 Lore 里出现 `soulbound`、`bound_id`、`rentplus`、`rent_id`、`租赁`、`绑定`、`专属` |
+| 黑名单 PDC key | `blocked-persistent-keys` 命中的 key（支持 `plugin:*` 通配） |
+| 绑定/租赁/专属关键字 | 物品名、Lore 或 PDC key 包含 `blocked-keywords` 里的任一关键字 |
 
-- 关键字规则是内置兜底（不依赖插件命名空间），用于灵魂绑定、租赁、专属类物品；关键字列表在
-  `MailAttachmentFilter.DEFAULT_BLOCKED_KEYWORDS`，命中后提示 `mail.attach-blocked-keyword`。
-- 唯一的例外是 PDC：把所有 key 加入 `allow-persistent-keys` 即可放行，支持命名空间通配（`liuchat:*`）。
-  只有物品上**所有** key 都被允许时才视为普通物品。
+- 关键字默认是 `soulbound`、`bound_id`、`rentplus`、`rent_id`、`租赁`、`绑定`、`专属`，
+  覆盖灵魂绑定/租赁/专属类插件物品，不依赖插件命名空间；命中后提示 `mail.attach-blocked-keyword`。
+  内置默认值与 `MailAttachmentFilter.DEFAULT_BLOCKED_KEYWORDS` 一致（有单元测试守住），
+  写成 `blocked-keywords: []` 可完全关闭关键字拦截。
+- 把 `mode` 改成 `whitelist` 可切回旧行为：任何带自定义名称/Lore/模型数据/PDC 的物品都拦截，
+  只有 PDC key 全部在 `allow-persistent-keys`（支持 `liuchat:*` 通配）时才视为普通物品。
+  `block-custom-*`、`block-persistent-data`、`allow-persistent-keys` 仅在该模式下生效。
 - GUI 在写邮件弹窗顶部就显示主手物品能否邮寄及原因，发送前还有一次检查；命中后不会扣除物品。
 - 走 API 发送时返回 `MailResult.ATTACHMENT_BLOCKED`，与界面提示一致，无法绕过界面邮寄。
 - 关闭 `attachment-filter.enable` 即恢复“任意物品都能邮寄”的旧行为。
