@@ -85,8 +85,9 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
         return CompletableFuture.supplyAsync(() -> {
             List<FriendRow> rows = database.loadFriends(player.toString());
             if (rows == null) return List.<Friend>of();
+            Map<String, Long> lastSeen = loadLastSeen(rows);
             // 在线优先，其次按名字排序：好友多时在线的人不会被翻到后面几页。
-            return rows.stream().map(this::mapFriend)
+            return rows.stream().map(row -> mapFriend(row, lastSeen))
                     .sorted(Comparator.comparing(Friend::online).reversed()
                             .thenComparing(Friend::name, String.CASE_INSENSITIVE_ORDER))
                     .toList();
@@ -96,6 +97,17 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
         });
     }
 
+    /** 一次批量查询取回所有好友的最近上线时间；失败只影响“最近在线”显示，不影响好友列表。 */
+    private Map<String, Long> loadLastSeen(List<FriendRow> rows) {
+        if (rows.isEmpty() || !database.isReady()) return Map.of();
+        try {
+            return database.loadLastSeen(rows.stream().map(FriendRow::uuid).toList());
+        } catch (RuntimeException error) {
+            log("读取好友最近上线时间失败", error);
+            return Map.of();
+        }
+    }
+
     @Override
     public CompletableFuture<Optional<Friend>> friend(UUID player, UUID other) {
         if (player == null || other == null) return CompletableFuture.completedFuture(Optional.empty());
@@ -103,10 +115,10 @@ public final class FriendService implements FriendApi, Listener, AutoCloseable {
                 .filter(friend -> friend.uuid().equals(other)).findFirst());
     }
 
-    private Friend mapFriend(FriendRow row) {
+    private Friend mapFriend(FriendRow row, Map<String, Long> lastSeen) {
         UUID uuid = UUID.fromString(row.uuid());
         String name = directory.nameOf(uuid, row.name());
-        return new Friend(uuid, name, row.since(), isOnline(name));
+        return new Friend(uuid, name, row.since(), isOnline(name), lastSeen.getOrDefault(row.uuid(), 0L));
     }
 
     @Override

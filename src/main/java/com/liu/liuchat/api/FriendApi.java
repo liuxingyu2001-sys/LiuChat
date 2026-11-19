@@ -20,7 +20,11 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface FriendApi {
 
-    /** 好友列表（含当前在线状态）。 */
+    /**
+     * 好友列表（含当前在线状态与最近上线时间）。
+     * <p>{@link Friend#lastSeen()} 为最近一次登录/退出时间（epoch 毫秒，0 = 无记录），
+     * 供界面展示离线好友的“最近在线”；在线好友该值是本次登录时间。</p>
+     */
     CompletableFuture<List<Friend>> friends(UUID player);
 
     CompletableFuture<Optional<Friend>> friend(UUID player, UUID other);

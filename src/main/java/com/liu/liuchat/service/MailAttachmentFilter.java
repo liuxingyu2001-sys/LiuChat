@@ -14,22 +14,18 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 邮件附件过滤：默认黑名单模式 —— 只拦截命中黑名单的物品，普通物品（含改名、Lore、
+ * 邮件附件过滤：只保留黑名单模式 —— 只拦截命中黑名单的物品，普通物品（含改名、Lore、
  * 插件 PDC 数据）都可以正常邮寄。
  *
- * <p>两种模式由 {@code mail.attachment-filter.mode} 控制：</p>
+ * <p>配置 {@code mail.attachment-filter} 下只有三组黑名单规则：</p>
  * <ul>
- *   <li>{@code blacklist}（默认）：{@code materials}、{@code blocked-persistent-keys}、
- *       {@code blocked-keywords} 命中才拦截；其余放行。</li>
- *   <li>{@code whitelist}（旧行为）：任何带自定义名称/Lore/CustomModelData/PDC 的物品都拦截，
- *       PDC key 只有全部命中 {@code allow-persistent-keys}（支持 {@code plugin:*} 通配）时放行。</li>
+ *   <li>{@code materials}：按材质拦截；</li>
+ *   <li>{@code blocked-persistent-keys}：按 PDC key 拦截（支持 {@code plugin:*} 通配）；</li>
+ *   <li>{@code blocked-keywords}：物品名 / Lore / PDC key 命中绑定、租赁等关键字即拦截。</li>
  * </ul>
  *
- * <p>判定顺序 —— blacklist：材质 → 关键字 → 被拉黑的 PDC key；whitelist：材质 → 关键字 →
- * 自定义名称 → 自定义 Lore → CustomModelData → 任意 PDC 数据。</p>
- *
- * <p>规则同时用于 GUI（发送前提示具体原因）和 {@code MailService}
- * （API 调用方得到 {@link com.liu.liuchat.api.MailResult#ATTACHMENT_BLOCKED}），
+ * <p>判定顺序：材质 → 关键字 → 被拉黑的 PDC key。规则同时用于 GUI（发送前提示具体原因）
+ * 和 {@code MailService}（API 调用方得到 {@link com.liu.liuchat.api.MailResult#ATTACHMENT_BLOCKED}），
  * 两道都拦，避免绕过界面直接调 API。{@code attachment-filter.enable: false} 时本类直接放行。</p>
  */
 public final class MailAttachmentFilter {
@@ -37,9 +33,6 @@ public final class MailAttachmentFilter {
     /** 拦截原因，对应 {@code mail.attach-blocked-<suffix>} 消息。 */
     public enum Reason {
         MATERIAL("material"),
-        CUSTOM_NAME("name"),
-        CUSTOM_LORE("lore"),
-        CUSTOM_MODEL_DATA("model-data"),
         PERSISTENT_DATA("pdc"),
         /** 物品名/Lore/PDC key 命中绑定、租赁等关键字。 */
         KEYWORD("keyword");
@@ -52,17 +45,6 @@ public final class MailAttachmentFilter {
 
         public String messageKey() {
             return "mail.attach-blocked-" + suffix;
-        }
-    }
-
-    /** 附件过滤模式；配置值无法识别时按默认的黑名单处理。 */
-    public enum Mode {
-        BLACKLIST,
-        WHITELIST;
-
-        static Mode parse(String raw) {
-            return "whitelist".equalsIgnoreCase(raw == null ? "" : raw.trim())
-                    ? WHITELIST : BLACKLIST;
         }
     }
 
@@ -81,34 +63,20 @@ public final class MailAttachmentFilter {
         if (item == null || item.getType().isAir() || config == null) return null;
         if (!config.mailAttachmentFilterEnabled()) return null;
         ItemMeta meta = item.getItemMeta();
-        boolean customName = false;
-        boolean customLore = false;
-        boolean customModelData = false;
         Set<String> pdcKeys = Set.of();
         List<String> texts = new ArrayList<>();
         if (meta != null) {
-            customName = meta.hasDisplayName();
-            List<Component> lore = meta.lore();
-            customLore = lore != null && !lore.isEmpty();
-            customModelData = meta.hasCustomModelData();
             pdcKeys = meta.getPersistentDataContainer().getKeys().stream()
                     .map(NamespacedKey::toString).collect(java.util.stream.Collectors.toSet());
-            if (customName) texts.add(plain(meta.displayName()));
-            if (customLore) lore.forEach(line -> texts.add(plain(line)));
+            if (meta.hasDisplayName()) texts.add(plain(meta.displayName()));
+            List<Component> lore = meta.lore();
+            if (lore != null) lore.forEach(line -> texts.add(plain(line)));
         }
         List<String> keywords = config.mailBlockedKeywords();
         boolean blockedKeyword = matchesBlockedKeyword(pdcKeys, keywords)
                 || matchesBlockedKeyword(texts, keywords);
-        boolean blockedMaterial = config.mailBlockedMaterials().contains(item.getType());
-        if (Mode.parse(config.mailAttachmentFilterMode()) == Mode.WHITELIST) {
-            return checkWhitelist(blockedMaterial,
-                    customName && config.mailBlockCustomName(),
-                    customLore && config.mailBlockCustomLore(),
-                    customModelData && config.mailBlockCustomModelData(),
-                    config.mailBlockPersistentData() ? pdcKeys : Set.of(),
-                    config.mailAllowedPersistentKeys(), blockedKeyword);
-        }
-        return checkBlacklist(blockedMaterial, pdcKeys, config.mailBlockedPersistentKeys(), blockedKeyword);
+        return checkBlacklist(config.mailBlockedMaterials().contains(item.getType()), pdcKeys,
+                config.mailBlockedPersistentKeys(), blockedKeyword);
     }
 
     private static String plain(Component component) {
@@ -136,7 +104,7 @@ public final class MailAttachmentFilter {
     }
 
     /**
-     * 黑名单模式纯判定（不依赖服务端）：材质 → 关键字 → 被拉黑的 PDC key，
+     * 黑名单纯判定（不依赖服务端）：材质 → 关键字 → 被拉黑的 PDC key，
      * 其余自定义名称/Lore/PDC 一律放行。
      */
     static Reason checkBlacklist(boolean blockedMaterial, Set<String> pdcKeys,
@@ -149,35 +117,12 @@ public final class MailAttachmentFilter {
         return null;
     }
 
-    /**
-     * 白名单模式纯判定（不依赖服务端）：任意自定义物品拦截，{@code pdcKeys} 里只要有一个
-     * key 不在允许列表中，就判定为自定义物品。
-     */
-    static Reason checkWhitelist(boolean blockedMaterial, boolean customName, boolean customLore,
-                                 boolean customModelData, Set<String> pdcKeys, Set<String> allowedKeys,
-                                 boolean blockedKeyword) {
-        if (blockedMaterial) return Reason.MATERIAL;
-        if (blockedKeyword) return Reason.KEYWORD;
-        if (customName) return Reason.CUSTOM_NAME;
-        if (customLore) return Reason.CUSTOM_LORE;
-        if (customModelData) return Reason.CUSTOM_MODEL_DATA;
-        for (String key : pdcKeys) {
-            if (!matchedKey(key, allowedKeys)) return Reason.PERSISTENT_DATA;
-        }
-        return null;
-    }
-
-    /** PDC key 是否命中允许列表；{@code myplugin:*} 放行该命名空间下所有 key。 */
-    public static boolean allowedKey(String key, Set<String> allowed) {
-        return matchedKey(key, allowed);
-    }
-
     /** PDC key 是否命中黑名单；{@code myplugin:*} 拦截该命名空间下所有 key。 */
     public static boolean blockedKey(String key, Set<String> blocked) {
         return matchedKey(key, blocked);
     }
 
-    /** key 与模式列表匹配：精确命中，或列表里的 {@code plugin:*} 通配整个命名空间。 */
+    /** key 与黑名单列表匹配：精确命中，或列表里的 {@code plugin:*} 通配整个命名空间。 */
     static boolean matchedKey(String key, Set<String> patterns) {
         if (key == null || patterns == null || patterns.isEmpty()) return false;
         String normalized = key.toLowerCase(Locale.ROOT);

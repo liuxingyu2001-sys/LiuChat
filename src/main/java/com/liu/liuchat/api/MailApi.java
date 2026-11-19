@@ -19,10 +19,9 @@ public interface MailApi {
     /**
      * 发送邮件。
      * <p>
-     * 附件受附件过滤限制（见 {@code mail.attachment-filter}）：默认黑名单模式只拦截
+     * 附件受附件过滤限制（见 {@code mail.attachment-filter}）：只保留黑名单模式，只拦截
      * 黑名单材质、黑名单 PDC key、以及名称/Lore/PDC 命中绑定租赁关键字的物品；命中返回
-     * {@link MailResult#ATTACHMENT_BLOCKED}。{@code mode: whitelist} 可切回旧的
-     * “自定义名称/Lore/CustomModelData/PDC 一律拦截”行为。
+     * {@link MailResult#ATTACHMENT_BLOCKED}。普通改名、带 Lore 或带 PDC 的物品可以正常邮寄。
      */
     CompletableFuture<MailResult> send(MailDraft draft);
 

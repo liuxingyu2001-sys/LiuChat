@@ -497,6 +497,44 @@ abstract class AbstractJdbcDatabase implements Database {
         });
     }
 
+    /**
+     * 批量读取最近上线时间：好友列表一次查询取回全部好友的 last_seen，
+     * 避免逐个 UUID 触发一次数据库往返。每批最多 500 个占位符（SQLite/MySQL 都安全）。
+     */
+    @Override
+    public java.util.Map<String, Long> loadLastSeen(java.util.Collection<String> uuids) {
+        if (!ready || uuids == null || uuids.isEmpty()) return java.util.Map.of();
+        List<String> ids = uuids.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) return java.util.Map.of();
+        return executor.read(() -> {
+            java.util.Map<String, Long> seen = new java.util.HashMap<>();
+            if (!ready) return seen;
+            for (int from = 0; from < ids.size(); from += 500) {
+                List<String> chunk = ids.subList(from, Math.min(ids.size(), from + 500));
+                String placeholders = String.join(",",
+                        java.util.Collections.nCopies(chunk.size(), "?"));
+                try (PreparedStatement ps = connection.prepareStatement(
+                        "SELECT uuid, last_seen FROM player_identity WHERE uuid IN (" + placeholders + ")")) {
+                    for (int i = 0; i < chunk.size(); i++) {
+                        ps.setString(i + 1, chunk.get(i));
+                    }
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            seen.put(rs.getString(1), rs.getLong(2));
+                        }
+                    }
+                } catch (Exception e) {
+                    fail("批量读取最近上线时间失败", e);
+                    return seen;
+                }
+            }
+            return seen;
+        });
+    }
+
     // ---------------- 好友 ----------------
 
     @Override

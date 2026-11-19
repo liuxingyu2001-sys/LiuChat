@@ -101,18 +101,18 @@ class ConfigDefaultsTest {
             assertEquals(3, defaults.getInt("mail.max-attachments"));
             assertFalse(defaults.getBoolean("mail.allow-self"));
             assertTrue(defaults.getBoolean("mail.attachment-filter.enable"));
-            // 默认黑名单模式：关键字列表与代码内置默认保持一致，避免两处漂移
-            assertEquals("blacklist", defaults.getString("mail.attachment-filter.mode"));
+            // 附件过滤只保留黑名单：关键字列表与代码内置默认保持一致，避免两处漂移
             assertEquals(com.liu.liuchat.service.MailAttachmentFilter.DEFAULT_BLOCKED_KEYWORDS,
                     defaults.getStringList("mail.attachment-filter.blocked-keywords"));
             assertTrue(defaults.getStringList("mail.attachment-filter.blocked-persistent-keys").isEmpty());
-            // whitelist 模式的旧选项保留，切回 mode: whitelist 即可恢复旧行为
-            assertTrue(defaults.getBoolean("mail.attachment-filter.block-custom-name"));
-            assertTrue(defaults.getBoolean("mail.attachment-filter.block-custom-lore"));
-            assertTrue(defaults.getBoolean("mail.attachment-filter.block-custom-model-data"));
-            assertTrue(defaults.getBoolean("mail.attachment-filter.block-persistent-data"));
             assertTrue(defaults.getStringList("mail.attachment-filter.materials").contains("BEDROCK"));
-            assertTrue(defaults.getStringList("mail.attachment-filter.allow-persistent-keys").isEmpty());
+            // whitelist 模式的旧配置键已移除，避免误导
+            assertFalse(defaults.contains("mail.attachment-filter.mode"));
+            assertFalse(defaults.contains("mail.attachment-filter.block-custom-name"));
+            assertFalse(defaults.contains("mail.attachment-filter.block-custom-lore"));
+            assertFalse(defaults.contains("mail.attachment-filter.block-custom-model-data"));
+            assertFalse(defaults.contains("mail.attachment-filter.block-persistent-data"));
+            assertFalse(defaults.contains("mail.attachment-filter.allow-persistent-keys"));
         }
         try (var input = getClass().getResourceAsStream("/messages.yml")) {
             var messages = YamlConfiguration.loadConfiguration(
@@ -121,7 +121,29 @@ class ConfigDefaultsTest {
             assertTrue(messages.contains("mail.usage"));
             assertTrue(messages.contains("help.friend.desc"));
             assertTrue(messages.contains("help.mail.desc"));
+            // 每条黑名单拦截原因都必须有语言项
+            for (com.liu.liuchat.service.MailAttachmentFilter.Reason reason
+                    : com.liu.liuchat.service.MailAttachmentFilter.Reason.values()) {
+                assertTrue(messages.contains(reason.messageKey()), "缺少语言项: " + reason.messageKey());
+            }
+            assertFalse(messages.contains("mail.attach-blocked-name"));
+            assertFalse(messages.contains("mail.attach-blocked-lore"));
+            assertFalse(messages.contains("mail.attach-blocked-model-data"));
         }
+    }
+
+    @Test void removesLegacyMailFilterWhitelistKeys() {
+        YamlConfiguration local = new YamlConfiguration();
+        local.set("mail.attachment-filter.enable", false);
+        local.set("mail.attachment-filter.mode", "whitelist");
+        local.set("mail.attachment-filter.block-custom-name", true);
+        local.set("mail.attachment-filter.allow-persistent-keys", List.of("mythicmobs:*"));
+        assertTrue(ConfigDefaults.merge(local, new YamlConfiguration(), "config.yml"));
+        assertFalse(local.getBoolean("mail.attachment-filter.enable"), "用户值不应被覆盖");
+        assertFalse(local.contains("mail.attachment-filter.mode"));
+        assertFalse(local.contains("mail.attachment-filter.block-custom-name"));
+        assertFalse(local.contains("mail.attachment-filter.allow-persistent-keys"));
+        assertFalse(ConfigDefaults.merge(local, new YamlConfiguration(), "config.yml"));
     }
 
     @Test void socialMessagesNeverAskPlayersToTypeCommands() throws Exception {

@@ -63,6 +63,15 @@ public interface Database extends AutoCloseable {
         return null;
     }
 
+    /**
+     * 批量读取玩家最近一次登录/退出时间（epoch 毫秒），用于好友列表展示离线好友的“最近在线”。
+     *
+     * <p>键为 UUID 字符串；未记录过的玩家不会出现在结果里。默认实现返回空表，旧实现无需改动。</p>
+     */
+    default java.util.Map<String, Long> loadLastSeen(java.util.Collection<String> uuids) {
+        return java.util.Map.of();
+    }
+
     // ---------------- 好友 ----------------
 
     default List<FriendRow> loadFriends(String uuid) {

@@ -1,5 +1,6 @@
 package com.liu.liuchat.service;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -52,7 +53,13 @@ class AiSkillServiceTest {
         Files.writeString(skill.resolve("SKILL.md"), "valid");
         Files.writeString(skill.resolve("large.txt"), "x".repeat(30000));
         Path outside = Files.writeString(root.resolve("outside.md"), "outside secret");
-        Files.createSymbolicLink(skill.resolve("linked.md"), outside);
+        try {
+            Files.createSymbolicLink(skill.resolve("linked.md"), outside);
+        } catch (java.nio.file.FileSystemException | UnsupportedOperationException error) {
+            // Windows 普通用户默认没有创建符号链接的特权；缺该能力的环境跳过本用例，
+            // CI（Ubuntu）仍会真正创建链接并校验“跳过符号链接”的行为。
+            Assumptions.abort("当前文件系统不允许创建符号链接，跳过: " + error.getMessage());
+        }
         AiSkillService service = new AiSkillService(root);
         service.reload();
         assertTrue(service.content("test").contains("valid"));

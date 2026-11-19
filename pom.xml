@@ -4,7 +4,7 @@
 
   <groupId>com.liuxingyu</groupId>
   <artifactId>LiuChat</artifactId>
-  <version>0.9.4</version>
+  <version>0.9.6</version>
   <packaging>jar</packaging>
 
   <name>LiuChat</name>
@@ -12,7 +12,9 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>21</maven.compiler.release>
+    <!-- 目标字节码版本：用自定义属性名固定，避免本机 ~/.m2/settings.xml 的全局
+         maven.compiler.release profile（例如 JDK 25）覆盖项目要求，导致 shade 无法读取高版本字节码 -->
+    <liuchat.java.release>21</liuchat.java.release>
     <spigot.version>1.21.11-R0.1-SNAPSHOT</spigot.version>
     <placeholderapi.version>2.11.6</placeholderapi.version>
     <sqlite.version>3.47.0.0</sqlite.version>
@@ -177,7 +179,7 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
         <configuration>
-          <release>${maven.compiler.release}</release>
+          <release>${liuchat.java.release}</release>
           <encoding>${project.build.sourceEncoding}</encoding>
         </configuration>
       </plugin>

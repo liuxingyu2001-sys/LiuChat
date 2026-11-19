@@ -133,13 +133,15 @@ public final class SocialMenuService implements Listener, SocialMenu {
             for (int i = from; i < to; i++) {
                 Friend friend = all.get(i);
                 int slot = i - from;
-                inventory.setItem(slot, head(friend.name(), friend.uuid(), "&e" + friend.name(),
-                        List.of(friend.online() ? "&a在线" : "&7离线",
-                                "&7成为好友: &f" + TIME.format(Instant.ofEpochMilli(friend.since())
-                                        .atZone(ZoneId.systemDefault())),
-                                friend.online() ? "&a左键直接传送" : "&7好友离线，无法传送",
-                                "&a右键写邮件",
-                                "&cShift+左键删除好友")));
+                List<String> lore = new ArrayList<>();
+                lore.add(friend.online() ? "&a在线" : "&7离线");
+                if (!friend.online()) lore.add(SocialMenu.lastSeenLine(messages, friend));
+                lore.add("&7成为好友: &f" + TIME.format(Instant.ofEpochMilli(friend.since())
+                        .atZone(ZoneId.systemDefault())));
+                lore.add(friend.online() ? "&a左键直接传送" : "&7好友离线，无法传送");
+                lore.add("&a右键写邮件");
+                lore.add("&cShift+左键删除好友");
+                inventory.setItem(slot, head(friend.name(), friend.uuid(), "&e" + friend.name(), lore));
                 holder.actions.put(slot, new MenuAction(
                         p -> teleport(p, friend),
                         p -> openCompose(p, friend.name())));

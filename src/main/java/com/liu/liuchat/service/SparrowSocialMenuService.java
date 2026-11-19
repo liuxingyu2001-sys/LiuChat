@@ -126,6 +126,7 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
             int slot = i - from;
             List<String> friendLore = new ArrayList<>();
             friendLore.add(friend.online() ? "&a在线" : "&7离线");
+            if (!friend.online()) friendLore.add(SocialMenu.lastSeenLine(messages, friend));
             friendLore.add("&7成为好友: &f" + TIME.format(Instant.ofEpochMilli(friend.since())
                     .atZone(ZoneId.systemDefault())));
             friendLore.add(friend.online() ? "&a左键直接传送" : "&7好友离线，无法传送");
@@ -804,9 +805,6 @@ public final class SparrowSocialMenuService implements Listener, SocialMenu {
     private static String blockedText(MailAttachmentFilter.Reason reason) {
         return switch (reason) {
             case MATERIAL -> "（黑名单物品）";
-            case CUSTOM_NAME -> "（带自定义名称）";
-            case CUSTOM_LORE -> "（带自定义 Lore）";
-            case CUSTOM_MODEL_DATA -> "（带自定义模型数据）";
             case PERSISTENT_DATA -> "（带被禁用的 PDC 数据）";
             case KEYWORD -> "（绑定/租赁/专属物品）";
         };

@@ -54,6 +54,7 @@ if (friends != null && friends.isEnabled()) {
 ```
 
 `FriendApi` 提供好友列表、请求查询、发送/接受/拒绝/撤回/删除、关系查询、在线状态与好友传送（同服直接落地；安装并开启 HuskHomes 跨服时由 HuskHomes 完成跨服传送）。
+`Friend` 包含 `uuid()`、`name()`、`since()`（成为好友时间）、`online()`（含跨服在线状态）与 `lastSeen()`（最近登录/退出时间，epoch 毫秒，0 = 无记录）。
 方法返回 `CompletableFuture`，数据库与通知在专用线程执行；事件统一回主线程触发。
 详见 [好友系统](friends.md)。
 
@@ -64,7 +65,7 @@ MailApi mail = Bukkit.getServicesManager().load(MailApi.class);
 if (mail != null && mail.isEnabled()) {
     mail.send(new MailDraft(senderId, senderName, recipientId, recipientName,
             "主题", "正文", List.of(item))).thenAccept(result -> { /* MailResult */ });
-// 附件默认黑名单模式：命中黑名单材质、PDC key 或绑定/租赁关键字的物品
+// 附件固定黑名单模式：命中黑名单材质、PDC key 或绑定/租赁关键字的物品
 // 会返回 MailResult.ATTACHMENT_BLOCKED（规则见 docs/mail.md 的“附件过滤”）。
 }
 ```

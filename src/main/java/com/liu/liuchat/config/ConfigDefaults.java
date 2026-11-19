@@ -72,6 +72,7 @@ public final class ConfigDefaults {
         if ("config.yml".equals(name)) {
             changed |= migrateHornTemplates(local, defaults);
             changed |= migrateChatFilter(local);
+            changed |= removeLegacyMailFilter(local);
         }
         if ("messages.yml".equals(name)) {
             changed |= replaceExact(local, "ai.answer-text", OLD_ANSWER_TEXT, "&7${answer}");
@@ -133,6 +134,27 @@ public final class ConfigDefaults {
         }
         config.set(to, config.get(from));
         return true;
+    }
+
+    /** 早期邮件附件过滤支持 whitelist 模式，现已只保留黑名单：清掉旧键避免误导。 */
+    private static final String[] LEGACY_MAIL_FILTER_KEYS = {
+            "mail.attachment-filter.mode",
+            "mail.attachment-filter.block-custom-name",
+            "mail.attachment-filter.block-custom-lore",
+            "mail.attachment-filter.block-custom-model-data",
+            "mail.attachment-filter.block-persistent-data",
+            "mail.attachment-filter.allow-persistent-keys"
+    };
+
+    private static boolean removeLegacyMailFilter(YamlConfiguration config) {
+        boolean changed = false;
+        for (String key : LEGACY_MAIL_FILTER_KEYS) {
+            if (config.contains(key, true)) {
+                config.set(key, null);
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     /** 只把“恰好还是旧默认值”的项换成新默认值，用户自定义过的颜色不动。 */

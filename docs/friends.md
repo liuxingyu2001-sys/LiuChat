@@ -14,6 +14,8 @@
 权限：`liuchat.friend`（默认所有玩家可用）。命令只负责打开界面，列表/按钮使用 Sparrow UI 箱子窗口，添加好友优先用在线玩家选择器，离线/跨服玩家用铁砧输入：
 
 - **主界面直接展示好友**：头像、在线状态、成为好友时间；不需要先点“好友列表”。
+- **最近在线**：离线好友头像上会显示“最近在线”时间（读取共享的 `player_identity.last_seen`，
+  每次登录/退出都会更新；MySQL 模式下跨子服共享）。没有记录时显示“未知”。在线好友只显示“在线”。
 - **好友头像**：左键直接传送到好友身边（不需要对方同意），右键写邮件，Shift+右键删除好友（弹出确认）。
 - **好友传送**：界面里左键好友，或习惯指令时用 `/friend tp <好友名>`（`/好友 tp <好友名>` 同样可用），效果完全一致。同服直接落地；好友在其它子服时，若服务器装了 HuskHomes 且开启跨服模式，会交给 HuskHomes 完成跨服传送（玩家先被送到对方所在子服，再落地到好友身边）。没装 HuskHomes 或未开跨服时提示“在其他服务器”。好友离线会提示。权限 `liuchat.friend.teleport`（默认所有玩家可用），可在配置中关闭或设置冷却。
 - **HuskHomes 接入**：软依赖，无需编译期安装；只通过官方 `HuskHomesAPI` 反射调用，等价于 HuskHomes 自身的 `/tp <玩家>`，因此会沿用它的传送预热、取消规则与跨服网络。HuskHomes 需开启 `cross_server.enabled` 并配好代理（Redis 或插件消息）。
@@ -64,7 +66,8 @@ friends.request(senderId, sender.getName(), targetId, targetName)
 
 friends.friends(playerId).thenAccept(list -> {
     for (Friend friend : list) {
-        // friend.uuid() / name() / since() / online()
+        // friend.uuid() / name() / since() / online() / lastSeen()
+        // lastSeen = 最近一次登录/退出时间（epoch 毫秒，0 = 无记录；在线好友为本次登录时间）
     }
 });
 ```
@@ -108,4 +111,4 @@ friends.friends(playerId).thenAccept(list -> {
 
 - `friend_link`：双向关系（按 UUID 字典序存 low/high，避免重复两行）
 - `friend_request`：sender → target 单向请求
-- `player_identity`：名字 → UUID 目录，供离线按名字操作
+- `player_identity`：名字 → UUID 目录，供离线按名字操作；`last_seen` 同时用于好友列表的“最近在线”与上线提醒去重

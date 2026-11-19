@@ -70,6 +70,23 @@ class SocialSqliteTest {
     }
 
     @Test
+    void loadsLastSeenForFriendsInBulk(@TempDir Path dir) {
+        SqliteDatabase db = open(dir);
+        try {
+            db.saveIdentity(new PlayerIdentity("u-a", "Alice", 10_000L));
+            db.saveIdentity(new PlayerIdentity("u-b", "Bob", 20_000L));
+            db.saveIdentity(new PlayerIdentity("u-c", "Carol", 30_000L));
+            // 一次查询取回所有好友的最近上线时间；未记录/重复的 UUID 忽略
+            assertEquals(java.util.Map.of("u-a", 10_000L, "u-c", 30_000L),
+                    db.loadLastSeen(List.of("u-a", "u-c", "missing", "u-a")));
+            assertTrue(db.loadLastSeen(List.of()).isEmpty());
+            assertTrue(db.loadLastSeen(null).isEmpty());
+        } finally {
+            db.close();
+        }
+    }
+
+    @Test
     void reopensExistingDatabaseWithoutSchemaErrors(@TempDir Path dir) {
         SqliteDatabase first = open(dir);
         first.saveIdentity(new PlayerIdentity("u-1", "Alice", 1));

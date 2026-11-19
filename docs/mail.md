@@ -45,11 +45,10 @@ mail:
   send-cooldown-seconds: 5
   notify-on-join: true
   allow-self: false
-  # 附件过滤：默认黑名单模式，只拦截命中黑名单的物品
+  # 附件过滤：只保留黑名单模式，命中任一黑名单规则才拦截
   attachment-filter:
     enable: true
-    mode: blacklist                # blacklist（默认）/ whitelist（旧行为，只放行普通物品）
-    # ---- blacklist 模式规则：命中任一即拦截 ----
+    # ---- 黑名单规则：命中任一即拦截 ----
     materials: [BEDROCK, BARRIER, COMMAND_BLOCK]
     blocked-persistent-keys: []    # 按 PDC key 拉黑，支持 [rentplus:*] 通配
     blocked-keywords:              # 物品名 / Lore / PDC key 包含即拦截（不区分大小写）
@@ -60,12 +59,6 @@ mail:
       - 租赁
       - 绑定
       - 专属
-    # ---- whitelist 模式选项（blacklist 模式下忽略） ----
-    block-custom-name: true        # 铁砧改过名的物品
-    block-custom-lore: true        # 带自定义 Lore 的物品
-    block-custom-model-data: true  # 带 CustomModelData 的物品
-    block-persistent-data: true    # 带任意 PDC/NBT 数据的插件物品
-    allow-persistent-keys: []      # 白名单，如 [mythicmobs:*]
 ```
 
 修改后 `/liuc reload` 生效。服务每小时清理过期邮件；过期邮件不会出现在列表/详情中。
@@ -80,7 +73,7 @@ mail:
 
 ### 附件过滤
 
-默认 **blacklist（黑名单）模式**：只拦截命中黑名单的物品，普通物品（包括铁砧改名、带 Lore、
+只保留 **黑名单模式**：只拦截命中黑名单的物品，普通物品（包括铁砧改名、带 Lore、
 带插件 PDC 数据的物品）都可以正常邮寄。判定顺序：
 
 | 命中项 | 说明 |
@@ -93,9 +86,8 @@ mail:
   覆盖灵魂绑定/租赁/专属类插件物品，不依赖插件命名空间；命中后提示 `mail.attach-blocked-keyword`。
   内置默认值与 `MailAttachmentFilter.DEFAULT_BLOCKED_KEYWORDS` 一致（有单元测试守住），
   写成 `blocked-keywords: []` 可完全关闭关键字拦截。
-- 把 `mode` 改成 `whitelist` 可切回旧行为：任何带自定义名称/Lore/模型数据/PDC 的物品都拦截，
-  只有 PDC key 全部在 `allow-persistent-keys`（支持 `liuchat:*` 通配）时才视为普通物品。
-  `block-custom-*`、`block-persistent-data`、`allow-persistent-keys` 仅在该模式下生效。
+- 旧版 `mode: whitelist` 与 `block-custom-*`、`block-persistent-data`、`allow-persistent-keys`
+  已移除；升级后这些键会被自动清理，附件过滤固定按上面的黑名单规则执行。
 - GUI 在写邮件弹窗顶部就显示主手物品能否邮寄及原因，发送前还有一次检查；命中后不会扣除物品。
 - 走 API 发送时返回 `MailResult.ATTACHMENT_BLOCKED`，与界面提示一致，无法绕过界面邮寄。
 - 关闭 `attachment-filter.enable` 即恢复“任意物品都能邮寄”的旧行为。
